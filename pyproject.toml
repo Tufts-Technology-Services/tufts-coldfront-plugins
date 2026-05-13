@@ -1,0 +1,57 @@
+[project]
+name = "tufts-coldfront-plugins"
+version = "0.1.0"
+description = "Plugins for Tufts ColdFront system."
+authors = [
+	{ name = "Chris Barnett" }
+]
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+license-files = ["LICENSE"]
+keywords = ["high-performance-computing", "resource-allocation"]
+classifiers = [
+    'Programming Language :: Python :: 3',
+    'Framework :: Django :: 6.0',
+    'Topic :: Scientific/Engineering',
+    'Topic :: System :: Systems Administration',
+    'Topic :: Internet :: WWW/HTTP :: WSGI :: Application',
+]
+dependencies = [
+    "coldfront==1.1.7"
+]
+
+[dependency-groups]
+dev = [
+    "pytest-django>=4.11.1",
+    "reuse>=5.0.2",
+    "ruff>=0.11.4",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["storage"]
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[[tool.uv.index]]
+name = "testpypi"
+url = "https://test.pypi.org/simple/"
+publish-url = "https://test.pypi.org/legacy/"
+explicit = true
+
+[tool.ruff]
+line-length = 120
+indent-width = 4
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I", "S308"]
+
+[tool.ruff.format]
+indent-style = "space"
+docstring-code-format = true
