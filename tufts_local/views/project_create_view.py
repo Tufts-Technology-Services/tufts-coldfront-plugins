@@ -1,4 +1,5 @@
 from django.views.generic import CreateView
+from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from coldfront.core.project.models import (Project,
                                             ProjectUser,
                                             ProjectUserRoleChoice,
@@ -7,7 +8,6 @@ from coldfront.core.project.models import (Project,
                                             ProjectAttributeType,
                                             ProjectStatusChoice)
 from coldfront.core.project.signals import project_new
-from coldfront_utils import LoginRequiredMixin, UserPassesTestMixin
 
 from tufts_local.forms import AdminProjectCreationForm, RequiredProjectAttributeForm
 
