@@ -14,7 +14,7 @@ from tufts_local.forms import AdminProjectCreationForm, RequiredProjectAttribute
 
 class AdminProjectCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateView):
     model = Project
-    template_name_suffix = "_create_form"
+    template_name = "tufts_local/project_create_form.html"
     form_class = AdminProjectCreationForm
 
     def test_func(self):
