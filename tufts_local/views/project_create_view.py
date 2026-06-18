@@ -51,6 +51,7 @@ class AdminProjectCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateView
         project_obj = parent_form.save(commit=False)
         parent_form.instance.status = ProjectStatusChoice.objects.get(name="New")
         parent_form.instance.title = child_form.cleaned_data['project_key'].lower()
+        parent_form.instance.pi = child_form.cleaned_data['owner']
         project_obj.save()
         self.object = project_obj
         

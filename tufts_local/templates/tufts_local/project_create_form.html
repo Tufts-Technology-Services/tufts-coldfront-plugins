@@ -11,8 +11,8 @@ Create Project
 {% block content %}
  <form method="post">
   {% csrf_token %}
-  {{ form|crispy }}
   {{ required_project_attribute_form|crispy }}
+  {{ form|crispy }}
   <input class="btn btn-primary" type="submit" value="Save" />
   <a class="btn btn-secondary" href="{% url 'project-list' %}" role="button">Cancel</a>
 </form>

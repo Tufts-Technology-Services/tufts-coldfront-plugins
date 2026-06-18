@@ -6,26 +6,25 @@ from tufts_local.utils import create_user, entry_exists
 class AdminProjectCreationForm(forms.ModelForm):
     class Meta:
         model = Project
-        fields = ["pi", "description"]
-    
-    def clean(self):
-        cleaned_data = super().clean()
-        pi = cleaned_data.get("pi")
-        if not pi:
-            raise forms.ValidationError("Owner is required.")
-        try:
-            _ = create_user(pi)  # import user from AD and create if not exists
-        except Exception as e:
-            raise forms.ValidationError(f"{str(e)}")
-        return cleaned_data
+        fields = ["description"]
 
 
 class RequiredProjectAttributeForm(forms.Form):
+    owner = forms.CharField(max_length=10, required=True, disabled=False)
     project_key = forms.SlugField(max_length=50, required=True, disabled=False)
     group = forms.SlugField(max_length=50, required=True, disabled=False)
 
     def clean(self):
         cleaned_data = super().clean()
+        owner = cleaned_data.get("owner")
+        if not owner:
+            raise forms.ValidationError("Owner is required.")
+        try:            
+            owner_user = create_user(owner)  # import user from AD and create if not exists
+            cleaned_data["owner"] = owner_user
+        except Exception as e:
+            raise forms.ValidationError(f"{str(e)}")
+        
         project_key = cleaned_data.get("project_key").lower()
         if ProjectAttribute.objects.filter(value__iexact=project_key, proj_attr_type__name='Project Key').exists():
             raise forms.ValidationError(f"A project with the key '{project_key}' already exists.")
