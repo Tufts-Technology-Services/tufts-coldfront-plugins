@@ -169,4 +169,4 @@ def entry_exists(entry_name):
         raise ValueError("No entry name provided")
     search_obj = TuftsADSearch(entry_name, "all_object_names")
     result = search_obj.search_a_user(user_search_string=entry_name, search_by="all_object_names")
-    return len(result) == 0
+    return len(result) > 0
