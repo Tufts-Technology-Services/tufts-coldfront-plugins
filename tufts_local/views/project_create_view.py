@@ -56,7 +56,7 @@ class AdminProjectCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateView
         project_obj.save()
         self.object = project_obj
         
-        ProjectUser.objects.create(
+        project_user = ProjectUser.objects.create(
             user=project_obj.pi,
             project=project_obj,
             role=ProjectUserRoleChoice.objects.get(name="Manager"),
@@ -82,7 +82,7 @@ class AdminProjectCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateView
         )
         # project signals
         project_new.send(sender=self.__class__, project_pk=project_obj.id, request_user=self.request.user.username)
-        project_activate_user.send(sender=self.__class__, project_user_pk=project_obj.pi.id, request_user=self.request.user.username)
+        project_activate_user.send(sender=self.__class__, project_user_pk=project_user.id, request_user=self.request.user.username)
 
         return super().form_valid(parent_form)
 
