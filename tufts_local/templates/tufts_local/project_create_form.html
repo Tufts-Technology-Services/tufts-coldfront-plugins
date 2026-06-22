@@ -36,7 +36,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 .then(response => response.json())
                 .then(data => {
                     utlnList.innerHTML = '';  // Clear previous suggestions
-                    data.forEach(result => {
+                    data['suggestions'].forEach(result => {
                         const option = document.createElement('option');
                         option.value = result['username'];  // Set the value to the UTLN
                         utlnList.appendChild(option);
