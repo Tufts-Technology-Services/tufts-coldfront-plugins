@@ -170,3 +170,9 @@ def entry_exists(entry_name):
     search_obj = TuftsADSearch(entry_name, "all_object_names")
     result = search_obj.search_a_user(user_search_string=entry_name, search_by="all_object_names")
     return len(result) > 0
+
+
+def user_autocomplete(search_string):
+    search_obj = TuftsADSearch(search_string, "autocomplete")
+    result = search_obj.search_a_user(user_search_string=search_string, search_by="autocomplete")
+    return result

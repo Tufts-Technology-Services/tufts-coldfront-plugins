@@ -13,8 +13,40 @@ Create Project
   {% csrf_token %}
   {{ required_project_attribute_form|crispy }}
   {{ form|crispy }}
+  <datalist id="utln-list"></datalist>
   <input class="btn btn-primary" type="submit" value="Save" />
   <a class="btn btn-secondary" href="{% url 'project-list' %}" role="button">Cancel</a>
 </form>
 
+{% endblock %}
+
+{% block javascript %}
+{{ block.super }}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const ownerInput = document.querySelector('input[name="owner"]');
+    ownerInput.setAttribute('list', 'utln-list');  // Link the input to the datalist
+    const utlnList = document.getElementById('utln-list');
+
+    ownerInput.addEventListener('input', function() {
+        const query = this.value;
+        const endpoint = "{% url 'utln-autocomplete' %}";
+        if (query.length >= 3) {  // Start searching after 2 characters
+            fetch(`${endpoint}?query=${query}`)
+                .then(response => response.json())
+                .then(data => {
+                    utlnList.innerHTML = '';  // Clear previous suggestions
+                    data.forEach(result => {
+                        const option = document.createElement('option');
+                        option.value = result['username'];  // Set the value to the UTLN
+                        utlnList.appendChild(option);
+                    });
+                })
+                .catch(error => {
+                    console.error('Error fetching UTLN suggestions:', error);
+                });
+        }
+    });
+});
+</script>
 {% endblock %}

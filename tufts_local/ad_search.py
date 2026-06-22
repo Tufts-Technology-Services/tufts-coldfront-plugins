@@ -9,8 +9,7 @@ logger = logging.getLogger(__name__)
 
 class TuftsADSearch(LDAPUserSearch):
     
-    def search_a_user(self, user_search_string=None, search_by="all_fields"):
-        size_limit = 50
+    def search_a_user(self, user_search_string=None, search_by="all_fields", size_limit=None):
         ldap_attrs = list(self.ATTRIBUTE_MAP.values())
         attrs = get_config_parameter("ATTRIBUTES_EXCLUDED_FROM_CHECK")
         attrs.extend(ldap_attrs)
@@ -20,10 +19,17 @@ class TuftsADSearch(LDAPUserSearch):
                 f"(&(|({ldap_attrs[0]}=*%s*)({ldap_attrs[1]}=*%s*)({ldap_attrs[2]}=*%s*)({ldap_attrs[3]}=*%s*))(objectclass=person))",
                 [user_search_string] * 4,
             )
+            size_limit = size_limit or 50
         elif user_search_string and search_by == "username_only":
             attr = self.USERNAME_ONLY_ATTR
             filter = ldap.filter.filter_format(f"(&({self.ATTRIBUTE_MAP[attr]}=%s)(objectclass=person))", [user_search_string])
             size_limit = 1
+        elif user_search_string and search_by == "autocomplete":
+            filter = ldap.filter.filter_format(
+                f"(&(|({ldap_attrs[0]}=*%s*)({ldap_attrs[1]}=*%s*)({ldap_attrs[2]}=*%s*)({ldap_attrs[3]}=*%s*))(objectclass=person))",
+                [user_search_string] * 4,
+            )
+            size_limit = size_limit or 15
         elif user_search_string and search_by == "group_only":
             attr = self.USERNAME_ONLY_ATTR
             filter = ldap.filter.filter_format(f"(&({self.ATTRIBUTE_MAP[attr]}=%s)(objectclass=group))", [user_search_string])
@@ -34,9 +40,10 @@ class TuftsADSearch(LDAPUserSearch):
             size_limit = 1
         elif user_search_string and search_by in self.ATTRIBUTE_MAP.keys():
             filter = ldap.filter.filter_format(f"(&({self.ATTRIBUTE_MAP[search_by]}=%s)(objectclass=person))", [user_search_string])
-            size_limit = 1
+            size_limit = size_limit or 5
         else:
             filter = "(objectclass=person)"
+            size_limit = size_limit or 50
 
         searchParameters = {
             "search_base": self.LDAP_USER_SEARCH_BASE,

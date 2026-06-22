@@ -19,4 +19,9 @@ urlpatterns = [
         views.AdminProjectCreateView.as_view(),
         name='admin-project-create',
     ),
+    path(
+        'utln-autocomplete/',
+        views.utln_autocomplete,
+        name='utln-autocomplete',
+    ),
 ]

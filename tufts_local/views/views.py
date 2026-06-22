@@ -2,6 +2,7 @@ from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
 from coldfront.core.project.models import ProjectUser, ProjectUserRoleChoice
+from tufts_local import utils
 
 
 @login_required
@@ -69,4 +70,16 @@ def project_get_email_notification(request, project_user_id):
             return JsonResponse({"enable_notifications": True}, status=200)
     else:
         return JsonResponse({"message": f"unsupported method {request.method}"}, status=400)
-    
+
+
+@login_required
+def utln_autocomplete(request):
+    if request.user.is_superuser is False:
+        return JsonResponse({"message": "not allowed"}, status=403)
+    if request.method == "GET":
+        query = request.GET.get("query", "")
+        # Placeholder for actual autocomplete logic, e.g., querying an external service
+        suggestions = utils.user_autocomplete(query)  # Replace with actual suggestions based on the query
+        return JsonResponse({"suggestions": suggestions}, status=200)
+    else:
+        return JsonResponse({"message": f"unsupported method {request.method}"}, status=400)
