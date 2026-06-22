@@ -39,6 +39,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     data['suggestions'].forEach(result => {
                         const option = document.createElement('option');
                         option.value = result['username'];  // Set the value to the UTLN
+                        option.textContent = `${result['username']} - ${result['name']}`;  // Display UTLN and full name
                         utlnList.appendChild(option);
                     });
                 })
