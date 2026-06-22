@@ -4,8 +4,8 @@ from tufts_local.utils import create_user, entry_exists
 
 
 class AdminProjectCreationForm(forms.ModelForm):
-    description = forms.CharField(widget=forms.Textarea(initial=None, required=True, 
-                                                        help_text="Provide a brief description of the project. This will be visible to all users. Must be 10 characters or longer."))
+    description = forms.CharField(initial=None, required=True,
+                                  widget=forms.Textarea(help_text="Provide a brief description of the project. This will be visible to all users. Must be 10 characters or longer."))
     class Meta:
         model = Project
         fields = ["description"]
