@@ -7,7 +7,8 @@ from coldfront.core.project.models import (Project,
                                             ProjectAttribute,
                                             ProjectAttributeType,
                                             ProjectStatusChoice)
-from coldfront.core.project.signals import project_new
+from coldfront.core.project.signals import project_new, project_activate_user
+
 
 from tufts_local.forms import AdminProjectCreationForm, RequiredProjectAttributeForm
 
@@ -81,6 +82,7 @@ class AdminProjectCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateView
         )
         # project signals
         project_new.send(sender=self.__class__, project_pk=project_obj.id, request_user=self.request.user.username)
+        project_activate_user.send(sender=self.__class__, project_user_pk=project_obj.pi.id, request_user=self.request.user.username)
 
         return super().form_valid(parent_form)
 
