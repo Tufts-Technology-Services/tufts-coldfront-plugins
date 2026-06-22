@@ -49,7 +49,7 @@ class AdminProjectCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateView
         """Save database records when validation succeeds."""
         # Save the parent instance first
         project_obj = parent_form.save(commit=False)
-        parent_form.instance.status = ProjectStatusChoice.objects.get(name="New")
+        parent_form.instance.status = ProjectStatusChoice.objects.get(name="Active")
         parent_form.instance.title = child_form.cleaned_data['project_key'].lower()
         parent_form.instance.pi = child_form.cleaned_data['owner']
         project_obj.save()
@@ -72,6 +72,12 @@ class AdminProjectCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateView
             project=project_obj,
             proj_attr_type=ProjectAttributeType.objects.get(name='Group'),
             value=child_form.cleaned_data['group']
+        )
+
+        ProjectAttribute.objects.create(
+            project=project_obj,
+            proj_attr_type=ProjectAttributeType.objects.get(name='users_managed'),
+            value='Yes'
         )
         # project signals
         project_new.send(sender=self.__class__, project_pk=project_obj.id, request_user=self.request.user.username)
