@@ -72,7 +72,7 @@ class AdminProjectCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateView
         ProjectAttribute.objects.create(
             project=project_obj,
             proj_attr_type=ProjectAttributeType.objects.get(name='Group'),
-            value=child_form.cleaned_data['group']
+            value=child_form.cleaned_data['project_key']  # Using project_key as the group name
         )
 
         ProjectAttribute.objects.create(
