@@ -62,3 +62,35 @@ class TuftsADSearch(LDAPUserSearch):
             users.append(user_dict)
         logger.info("LDAP user search for %s found %s results", user_search_string, len(users))
         return users
+    
+    def __get_ad_object(self, object_name, filt, ldap_attrs):
+        attrs = get_config_parameter("ATTRIBUTES_EXCLUDED_FROM_CHECK")
+        attrs.extend(ldap_attrs)
+        set_config_parameter("ATTRIBUTES_EXCLUDED_FROM_CHECK", attrs)
+        searchParameters = {
+            "search_base": self.LDAP_USER_SEARCH_BASE,
+            "search_filter": filt,
+            "attributes": ldap_attrs,
+            "size_limit": 1,
+        }
+        logger.debug(f"Object search params: {searchParameters}")
+        self.conn.search(**searchParameters)
+        if self.conn.entries:
+            entry_dict = json.loads(self.conn.entries[0].entry_to_json()).get("attributes")
+            logger.debug(f"Object entry dict: {entry_dict}")
+            return entry_dict
+        else:
+            logger.info("No AD object found for %s", object_name)
+            return None
+    
+    def get_ad_user(self, username):
+        """Search for a user in AD by their username."""
+        ldap_attrs = ['objectSid', 'uidNumber', 'gidNumber'] + list(self.ATTRIBUTE_MAP.values())
+        filt = ldap.filter.filter_format(f"(&({ldap_attrs[0]}=%s)(objectclass=person))", [username])
+        return self.__get_ad_object(username, filt, ldap_attrs)
+
+    def get_ad_group(self, group_name):
+        """Search for a group in AD by its name."""
+        ldap_attrs = ['sAMAccountName', 'objectSid', 'gidNumber']
+        filt = ldap.filter.filter_format(f"(&({ldap_attrs[0]}=%s)(objectclass=group))", [group_name])
+        return self.__get_ad_object(group_name, filt, ldap_attrs)
