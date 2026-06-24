@@ -85,7 +85,7 @@ class TuftsADSearch(LDAPUserSearch):
     
     def get_ad_user(self, username):
         """Search for a user in AD by their username."""
-        ldap_attrs = ['objectSid', 'uidNumber', 'gidNumber'] + list(self.ATTRIBUTE_MAP.values())
+        ldap_attrs = list(self.ATTRIBUTE_MAP.values()) + ['objectSid', 'uidNumber', 'gidNumber']
         filt = ldap.filter.filter_format(f"(&({ldap_attrs[0]}=%s)(objectclass=person))", [username])
         return self.__get_ad_object(username, filt, ldap_attrs)
 
