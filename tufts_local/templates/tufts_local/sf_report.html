@@ -31,7 +31,7 @@ Starfish Report
         <tbody>
           {% for allocation in missing_starfish_attribute %}
           <tr>
-            <td>{{allocation.get_allocation_attribute_value("sf_vol_path")}}</td>
+            <td>{{allocation.get_attribute("sf_vol_path")}}</td>
             <td>{{allocation.project.title}}</td>
             <td>{{allocation.get_parent_resource}}</td>
             {%  if allocation.status.name == "Expired" and allocation.expires_in < 0 %}
