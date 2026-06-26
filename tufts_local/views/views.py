@@ -101,7 +101,7 @@ def sf_report(request):
         sf_data.extend(get_starfish_usage_data_by_volume(volume, "starfish"))
     sf_data = set([i['vol_path'].lower().strip() for i in sf_data])
     storage = Resource.objects.filter(resource_type__name='Storage')
-    storage_allocations = Allocation.objects.filter(resource__in=storage)
+    storage_allocations = Allocation.objects.filter(resources__in=storage)
     missing_sf_attribute = []
     not_in_starfish = []
     for alloc in storage_allocations:
