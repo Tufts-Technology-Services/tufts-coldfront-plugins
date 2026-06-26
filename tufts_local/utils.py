@@ -11,7 +11,7 @@ from coldfront.core.allocation.models import Allocation, AllocationAttribute, Al
 from coldfront.core.resource.models import Resource
 from django.contrib.auth.models import User
 
-from tufts_local.ad_search import TuftsADSearch
+from coldfront_utils.utils.ad_search import ADSearch
 
 
 logger = logging.getLogger(__name__)
@@ -59,6 +59,25 @@ def create_tufts_project(project_key, owner, group=None):
     if group:
         ProjectAttribute.objects.get_or_create(proj_attr_type=ProjectAttributeType.objects.get(name='Group'), value=group, project=proj)
     ProjectAttribute.objects.get_or_create(proj_attr_type=ProjectAttributeType.objects.get(name='Project Key'), value=project_key, project=proj)
+    return proj
+
+
+def update_project_owner(project_key, new_owner):
+    proj = get_project_by_key(project_key)
+    if not proj:
+        raise Exception(f"No project found with key: {project_key}")
+    new_pi = User.objects.filter(username=new_owner)
+    if new_pi.exists():
+        new_pi = new_pi.first()
+    else:
+        new_pi = create_user(new_owner)
+        
+    proj.pi = new_pi
+    proj.save()
+    # Update ProjectUser for the new PI
+    project_user, _ = ProjectUser.objects.get_or_create(user=new_pi, project=proj, 
+                                                        defaults={'status': ProjectUserStatusChoice.objects.get(name='Active'), 
+                                                                  'role': ProjectUserRoleChoice.objects.get(name='Manager')})
     return proj
 
 
@@ -144,7 +163,7 @@ def create_user(username):
     if not username:
         logger.warning("No username provided")
         raise ValueError("No username provided")
-    user_search_obj = TuftsADSearch(username, "username_only")
+    user_search_obj = ADSearch(username, "username_only")
     result = user_search_obj.search_a_user(user_search_string=username, search_by="username_only")
     if len(result) == 0:
         logger.warning(f"No user found for {username}")
@@ -167,12 +186,20 @@ def entry_exists(entry_name):
     if not entry_name:
         logger.error("No entry name provided")
         raise ValueError("No entry name provided")
-    search_obj = TuftsADSearch(entry_name, "all_object_names")
+    search_obj = ADSearch(entry_name, "all_object_names")
     result = search_obj.search_a_user(user_search_string=entry_name, search_by="all_object_names")
     return len(result) > 0
 
 
 def user_autocomplete(search_string):
-    search_obj = TuftsADSearch(search_string, "autocomplete")
+    search_obj = ADSearch(search_string, "autocomplete")
     result = search_obj.search_a_user(user_search_string=search_string, search_by="autocomplete")
     return result
+
+def get_sf_volumes_in_coldfront():
+    """
+    Returns a list of all Starfish volumes that are in Coldfront.
+    """
+    sf_vol_path = AllocationAttributeType.objects.get(name='sf_vol_path')
+    volpaths = AllocationAttribute.objects.filter(allocation_attribute_type=sf_vol_path).values_list('value', flat=True)
+    return list(set([i.split(':')[0] for i in list(volpaths)]))

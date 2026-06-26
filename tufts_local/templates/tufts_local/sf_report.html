@@ -1,0 +1,142 @@
+{% extends "common/base.html" %}
+{% load crispy_forms_tags %}
+{% load static %}
+
+
+{% block title %}
+Starfish Report
+{% endblock %}
+
+
+{% block content %}
+<h2>Storage Allocations vs. Starfish Top-level Directories Report</h2>
+
+<div class="row">
+
+  <div class="col-lg-6 mt-2">
+    <h2>Storage Allocations with No Starfish Attribute</h2>
+    <hr>
+
+    {% if missing_starfish_attribute %}
+      <table class="table">
+        <thead>
+          <tr>
+            <th scope="col">Project</th>
+            <th scope="col">Resource</th>
+            <th scope="col">Status</th>
+
+          </tr>
+        </thead>
+        <tbody>
+          {% for allocation in missing_starfish_attribute %}
+          <tr>
+            <td>{{allocation.project.title}}</td>
+            <td>{{allocation.get_parent_resource}}</td>
+            {%  if allocation.status.name == "Expired" and allocation.expires_in < 0 %}
+            <td><a href="{% url 'allocation-detail' allocation.id %}" class="btn btn-danger btn-block">Expired</a></td>
+            {%  elif allocation.status.name == "Renewal Requested" %}
+            <td><a href="{% url 'allocation-detail' allocation.id %}" class="btn btn-danger btn-block">Renewal
+                Requested</a></td>
+            {%  elif allocation.expires_in >= 0 and  allocation.expires_in <= 30 %}
+            <td><a href="{% url 'allocation-detail' allocation.id %}" class="btn btn-danger btn-block">Expires in <span
+                  class="badge badge-light">{{allocation.expires_in}}</span> day{{allocation.expires_in|pluralize }}</a>
+            </td>
+            {% elif allocation.expires_in > 30 and allocation.expires_in <= 90 %}
+            <td><a href="{% url 'allocation-detail' allocation.id %}" class="btn btn-warning btn-block">Expires in <span
+                  class="badge badge-light">{{allocation.expires_in}}</span> day{{allocation.expires_in|pluralize }}</a>
+            </td>
+            {% elif allocation.status.name == "Pending" %}
+            <td><a href="{% url 'allocation-detail' allocation.id %}"
+                class="btn btn-info btn-block">{{allocation.status}}</a></td>
+            {% elif allocation.status.name == "Active" %}
+              <td><a href="{% url 'allocation-detail' allocation.id %}"
+                class="btn btn-success btn-block">{{allocation.status}}</a></td>
+            {% else %}
+            <td><a href="{% url 'allocation-detail' allocation.id %}"
+                class="btn btn-info btn-block">{{allocation.status}}</a></td>
+            {% endif %}
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <div class="alert alert-info" role="alert">
+        <i class="fa fa-info-circle" aria-hidden="true"></i> There are no allocations to display.
+      </div>
+    {% endif %}
+  </div>
+
+ <div class="col-lg-6 mt-2">
+    <h2>Storage Allocations with No Match in Starfish</h2>
+    <p>These are allocations that have a Starfish volume path attribute, but the volume path does not exist in Starfish. Could have been deleted.</p>
+    <hr>
+
+    {% if not_in_starfish %}
+      <table class="table">
+        <thead>
+          <tr>
+            <th scope="col">Project</th>
+            <th scope="col">Resource</th>
+            <th scope="col">Status</th>
+
+          </tr>
+        </thead>
+        <tbody>
+          {% for allocation in not_in_starfish %}
+          <tr>
+            <td>{{allocation.project.title}}</td>
+            <td>{{allocation.get_parent_resource}}</td>
+            {%  if allocation.status.name == "Expired" and allocation.expires_in < 0 %}
+            <td><a href="{% url 'allocation-detail' allocation.id %}" class="btn btn-danger btn-block">Expired</a></td>
+            {%  elif allocation.status.name == "Renewal Requested" %}
+            <td><a href="{% url 'allocation-detail' allocation.id %}" class="btn btn-danger btn-block">Renewal
+                Requested</a></td>
+            {%  elif allocation.expires_in >= 0 and  allocation.expires_in <= 30 %}
+            <td><a href="{% url 'allocation-detail' allocation.id %}" class="btn btn-danger btn-block">Expires in <span
+                  class="badge badge-light">{{allocation.expires_in}}</span> day{{allocation.expires_in|pluralize }}</a>
+            </td>
+            {% elif allocation.expires_in > 30 and allocation.expires_in <= 90 %}
+            <td><a href="{% url 'allocation-detail' allocation.id %}" class="btn btn-warning btn-block">Expires in <span
+                  class="badge badge-light">{{allocation.expires_in}}</span> day{{allocation.expires_in|pluralize }}</a>
+            </td>
+            {% elif allocation.status.name == "Pending" %}
+            <td><a href="{% url 'allocation-detail' allocation.id %}"
+                class="btn btn-info btn-block">{{allocation.status}}</a></td>
+            {% elif allocation.status.name == "Active" %}
+              <td><a href="{% url 'allocation-detail' allocation.id %}"
+                class="btn btn-success btn-block">{{allocation.status}}</a></td>
+            {% else %}
+            <td><a href="{% url 'allocation-detail' allocation.id %}"
+                class="btn btn-info btn-block">{{allocation.status}}</a></td>
+            {% endif %}
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <div class="alert alert-info" role="alert">
+        <i class="fa fa-info-circle" aria-hidden="true"></i> There are no allocations to display.
+      </div>
+    {% endif %}
+  </div>
+
+
+    <div class="col-lg-6 mt-2">
+    <h2>Storage found in Starfish with no Allocation in Coldfront</h2>
+    <hr>
+
+    {% if missing_from_coldfront %}
+      <ul class="list-group">
+        {% for vol_path in missing_from_coldfront %}
+          <li class="list-group-item">
+            {{ vol_path }}
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <div class="alert alert-info" role="alert"><i class="fa fa-info-circle" aria-hidden="true"></i> There are no vol_paths to display.</div>
+    {% endif %}
+  </div>
+  <!-- end row div -->
+</div>
+{% endblock %}

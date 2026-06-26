@@ -24,4 +24,9 @@ urlpatterns = [
         views.utln_autocomplete,
         name='utln-autocomplete',
     ),
+    path(
+        'sf-report/',
+        views.sf_report,
+        name='sf-report',
+    ),
 ]
