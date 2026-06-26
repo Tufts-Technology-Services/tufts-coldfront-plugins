@@ -2,6 +2,8 @@ from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
 from django.template.response import TemplateResponse
 from django.shortcuts import get_object_or_404
+from django.views.decorators.cache import cache_page
+
 from coldfront.core.project.models import ProjectUser, ProjectUserRoleChoice
 from coldfront.core.allocation.models import Allocation, AllocationAttribute
 from coldfront.core.resource.models import Resource
@@ -90,6 +92,7 @@ def utln_autocomplete(request):
 
 
 @login_required
+@cache_page(60 * 5)  # Cache the view for 5 minutes
 def sf_report(request):
     if request.user.is_superuser is False:
         return TemplateResponse("tufts_local/sf_report.html", {"message": "not allowed"}, status=403)
