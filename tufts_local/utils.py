@@ -11,7 +11,7 @@ from coldfront.core.allocation.models import Allocation, AllocationAttribute, Al
 from coldfront.core.resource.models import Resource
 from django.contrib.auth.models import User
 
-from coldfront_utils.utils.ad_search import ADSearch
+from coldfront_utils.util.ad_search import ADSearch
 
 
 logger = logging.getLogger(__name__)
