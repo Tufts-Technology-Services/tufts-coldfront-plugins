@@ -22,8 +22,8 @@ Starfish Report
         <thead>
           <tr>
             <th scope="col">sf_vol_path</th>
+            <th scope="col">Resource Allocation</th>
             <th scope="col">Project</th>
-            <th scope="col">Resource</th>
             <th scope="col">Status</th>
 
           </tr>
@@ -38,31 +38,25 @@ Starfish Report
                     {% endif %}
                 {% endfor %}
             </td>
+          <tr>
+            <td>
+              <a href="{% url 'allocation-detail' allocation.id %}" class="text-nowrap">{{allocation.get_parent_resource}}</a>
+              {% if allocation.get_parent_resource.get_ondemand_status == 'Yes' and ondemand_url %}
+              <a href = "{{ondemand_url}}" target="_blank"> {% load static %}  <img src="/static/core/portal/imgs/ondemand.png" alt="ondemand cta" width="25" height="25"></a>
+              {% endif %}
+              {% with allocation.get_information as allocation_information %}
+              {% if allocation_information != '' %}
+                <br>{{allocation_information}}
+              {% else %}
+                <br>{{allocation.description|default_if_none:""}}
+              {% endif %}
+              {% endwith %}
+            </td>
+            
             <td>{{allocation.project.title}}</td>
-            <td>{{allocation.get_parent_resource}}</td>
-            {%  if allocation.status.name == "Expired" and allocation.expires_in < 0 %}
-            <td><a href="{% url 'allocation-detail' allocation.id %}" class="btn btn-danger btn-block">Expired</a></td>
-            {%  elif allocation.status.name == "Renewal Requested" %}
-            <td><a href="{% url 'allocation-detail' allocation.id %}" class="btn btn-danger btn-block">Renewal
-                Requested</a></td>
-            {%  elif allocation.expires_in >= 0 and  allocation.expires_in <= 30 %}
-            <td><a href="{% url 'allocation-detail' allocation.id %}" class="btn btn-danger btn-block">Expires in <span
-                  class="badge badge-light">{{allocation.expires_in}}</span> day{{allocation.expires_in|pluralize }}</a>
+            <td> 
+              {% include "allocation/detail/allocation_status.html" %}
             </td>
-            {% elif allocation.expires_in > 30 and allocation.expires_in <= 90 %}
-            <td><a href="{% url 'allocation-detail' allocation.id %}" class="btn btn-warning btn-block">Expires in <span
-                  class="badge badge-light">{{allocation.expires_in}}</span> day{{allocation.expires_in|pluralize }}</a>
-            </td>
-            {% elif allocation.status.name == "Pending" %}
-            <td><a href="{% url 'allocation-detail' allocation.id %}"
-                class="btn btn-info btn-block">{{allocation.status}}</a></td>
-            {% elif allocation.status.name == "Active" %}
-              <td><a href="{% url 'allocation-detail' allocation.id %}"
-                class="btn btn-success btn-block">{{allocation.status}}</a></td>
-            {% else %}
-            <td><a href="{% url 'allocation-detail' allocation.id %}"
-                class="btn btn-info btn-block">{{allocation.status}}</a></td>
-            {% endif %}
           </tr>
           {% endfor %}
         </tbody>
