@@ -1,5 +1,6 @@
+import csv
 from django.contrib.auth.decorators import login_required
-from django.http import JsonResponse
+from django.http import JsonResponse, HttpResponse
 from django.template.response import TemplateResponse
 from django.shortcuts import get_object_or_404
 from django.views.decorators.cache import cache_page
@@ -119,8 +120,55 @@ def sf_report(request):
         allocation_attribute_type__name="sf_vol_path").values_list('value', flat=True)))
     vol_path_allocation_attributes = {i.lower().strip() for i in vol_path_allocation_attributes}
     missing_from_coldfront = sf_data - vol_path_allocation_attributes
+    if request.GET.get("format") == "csv":
+        data = {
+            "header": ["sf_status", "sf_vol_path", "Resource Allocation", "Project", "Status"],
+            "rows": []
+        }
+        for allocation in missing_sf_attribute:
+            sf_vol_path = allocation.allocationattribute_set.filter(allocation_attribute_type__name="sf_vol_path").first()
+            sf_vol_path_value = sf_vol_path.value if sf_vol_path else ""
+            data["rows"].append([
+                "Missing sf_vol_path attribute",
+                sf_vol_path_value,
+                allocation.get_parent_resource.name,
+                allocation.project.title if allocation.project else "",
+                allocation.status.name
+            ])
+        for allocation in not_in_starfish:
+            sf_vol_path = allocation.allocationattribute_set.filter(allocation_attribute_type__name="sf_vol_path").first()
+            sf_vol_path_value = sf_vol_path.value if sf_vol_path else ""
+            data["rows"].append([
+                "sf_vol_path not in Starfish",
+                sf_vol_path_value,
+                allocation.get_parent_resource.name,
+                allocation.project.title if allocation.project else "",
+                allocation.status.name
+            ])
+        for vol_path in missing_from_coldfront:
+            data["rows"].append([
+                "In Starfish but not in Coldfront",
+                vol_path,
+                "",
+                "",
+                ""
+            ])
+        return get_csv(data, filename="starfish_diff_report.csv")
     return TemplateResponse(request, "tufts_local/sf_report.html", {"volumes": volumes,
                                                                     "missing_starfish_attribute": missing_sf_attribute,
                                                                     "not_in_starfish": not_in_starfish,
                                                                     "missing_from_coldfront": missing_from_coldfront 
                                                                     })
+
+def get_csv(data, filename="export.csv"):
+    response = HttpResponse(
+        content_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+    writer = csv.writer(response)
+    # Write CSV header
+    writer.writerow(data['header'])
+    # Write CSV data row
+    for row in data['rows']:
+        writer.writerow(row)
+    return response
