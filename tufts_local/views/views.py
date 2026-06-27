@@ -113,6 +113,7 @@ def sf_report(request):
         if not alloc_sf_attr.exists():
             missing_sf_attribute.append(alloc)
         elif alloc_sf_attr.first().value.lower().strip() not in sf_data:
+            # only consider active allocations for not_in_starfish, as there could be archived allocations that are not in Starfish anymore
             if alloc.status.name.lower() == "active":
                 not_in_starfish.append(alloc)
     

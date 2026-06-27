@@ -10,7 +10,12 @@ Starfish Report
 
 {% block content %}
 <h2>Storage Allocations vs. Starfish Top-level Directories Report</h2>
-
+<p>
+    This report shows the relationship between storage allocations in Coldfront and top-level directories in Starfish. 
+    It identifies allocations that are missing a Starfish volume path attribute (sf_vol_path), allocations that have a Starfish 
+    volume path attribute but do not exist in Starfish (likely deleted or archived), and top-level directories in Starfish that do not have a 
+    corresponding allocation in Coldfront. An Allocation may need to be created in Coldfront for these directories if they are still in use.
+</p>
 <div>
 
   <div class="col-lg-12 mt-2">
