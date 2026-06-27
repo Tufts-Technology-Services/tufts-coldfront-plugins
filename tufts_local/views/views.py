@@ -113,7 +113,8 @@ def sf_report(request):
         if not alloc_sf_attr.exists():
             missing_sf_attribute.append(alloc)
         elif alloc_sf_attr.first().value.lower().strip() not in sf_data:
-            not_in_starfish.append(alloc)
+            if alloc.status.name.lower() == "active":
+                not_in_starfish.append(alloc)
     
     vol_path_allocation_attributes = set(list(AllocationAttribute.objects.filter(
         allocation__in=storage_allocations, 
