@@ -16,6 +16,6 @@ def get_starfish_usage_data_by_volume(volume: str, client_key: str) -> list:
     sf = StarfishAPIClient(host=client_config['host'], token=client_config['api_key'])
     subfolder_response = sf.request_subfolder_query(volume)
     # we only need certain fields from the response, so we will extract those and store them in a list of dictionaries
-    #retained_fields = ['vol_path', 'logical_size', 'sync']
+    #retained_fields = ['vol_path', 'logical_size', 'sync', 'username', 'groupname', 'tags_explicit']
     #subfolder_response = [{field: i[field] for field in retained_fields} for i in subfolder_response]
     return subfolder_response

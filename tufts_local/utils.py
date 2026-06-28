@@ -95,7 +95,7 @@ def get_approvers_from_tags(sf_entry):
     return [i.split(':')[1] for i in tags] if tags else []
 
 
-def update_project_approvers_from_tags(subfolder_response):
+def update_project_approvers_from_subfolder_tags(subfolder_response):
     for s in subfolder_response:
         try:
             proj = get_project_by_key(s['fn'])
