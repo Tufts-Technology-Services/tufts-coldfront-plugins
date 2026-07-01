@@ -23,7 +23,7 @@ No Cost Quotas Report
       <ul class="list-group">
         {% for allocation_allot_info in allocations %}
           <li class="list-group-item">
-            {{ allocation_allot_info.allocation.project.pi.username }}: {{ allocation_allot_info.allocation.project.title }}: {{ allocation_allot_info.allocation.resources.first.description|default_if_none:"" }}: {{allocation_allot_info.allocation.get_information|default_if_none:allocation_allot_info.allocation.description|default_if_none:""}}
+            {{ allocation_allot_info.allocation.project.pi.username }}: {{ allocation_allot_info.allocation.project.title }}: {{ allocation_allot_info.allocation.resources.first.name|default_if_none:"" }}: {{allocation_allot_info.allocation.get_information|default_if_none:allocation_allot_info.allocation.description|default_if_none:""}}
             <ul>
               {% for allotment in allocation_allot_info.allotments %}
                 <li>{{ allotment.ncq_owner }}: {{ allotment.amount }}</li>
