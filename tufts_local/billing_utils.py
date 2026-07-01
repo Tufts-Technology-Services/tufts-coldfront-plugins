@@ -14,6 +14,7 @@ def no_cost_quotas_report(user=None):
     data = []
     errors = []
     requires_payment = Resource.objects.filter(requires_payment=True, resource_type__name='Storage')
+    shared_allotments = []
     if user:
         # only show allocations owned by the user (user is the PI of the project)
         allocations = Allocation.objects.filter(resources__in=requires_payment, status__name='Active', project__pi__username=user).order_by('project__pi__username', 'project__title').prefetch_related('allocationattribute_set')
@@ -45,7 +46,6 @@ def no_cost_quotas_report(user=None):
         data.append(info)
     if user:
         # also look for any NoCostQuotaAllotments that the user owns, but are not associated with an allocation that they own
-        shared_allotments =[]
         ncq_allotments = NoCostQuotaAllotment.objects.filter(no_cost_quota__user__username=user).exclude(allocation__project__pi__username=user)
         if ncq_allotments.exists():
             for allot in ncq_allotments:

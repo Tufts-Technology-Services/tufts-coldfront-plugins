@@ -37,6 +37,22 @@ No Cost Quotas Report
     {% endif %}
   </div>
 
+  {% if shared_allotments %}
+    <div class="col-lg-12 mt-2">
+      <h2>Shared No Cost Quotas</h2>
+      <hr>
+      <ul class="list-group">
+        {% for shared_allotment in shared_allotments %}
+          <li class="list-group-item">
+            {{ shared_allotment.allocation.project.pi.username }}: {{ shared_allotment.allocation.project.title }}: {{ shared_allotment.allocation.resources.first.name|default_if_none:"" }}: {{shared_allotment.allocation.get_information|default_if_none:shared_allotment.allocation.description|default_if_none:""}}
+            <ul>
+              <li>{{ shared_allotment.ncq_owner }}: {{ shared_allotment.amount }}</li>
+            </ul>
+          </li>
+        {% endfor %}
+      </ul>
+    </div>
+  {% endif %}
 
 
 {% endblock %}
