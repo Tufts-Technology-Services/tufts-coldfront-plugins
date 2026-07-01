@@ -44,7 +44,7 @@ def project_update_user_role(request):
                     project_user_obj.role = project_user_role
                     project_user_obj.save()
                     # update the Starfish tags for the project approvers
-                    r = async_task(update_sf_approver_tags, [project_user_obj.project.id])
+                    r = async_task(update_sf_approver_tags, project_user_obj.project.id)
                     return JsonResponse({"message": "role updated", "task_id": r}, status=200)
                 else:
                     return JsonResponse({"message": "invalid role specified"}, status=400)
