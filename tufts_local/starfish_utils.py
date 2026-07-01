@@ -99,7 +99,7 @@ def sync_approver_tags(client_key, vol_path, approvers: list):
     If the directory is not indexed, it will raise a ValueError
     """
     sf_data = get_starfish_data_by_vol_path(vol_path, client_key)  # raises ValueError if not found
-    existing_tags = parse_tags(sf_data.get('tags_explicit', ''))
+    existing_tags = parse_tags(sf_data.get('tags_explicit', '').split(','))
     existing_approvers = existing_tags.get('Approver', set())
     new_approvers = set(approvers)
     tags_to_add = {'Approver': new_approvers - existing_approvers}
@@ -123,7 +123,7 @@ def sync_tags(client_key, vol_path, tags: list):
     If the directory is not indexed, it will raise a ValueError
     """
     sf_data = get_starfish_data_by_vol_path(vol_path, client_key)  # raises ValueError if not found
-    existing_tags = parse_tags(sf_data.get('tags_explicit', ''))
+    existing_tags = parse_tags(sf_data.get('tags_explicit', '').split(','))
     project_tags = parse_tags(tags)
     tags_to_add = {}
     tags_to_remove = {}
