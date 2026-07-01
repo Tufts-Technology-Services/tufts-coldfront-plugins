@@ -98,7 +98,9 @@ def get_approvers_from_tags(sf_entry):
 def update_project_approvers_from_subfolder_tags(subfolder_response):
     for s in subfolder_response:
         try:
-            proj = get_project_by_key(s['fn'])
+            vol_path = s['vol_path']
+            project_key = volpath_to_project_key(vol_path)
+            proj = get_project_by_key(project_key)
             tier1_exists = Allocation.objects.filter(project=proj, resources__name__contains='Tier 1').distinct().exists()
             if tier1_exists:
                 # skip tier2 and tier3 allocations since approvers are only relevant for tier1
@@ -116,7 +118,7 @@ def update_project_approvers_from_subfolder_tags(subfolder_response):
                 proj_user.role = ProjectUserRoleChoice.objects.get(name='Manager')
                 proj_user.save()
         except Exception as e:
-            print(f"Error processing {s['fn']}: {e}")
+            print(f"Error processing {s['vol_path']}: {e}")
             continue
 
 
