@@ -12,7 +12,7 @@ def no_cost_quotas_report():
     data = []
     errors = []
     requires_payment = Resource.objects.filter(requires_payment=True, resource_type__name='Storage')
-    allocations = Allocation.objects.filter(resources__in=requires_payment, status__name='Active').prefetch_related('allocationattribute_set')
+    allocations = Allocation.objects.filter(resources__in=requires_payment, status__name='Active').order_by('project__pi__username', 'project__title').prefetch_related('allocationattribute_set')
     for allocation in allocations:
         try:
             vol_path = allocation.allocationattribute_set.filter(allocation_attribute_type__name='sf_vol_path').first().value
