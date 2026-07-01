@@ -5,7 +5,7 @@ from tufts_local.utils import update_project_approvers_from_subfolder_tags
 
 
 def update_project_approvers_from_tags():
-    for volume in ['projects', 'tier2', 'cold', 'rstore-cifs', 'rstore-nfs']:
+    for volume in ['projects', 'tier2', 'cold', 'cold2', 'rstore-cifs', 'rstore-nfs']:
         subfolder_response = get_starfish_usage_data_by_volume(volume, 'starfish')
         update_project_approvers_from_subfolder_tags(subfolder_response)
 

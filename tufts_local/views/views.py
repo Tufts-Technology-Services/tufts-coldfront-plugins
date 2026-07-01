@@ -8,7 +8,7 @@ from django.views.decorators.cache import cache_page
 from coldfront.core.project.models import ProjectUser, ProjectUserRoleChoice
 from coldfront.core.allocation.models import Allocation, AllocationAttribute
 from coldfront.core.resource.models import Resource
-from tufts_local import utils
+from tufts_local import billing_utils, utils
 from tufts_local.starfish_utils import get_starfish_usage_data_by_volume
 
 
@@ -174,3 +174,15 @@ def get_csv(data, filename="export.csv"):
     for row in data['rows']:
         writer.writerow(row)
     return response
+
+
+
+@login_required
+@cache_page(60 * 5)  # Cache the view for 5 minutes
+def no_cost_quotas_report(request):
+    if request.user.is_superuser is False:
+        return TemplateResponse("tufts_local/no_cost_quotas_report.html", {"message": "not allowed"}, status=403)
+    if request.method != "GET":
+        return TemplateResponse("tufts_local/no_cost_quotas_report.html", {"message": f"unsupported method {request.method}"}, status=400)
+    data = billing_utils.no_cost_quotas_report()
+    return TemplateResponse(request, "tufts_local/no_cost_quotas_report.html", {"message": data['errors'], "allocations": data['allocations']})

@@ -29,4 +29,9 @@ urlpatterns = [
         views.sf_report,
         name='sf-report',
     ),
+    path(
+        'no-cost-quotas-report/',
+        views.no_cost_quotas_report,
+        name='no-cost-quotas-report',
+    ),
 ]

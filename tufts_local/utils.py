@@ -104,15 +104,19 @@ def update_project_approvers_from_subfolder_tags(subfolder_response):
                 # skip tier2 and tier3 allocations since approvers are only relevant for tier1
                 if s['volume'] in ['tier2', 'cold']:
                     continue
-            users = ProjectUser.objects.filter(project=proj, user__username__not_in=get_approvers_from_tags(s))
-            approvers = ProjectUser.objects.filter(project=proj, user__username__in=get_approvers_from_tags(s))
-            for a in approvers:
-                a.role = ProjectUserRoleChoice.objects.get(name='Manager')
-                a.save()
-            for u in users:
-                u.role = ProjectUserRoleChoice.objects.get(name='User')
-                u.save()
+            #users = ProjectUser.objects.filter(project=proj, user__username__not_in=get_approvers_from_tags(s))
+            #for u in users:
+            #    u.role = ProjectUserRoleChoice.objects.get(name='User')
+            #    u.save()
+            for username in get_approvers_from_tags(s):
+                user = create_user(username)
+                proj_user, _ = ProjectUser.objects.get_or_create(user=user, project=proj,
+                                                 defaults={'status': ProjectUserStatusChoice.objects.get(name='Active'),
+                                                           'role': ProjectUserRoleChoice.objects.get(name='Manager')})
+                proj_user.role = ProjectUserRoleChoice.objects.get(name='Manager')
+                proj_user.save()
         except Exception as e:
+            print(f"Error processing {s['fn']}: {e}")
             continue
 
 
@@ -203,3 +207,32 @@ def get_sf_volumes_in_coldfront():
     sf_vol_path = AllocationAttributeType.objects.get(name='sf_vol_path')
     volpaths = AllocationAttribute.objects.filter(allocation_attribute_type=sf_vol_path).values_list('value', flat=True)
     return list(set([i.split(':')[0] for i in list(volpaths)]))
+
+
+def delete_allocation_by_volpath(vol_path):
+    """
+    Deletes an allocation based on the Starfish vol_path.
+    """
+    try:
+        alloc_attr = AllocationAttribute.objects.get(allocation_attribute_type__name='sf_vol_path', value__iexact=vol_path)
+        alloc = alloc_attr.allocation
+        project = alloc.project
+        alloc.delete()
+        logger.info(f"Deleted allocation for vol_path: {vol_path}")
+        delete_project_if_no_allocations(project)
+    except AllocationAttribute.DoesNotExist:
+        logger.warning(f"No allocation found for vol_path: {vol_path}")
+
+
+def delete_project_if_no_allocations(proj):
+    """
+    Deletes a project if it has no allocations.
+    """
+    if not proj:
+        logger.warning(f"No project found")
+        return
+    if not Allocation.objects.filter(project=proj).exists():
+        proj.delete()
+        logger.info(f"Deleted project with title: {proj.title}")
+    else:
+        logger.info(f"Project with title: {proj.title} has allocations and was not deleted")
