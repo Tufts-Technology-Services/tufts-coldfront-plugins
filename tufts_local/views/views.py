@@ -178,11 +178,19 @@ def get_csv(data, filename="export.csv"):
 
 
 @login_required
-@cache_page(60 * 5)  # Cache the view for 5 minutes
 def no_cost_quotas_report(request):
-    if request.user.is_superuser is False:
-        return TemplateResponse("tufts_local/no_cost_quotas_report.html", {"message": "not allowed"}, status=403)
     if request.method != "GET":
         return TemplateResponse("tufts_local/no_cost_quotas_report.html", {"message": f"unsupported method {request.method}"}, status=400)
-    data = billing_utils.no_cost_quotas_report()
-    return TemplateResponse(request, "tufts_local/no_cost_quotas_report.html", {"message": data['errors'], "allocations": data['allocations']})
+    if request.user.is_superuser:
+        if request.GET.get("user"):
+            data = billing_utils.no_cost_quotas_report(user=request.GET.get("user"))
+        else:
+            data = billing_utils.no_cost_quotas_report()
+
+        if request.GET.get("format") == "json":
+            return JsonResponse(data, status=200)
+        else:
+           return TemplateResponse(request, "tufts_local/no_cost_quotas_report.html", {"message": data['errors'], "allocations": data['allocations'], "shared_allotments": data['shared_allotments']})
+    else:
+        data = billing_utils.no_cost_quotas_report(user=request.user.username)
+        return TemplateResponse(request, "tufts_local/no_cost_quotas_report.html", {"message": data['errors'], "allocations": data['allocations'], "shared_allotments": data['shared_allotments']})
