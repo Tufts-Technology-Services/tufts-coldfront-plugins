@@ -1,0 +1,93 @@
+{% extends "common/base.html" %}
+{% load crispy_forms_tags %}
+{% load static %}
+
+
+{% block title %}
+Billing Code Report
+{% endblock %}
+
+
+{% block content %}
+<h2>Billing Code Report</h2>
+<p>
+    This report shows projects with costs that are missing billing codes and a preview of costs for projects with billing codes. 
+    Costs take into account any applied No Cost Quotas.
+</p>
+<!--<div> <a href="?format=json" class="btn btn-primary mb-2 floats-right">Download JSON</a></div>-->
+<div>
+
+  <div class="col-lg-12 mt-2">
+    <h2>Projects with Missing Billing Codes</h2>
+    <hr>
+    {% if missing_billing_code %}
+      <table class="table">
+        <thead>
+          <tr>
+            <th scope="col">Project</th>
+            <th scope="col">Owner</th>
+            <th scope="col">Project Status</th>
+            <th scope="col">Project Cost</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in missing_billing_code %}
+          <tr>
+            <td style="text-align: justify; text-justify: inter-word;">
+              <a href="/project/{{item.project.project.id}}/" data-toggle="popover" data-trigger="hover" data-content="View project details.">{{ item.project.project.title }}</a>
+            </td>
+            <td style="text-align: justify; text-justify: inter-word;">{{ item.project.project.pi.first_name }} {{ item.project.project.pi.last_name }} ({{ item.project.project.pi.username }})</td>
+            <td>{{ item.project.project.status.name }}</td>
+            <td>${{ item.project_cost }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <div class="alert alert-info" role="alert">
+        <i class="fa fa-info-circle" aria-hidden="true"></i> There are no projects to display.
+      </div>
+    {% endif %}
+  </div>
+
+    <div class="col-lg-12 mt-2">
+    <h2>Projects Billing Preview</h2>
+    <p>
+        This report previews the costs for projects with billing codes. Each line previews the cost that would be charged to each billing code for the project.
+    </p>
+    <hr>
+    {% if charge_report %}
+      <table class="table">
+        <thead>
+          <tr>
+            <th scope="col">Project</th>
+            <th scope="col">Owner</th>
+            <th scope="col">Project Cost</th>
+            <th scope="col">DeptID</th>
+            <th scope="col">Proj Num/Grant</th>
+            <th scope="col">Percentage</th>
+            <th scope="col">Charged to ID</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in charge_report %}
+          <tr>
+            <td style="text-align: justify; text-justify: inter-word;">
+              <a href="/project/{{item.project.project.id}}/" data-toggle="popover" data-trigger="hover" data-content="View project details.">{{ item.project.project.title }}</a>
+            </td>
+            <td style="text-align: justify; text-justify: inter-word;">{{ item.project.project.pi.first_name }} {{ item.project.project.pi.last_name }} ({{ item.project.project.pi.username }})</td>
+            <td>${{ item.project_cost }}</td>
+            <td>{{ item.department }}</td>
+            <td>{{ item.grant }}</td>
+            <td>{{ item.percentage }}</td>
+            <td>${{ item.charged_to_id }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <div class="alert alert-info" role="alert">
+        <i class="fa fa-info-circle" aria-hidden="true"></i> There are no projects to display.
+      </div>
+    {% endif %}
+  </div>

@@ -1,7 +1,16 @@
 from logging import getLogger
 from coldfront.core.allocation.models import Allocation
 from coldfront.core.resource.models import Resource
-from coldfront_billing.models import NoCostQuotaAllotment
+from coldfront.core.project.models import Project
+from coldfront_billing.models import NoCostQuotaAllotment, CostCenterAssignment
+from django.core.exceptions import ObjectDoesNotExist
+
+from coldfront_billing.constants import (
+    BILLING_ATTRIBUTE_NAME,
+)
+from coldfront_billing.data.billing import create_billing_allocations
+from coldfront_billing.prefetch import get_projects_prefetch
+from coldfront_billing.utils import get_month_abbr
 from coldfront_utils import ttl_cache
 
 logger = getLogger(__name__)
@@ -58,3 +67,50 @@ def no_cost_quotas_report(user=None):
                 quota_type = allot.no_cost_quota.quota_type
                 shared_allotments.append({'allocation': allocation, 'vol_path': vol_path, 'storage_owner': storage_owner, 'quota': f"{int(quota)/10**12:.5f}", 'amount': amount, 'ncq_owner': ncq_owner, 'quota_type': quota_type})
     return {"allocations": data, "shared_allotments": shared_allotments, "errors": errors}
+
+
+def billing_code_audit(user=None):
+    """
+    get info about billing codes for all allocations requiring payment.
+    """
+    missing_billing_code = []
+    month = get_month_abbr()
+    if user:
+        projects = get_projects_prefetch(Project.objects.filter(pi__username=user))
+    else:   
+        projects = get_projects_prefetch(Project.objects.all())
+    total_cost = 0
+    charge_report = []
+    for project in projects:
+        billing_allocations = create_billing_allocations(getattr(project, BILLING_ATTRIBUTE_NAME, []))
+        project_cost = sum(b.total_cost for b in billing_allocations)
+
+        if not project_cost:
+            continue
+
+        user_id = project.pi.username
+        description = f'{month}-TTS-{user_id}-{project.title}'
+        try:
+            assignments = project.cost_center_assignment.assignments or []
+        except ObjectDoesNotExist:
+            # if the project does not have a CostCenterAssignment, we need to report these projects as missing billing codes
+            missing_billing_code.append({'project': project, 'project_cost': project_cost})
+            continue
+
+        for assignment in sorted(assignments, key=lambda x: x.get('department')):
+            dept_id = assignment.get('department')
+            pct = assignment.get('percentage')
+            grant = assignment.get('grant', '')
+            cost = round(project_cost * (int(pct) / 100), 2)
+            total_cost += cost
+            charges = {
+                'project': project,
+                'department': dept_id,
+                'grant': grant,
+                'percentage': pct,
+                'charged_to_id': cost,
+                'project_cost': project_cost,
+            }
+            charge_report.append(charges)
+
+    return {"missing_billing_code": missing_billing_code, "charge_report": charge_report}

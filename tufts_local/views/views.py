@@ -197,3 +197,21 @@ def no_cost_quotas_report(request):
     else:
         data = billing_utils.no_cost_quotas_report(user=request.user.username)
         return TemplateResponse(request, "tufts_local/no_cost_quotas_report.html", {"message": data['errors'], "allocations": data['allocations'], "shared_allotments": data['shared_allotments']})
+
+
+@login_required
+def billing_code_audit(request):
+    if request.method != "GET":
+        return TemplateResponse("tufts_local/billing_code_audit.html", {"message": f"unsupported method {request.method}"}, status=400)
+    if request.user.is_superuser:
+        if request.GET.get("user"):
+            data = billing_utils.billing_code_audit(user=request.GET.get("user"))
+        else:
+            data = billing_utils.billing_code_audit()
+        if request.GET.get("format") == "json":
+            return JsonResponse(data, status=200)
+        else:
+           return TemplateResponse(request, "tufts_local/billing_code_audit.html", {"missing_billing_code": data['missing_billing_code'], "charge_report": data['charge_report']})
+    else:
+        data = billing_utils.billing_code_audit(user=request.user.username)
+        return TemplateResponse(request, "tufts_local/billing_code_audit.html", {"missing_billing_code": data['missing_billing_code'], "charge_report": data['charge_report']})

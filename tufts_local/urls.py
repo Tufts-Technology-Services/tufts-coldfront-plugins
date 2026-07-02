@@ -34,4 +34,9 @@ urlpatterns = [
         views.no_cost_quotas_report,
         name='no-cost-quotas-report',
     ),
+    path(
+        'billing-code-audit/',
+        views.billing_code_audit,
+        name='billing-code-audit',
+    ),
 ]
