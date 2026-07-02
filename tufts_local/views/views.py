@@ -199,7 +199,7 @@ def no_cost_quotas_report(request):
         if format == "json":
             return JsonResponse(data, status=200)
         else:
-           return TemplateResponse(request, "tufts_local/no_cost_quotas_report.html", {"message": data['errors'], "allocations": data['allocations'], "shared_allotments": data['shared_allotments']})
+           return TemplateResponse(request, "tufts_local/no_cost_quotas_report.html", {"message": data['errors'], "allocations": data['allocations'], "shared_allotments": data['shared_allotments'], "form": form})
     else:
         data = billing_utils.no_cost_quotas_report(user=request.user.username)
         return TemplateResponse(request, "tufts_local/no_cost_quotas_report.html", {"message": data['errors'], "allocations": data['allocations'], "shared_allotments": data['shared_allotments']})
