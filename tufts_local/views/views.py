@@ -9,6 +9,7 @@ from coldfront.core.project.models import ProjectUser, ProjectUserRoleChoice
 from coldfront.core.allocation.models import Allocation, AllocationAttribute
 from coldfront.core.resource.models import Resource
 from tufts_local import billing_utils, utils
+from tufts_local.forms import ReportFilterForm
 from tufts_local.starfish_utils import get_starfish_usage_data_by_volume
 from tufts_local.tasks import update_sf_approver_tags
 
@@ -204,14 +205,19 @@ def billing_code_audit(request):
     if request.method != "GET":
         return TemplateResponse("tufts_local/billing_code_audit.html", {"message": f"unsupported method {request.method}"}, status=400)
     if request.user.is_superuser:
-        if request.GET.get("user"):
-            data = billing_utils.billing_code_audit(user=request.GET.get("user"))
+        form = ReportFilterForm(request.GET)
+        if form.is_valid():
+            if form.cleaned_data['username']:
+                data = billing_utils.billing_code_audit(user=form.cleaned_data['username'])
+            else:
+                data = billing_utils.billing_code_audit()
+
+            if request.GET.get("format") == "json":
+                return JsonResponse(data, status=200)
+            else:
+               return TemplateResponse(request, "tufts_local/billing_code_audit.html", {"missing_billing_code": data['missing_billing_code'], "charge_report": data['charge_report'], "total_cost": data['total_cost'], "month": data['month'], "form": form})
         else:
-            data = billing_utils.billing_code_audit()
-        if request.GET.get("format") == "json":
-            return JsonResponse(data, status=200)
-        else:
-           return TemplateResponse(request, "tufts_local/billing_code_audit.html", {"missing_billing_code": data['missing_billing_code'], "charge_report": data['charge_report'], "total_cost": data['total_cost'], "month": data['month']})
+            return TemplateResponse(request, "tufts_local/billing_code_audit.html", {"message": "Invalid form data."}, status=400)
     else:
         data = billing_utils.billing_code_audit(user=request.user.username)
         return TemplateResponse(request, "tufts_local/billing_code_audit.html", {"missing_billing_code": data['missing_billing_code'], "charge_report": data['charge_report'], "total_cost": data['total_cost'], "month": data['month']})

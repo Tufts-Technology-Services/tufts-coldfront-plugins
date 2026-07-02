@@ -42,3 +42,9 @@ class RequiredProjectAttributeForm(forms.Form):
         except Exception as e:
             raise forms.ValidationError(f"Invalid group name: {str(e)}")
         return cleaned_data
+
+
+class ReportFilterForm(forms.Form):
+    username = forms.CharField(max_length=50, required=False, label="Username (utln)")
+    project_key = forms.SlugField(max_length=50, required=False, label="Project Key")
+    project_title = forms.CharField(max_length=100, required=False, label="Project Title")
