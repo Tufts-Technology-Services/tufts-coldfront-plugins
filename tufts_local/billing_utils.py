@@ -4,7 +4,7 @@ from coldfront.core.resource.models import Resource
 from coldfront.core.project.models import Project
 from coldfront_billing.models import NoCostQuotaAllotment, CostCenterAssignment
 from django.core.exceptions import ObjectDoesNotExist
-
+from django.utils.timezone import localdate
 from coldfront_billing.constants import (
     BILLING_ATTRIBUTE_NAME,
 )
@@ -74,7 +74,7 @@ def billing_code_audit(user=None):
     get info about billing codes for all allocations requiring payment.
     """
     missing_billing_code = []
-    month = get_month_abbr()
+    month = localdate().strftime("%Y-%m")
     if user:
         projects = get_projects_prefetch(Project.objects.filter(pi__username=user))
     else:   
