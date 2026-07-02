@@ -110,4 +110,4 @@ def billing_code_audit(user=None):
             }
             charge_report.append(charges)
 
-    return {"missing_billing_code": missing_billing_code, "charge_report": charge_report, "total_cost": total_cost, "month": month }
+    return {"missing_billing_code": missing_billing_code, "charge_report": charge_report, "total_cost": round(total_cost, 2), "month": month }
