@@ -15,12 +15,28 @@ Billing Code Report
     Costs take into account any applied No Cost Quotas.
 </p>
 {% if form %}
-<div class="p-2 mb-2 bg-light border rounded">
-    <form method="get" class="form-inline">
-        {{ form|crispy }}
-        <input class="btn btn-primary" type="submit" value="Filter" />
-    </form>
-</div>
+  <div class="mb-3" id="accordion">
+    <div class="card">
+      <div class="card-header">
+        <a id="expand_button" role="button" class="card-link " data-toggle="collapse" href="#collapseOne">
+          <div>
+          <i class="fas fa-filter" aria-hidden="true"></i> Filter
+          <i id="plus_minus" class="fas {{expand_accordion|get_icon}} float-right"></i>
+          </div>
+        </a>
+      </div>
+      <div id="collapseOne" class="collapse {{expand_accordion}}" data-parent="#accordion">
+        <div class="card-body">
+          <form id="filter_form" method="GET" autocomplete="off">
+                {{ form.username|as_crispy_field }}
+            <input type="submit" class="btn btn-primary" value="Search">
+            <button id="form_reset_button" type="button" class="btn btn-secondary">Reset</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+  <hr>
 {% endif %}
 <div>
     <h3>Projected Total Cost: ${{ total_cost|floatformat:2 }}</h3>
