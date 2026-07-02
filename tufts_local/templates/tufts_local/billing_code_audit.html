@@ -91,3 +91,15 @@ Billing Code Report
       </div>
     {% endif %}
   </div>
+
+{% endblock %}
+
+{% block javascript %}
+{{ block.super }}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    $('[data-toggle="popover"]').popover();
+});
+</script> 
+
+{% endblock %}
