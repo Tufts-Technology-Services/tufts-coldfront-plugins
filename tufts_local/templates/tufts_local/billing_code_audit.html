@@ -39,7 +39,7 @@ Billing Code Report
             <td style="text-align: justify; text-justify: inter-word;">
               <a href="/project/{{item.project.id}}/" data-toggle="popover" data-trigger="hover" data-content="View project details.">{{ item.project.title }}</a>
             </td>
-            <td style="text-align: justify; text-justify: inter-word;">{{ item.project.pi.first_name }} {{ item.project.pi.last_name }} ({{ item.project.pi.username }})</td>
+            <td style="text-align: justify; text-justify: inter-word;" class="text-nowrap">{{ item.project.pi.first_name }} {{ item.project.pi.last_name }} ({{ item.project.pi.username }})</td>
             <td>{{ item.project.status.name }}</td>
             <td>${{ item.project_cost|floatformat:2 }}</td>
           </tr>
@@ -78,7 +78,7 @@ Billing Code Report
             <td style="text-align: justify; text-justify: inter-word;">
               <a href="/project/{{item.project.id}}/" data-toggle="popover" data-trigger="hover" data-content="View project details.">{{ item.project.title }}</a>
             </td>
-            <td style="text-align: justify; text-justify: inter-word;">{{ item.project.pi.first_name }} {{ item.project.pi.last_name }} ({{ item.project.pi.username }})</td>
+            <td style="text-align: justify; text-justify: inter-word;" class="text-nowrap">{{ item.project.pi.first_name }} {{ item.project.pi.last_name }} ({{ item.project.pi.username }})</td>
             <td>${{ item.project_cost|floatformat:2}}</td>
             <td>{{ item.department }}</td>
             <td>{{ item.grant }}</td>
