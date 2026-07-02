@@ -78,7 +78,7 @@ def billing_code_audit(user=None):
     if user:
         projects = get_projects_prefetch(Project.objects.filter(pi__username=user))
     else:   
-        projects = get_projects_prefetch(Project.objects.all())
+        projects = get_projects_prefetch(Project.objects.all().order_by('pi__username', 'title'))
     total_cost = 0
     charge_report = []
     for project in projects:
