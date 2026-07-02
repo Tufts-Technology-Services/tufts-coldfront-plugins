@@ -15,7 +15,7 @@ Billing Code Report
     Costs take into account any applied No Cost Quotas.
 </p>
 <div>
-    <h3>Projected Total Cost: ${{ total_cost }}</h3>
+    <h3>Projected Total Cost: ${{ total_cost|floatformat:2 }}</h3>
 </div>
 <!--<div> <a href="?format=json" class="btn btn-primary mb-2 floats-right">Download JSON</a></div>-->
 <div>
@@ -41,7 +41,7 @@ Billing Code Report
             </td>
             <td style="text-align: justify; text-justify: inter-word;">{{ item.project.pi.first_name }} {{ item.project.pi.last_name }} ({{ item.project.pi.username }})</td>
             <td>{{ item.project.status.name }}</td>
-            <td>${{ item.project_cost }}</td>
+            <td>${{ item.project_cost|floatformat:2 }}</td>
           </tr>
           {% endfor %}
         </tbody>
@@ -79,11 +79,11 @@ Billing Code Report
               <a href="/project/{{item.project.id}}/" data-toggle="popover" data-trigger="hover" data-content="View project details.">{{ item.project.title }}</a>
             </td>
             <td style="text-align: justify; text-justify: inter-word;">{{ item.project.pi.first_name }} {{ item.project.pi.last_name }} ({{ item.project.pi.username }})</td>
-            <td>${{ item.project_cost }}</td>
+            <td>${{ item.project_cost|floatformat:2}}</td>
             <td>{{ item.department }}</td>
             <td>{{ item.grant }}</td>
             <td>{{ item.percentage }}%</td>
-            <td>${{ item.charged_to_id }}</td>
+            <td>${{ item.charged_to_id|floatformat:2 }}</td>
           </tr>
           {% endfor %}
         </tbody>
