@@ -186,12 +186,17 @@ def no_cost_quotas_report(request):
     if request.method != "GET":
         return TemplateResponse("tufts_local/no_cost_quotas_report.html", {"message": f"unsupported method {request.method}"}, status=400)
     if request.user.is_superuser:
-        if request.GET.get("user"):
-            data = billing_utils.no_cost_quotas_report(user=request.GET.get("user"))
+        format = request.GET.get("format")
+        form = ReportFilterForm(request.GET)
+        if form.is_valid() and format != "json":
+            if form.cleaned_data['username']:
+                data = billing_utils.no_cost_quotas_report(user=form.cleaned_data['username'])
+            else:
+                data = billing_utils.no_cost_quotas_report()
         else:
             data = billing_utils.no_cost_quotas_report()
-
-        if request.GET.get("format") == "json":
+            
+        if format == "json":
             return JsonResponse(data, status=200)
         else:
            return TemplateResponse(request, "tufts_local/no_cost_quotas_report.html", {"message": data['errors'], "allocations": data['allocations'], "shared_allotments": data['shared_allotments']})

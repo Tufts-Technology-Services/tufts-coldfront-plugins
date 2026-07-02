@@ -25,7 +25,7 @@ Billing Code Report
           </div>
         </a>
       </div>
-      <div id="collapseOne" class="collapse {{expand_accordion}}" data-parent="#accordion">
+      <div id="collapseOne" class="collapse {{expand_accordion}} {% if form.username.value %}show{% endif %}" data-parent="#accordion">
         <div class="card-body">
           <form id="filter_form" method="GET" autocomplete="off">
                 {{ form.username|as_crispy_field }}
