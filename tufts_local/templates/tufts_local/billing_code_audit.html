@@ -9,11 +9,14 @@ Billing Code Report
 
 
 {% block content %}
-<h2>Billing Code Report</h2>
+<h2>Billing Code Report for {{ month }}</h2>
 <p>
-    This report shows projects with costs that are missing billing codes and a preview of costs for projects with billing codes. 
+    This report shows projects with costs that are missing billing codes and a projection of costs for projects with billing codes. 
     Costs take into account any applied No Cost Quotas.
 </p>
+<div>
+    <h3>Projected Total Cost: ${{ total_cost }}</h3>
+</div>
 <!--<div> <a href="?format=json" class="btn btn-primary mb-2 floats-right">Download JSON</a></div>-->
 <div>
 

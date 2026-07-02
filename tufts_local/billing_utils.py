@@ -87,7 +87,7 @@ def billing_code_audit(user=None):
 
         if not project_cost:
             continue
-
+        total_cost += project_cost
         try:
             assignments = project.cost_center_assignment.assignments or []
         except ObjectDoesNotExist:
@@ -100,7 +100,6 @@ def billing_code_audit(user=None):
             pct = assignment.get('percentage')
             grant = assignment.get('grant', '')
             cost = round(project_cost * (int(pct) / 100), 2)
-            total_cost += cost
             charges = {
                 'project': project,
                 'department': dept_id,
@@ -111,4 +110,4 @@ def billing_code_audit(user=None):
             }
             charge_report.append(charges)
 
-    return {"missing_billing_code": missing_billing_code, "charge_report": charge_report}
+    return {"missing_billing_code": missing_billing_code, "charge_report": charge_report, "total_cost": total_cost, "month": month }
