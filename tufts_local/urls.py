@@ -35,8 +35,8 @@ urlpatterns = [
         name='no-cost-quotas-report',
     ),
     path(
-        'billing-code-audit/',
+        'billing-code-report/',
         views.billing_code_audit,
-        name='billing-code-audit',
+        name='billing-code-report',
     ),
 ]
