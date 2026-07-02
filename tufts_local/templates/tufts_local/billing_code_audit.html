@@ -34,10 +34,10 @@ Billing Code Report
           {% for item in missing_billing_code %}
           <tr>
             <td style="text-align: justify; text-justify: inter-word;">
-              <a href="/project/{{item.project.project.id}}/" data-toggle="popover" data-trigger="hover" data-content="View project details.">{{ item.project.project.title }}</a>
+              <a href="/project/{{item.project.id}}/" data-toggle="popover" data-trigger="hover" data-content="View project details.">{{ item.project.title }}</a>
             </td>
-            <td style="text-align: justify; text-justify: inter-word;">{{ item.project.project.pi.first_name }} {{ item.project.project.pi.last_name }} ({{ item.project.project.pi.username }})</td>
-            <td>{{ item.project.project.status.name }}</td>
+            <td style="text-align: justify; text-justify: inter-word;">{{ item.project.pi.first_name }} {{ item.project.pi.last_name }} ({{ item.project.pi.username }})</td>
+            <td>{{ item.project.status.name }}</td>
             <td>${{ item.project_cost }}</td>
           </tr>
           {% endfor %}
@@ -73,9 +73,9 @@ Billing Code Report
           {% for item in charge_report %}
           <tr>
             <td style="text-align: justify; text-justify: inter-word;">
-              <a href="/project/{{item.project.project.id}}/" data-toggle="popover" data-trigger="hover" data-content="View project details.">{{ item.project.project.title }}</a>
+              <a href="/project/{{item.project.id}}/" data-toggle="popover" data-trigger="hover" data-content="View project details.">{{ item.project.title }}</a>
             </td>
-            <td style="text-align: justify; text-justify: inter-word;">{{ item.project.project.pi.first_name }} {{ item.project.project.pi.last_name }} ({{ item.project.project.pi.username }})</td>
+            <td style="text-align: justify; text-justify: inter-word;">{{ item.project.pi.first_name }} {{ item.project.pi.last_name }} ({{ item.project.pi.username }})</td>
             <td>${{ item.project_cost }}</td>
             <td>{{ item.department }}</td>
             <td>{{ item.grant }}</td>

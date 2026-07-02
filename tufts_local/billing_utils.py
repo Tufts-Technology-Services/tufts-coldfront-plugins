@@ -88,8 +88,6 @@ def billing_code_audit(user=None):
         if not project_cost:
             continue
 
-        user_id = project.pi.username
-        description = f'{month}-TTS-{user_id}-{project.title}'
         try:
             assignments = project.cost_center_assignment.assignments or []
         except ObjectDoesNotExist:
