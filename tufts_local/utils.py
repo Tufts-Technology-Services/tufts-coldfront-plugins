@@ -238,3 +238,19 @@ def delete_project_if_no_allocations(proj):
         logger.info(f"Deleted project with title: {proj.title}")
     else:
         logger.info(f"Project with title: {proj.title} has allocations and was not deleted")
+
+
+def allocation_info_not_updated(allocation):
+    """
+    Returns True if the allocation's info has not been updated in the last 24 hours.
+    """
+    if not allocation:
+        logger.warning(f"No allocation provided")
+        return True
+    last_updated = allocation.last_updated
+    if not last_updated:
+        logger.warning(f"Allocation {allocation.id} has no last_updated timestamp")
+        return True
+    if (datetime.datetime.now(datetime.timezone.utc) - last_updated).total_seconds() > 86400:
+        return True
+    return False

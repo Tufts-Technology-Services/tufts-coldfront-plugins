@@ -1,6 +1,9 @@
-
+from decimal import Decimal, ROUND_CEILING, ROUND_HALF_EVEN
 from coldfront.core.project.models import Project, ProjectUser
-from coldfront.core.allocation.models import AllocationAttribute
+from coldfront.core.allocation.models import Allocation, AllocationAttribute
+from coldfront.core.resource.models import Resource
+from coldfront_billing.models import NoCostQuotaAllotment
+
 from tufts_local.starfish_utils import get_starfish_usage_data_by_volume, sync_approver_tags
 from tufts_local.utils import update_project_approvers_from_subfolder_tags
 
@@ -24,40 +27,25 @@ def update_sf_approver_tags(project_id):
         sync_approver_tags('starfish', vol_path, approver_usernames)
 
 
-def reclaim_oversubscribed_no_cost_quotas():
+def get_oversubscribed_no_cost_quotas():
     """
-    Reclaim any NoCostQuotaAllotments that are associated with an allocation that has exceeded its quota.
+    return any NoCostQuotaAllotments that are associated with an allocation where allotment total exceeds allocation quota.
     """
-    from coldfront_billing.models import NoCostQuotaAllotment
-    from coldfront.core.allocation.models import Allocation
-    from coldfront.core.resource.models import Resource
-
     requires_payment = Resource.objects.filter(requires_payment=True, resource_type__name='Storage')
     allocations = Allocation.objects.filter(resources__in=requires_payment, status__name='Active').prefetch_related('allocationattribute_set')
-
+    exceeded_allotments = []
     for allocation in allocations:
         try:
-            quota = allocation.allocationattribute_set.filter(allocation_attribute_type__name='reported_usage_bytes').first().value
+            quota = allocation.allocationattribute_set.filter(allocation_attribute_type__name='reported_quota_bytes').first().value
         except AttributeError:
+            print(f"Allocation {allocation.id} does not have required attributes.")
             continue
         ncq_allotment = NoCostQuotaAllotment.objects.filter(allocation=allocation)
         ncq_allot_total = sum(float(allot.amount) for allot in ncq_allotment)
-        if int(quota)/10**12 < ncq_allot_total:
-            # reclaim the allotments
-            if int(quota) == 0:
-                # if the quota is 0, then we can reclaim all allotments
-                for allot in ncq_allotment:
-                    allot.delete()
-            else:
-                # split the difference between the quota and the total allotments proportionally among the allotments
-                # todo: make sure that the total amount of the allotments is equal to the quota after reclaiming
-                # todo: we are only dealing with 100ths of a TB here, so we can just round to 2 decimal places
-                difference = ncq_allot_total - int(quota)/10**12
-                for allot in ncq_allotment:
-                    proportion = float(allot.amount) / ncq_allot_total
-                    reclaim_amount = proportion * difference
-                    allot.amount -= reclaim_amount
-                    if allot.amount <= 0:
-                        allot.delete()
-                    else:
-                        allot.save()
+        total_rounded = Decimal(ncq_allot_total).quantize(Decimal('0.01'), rounding=ROUND_HALF_EVEN)
+        quota_rounded = Decimal(int(quota)/10**12).quantize(Decimal('0.01'), rounding=ROUND_CEILING)
+        if quota_rounded < total_rounded:
+            exceeded_allotments.append({'allocation': allocation, 'quota': quota_rounded, 
+                                        'total_allotments': total_rounded, 
+                                        'ncq_allotments': ncq_allotment})
+    return exceeded_allotments

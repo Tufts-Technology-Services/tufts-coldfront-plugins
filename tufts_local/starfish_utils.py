@@ -1,5 +1,6 @@
 import logging
 from time import sleep
+from coldfront.core.allocation.models import AllocationAttribute
 from coldfront_utils import ttl_cache
 from storage.utils import get_client_config
 
@@ -152,3 +153,27 @@ def set_owner_tag(client_key, vol_path, owner: str):
 def set_approver_tags(client_key, vol_path, approvers: list):
     # valid tags: Owner, Group, LabGroup, Approver, Reporting
     sync_tags(client_key, vol_path, [f"Approver:{approver.lower()}" for approver in approvers])
+
+
+def match_owner_tags():
+    all_vol_paths = AllocationAttribute.objects.filter(allocation_attribute_type__name="sf_vol_path")
+    tag_compare = []
+    for vp in all_vol_paths:
+        vol_path = vp.value
+        sf = get_starfish_data_by_vol_path(vol_path, 'starfish')  # raises ValueError if not found
+        if not sf:
+            print(f"Vol path {vol_path} not found in Starfish.")
+            continue
+        tags = parse_tags(sf.get('tags_explicit', '').split(','))
+        if not tags:
+            print(f"No tags found for vol_path {vol_path}")
+            sf_owner = set()
+        else:
+            sf_owner = tags.get('Owner', set())
+        if len(sf_owner) > 0:
+            sf_owner = list(sf_owner)[0]
+        else:
+            sf_owner = ''
+        tag_compare.append({'vol_path': vol_path, 'sf_owner': sf_owner, 'coldfront_owner': vp.allocation.project.pi.username})
+    return tag_compare
+
