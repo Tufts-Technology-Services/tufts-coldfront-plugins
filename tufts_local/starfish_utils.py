@@ -39,8 +39,8 @@ def get_starfish_volumes(client_key: str) -> list:
     Helper function to query Starfish API for a list of volumes. 
     Caches results to avoid redundant API calls.
     """
-    sf = get_starfish_client(client_key)
-    return sf.get_volumes()
+    #sf = get_starfish_client(client_key)
+    return ['cold', 'cold2', 'projects', 'rstore-cifs', 'rstore-nfs', 'tier2', 'other']  
 
 
 def get_starfish_client(client_key: str):
