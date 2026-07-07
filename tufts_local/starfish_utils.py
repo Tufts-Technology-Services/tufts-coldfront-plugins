@@ -34,6 +34,15 @@ def get_starfish_data_by_vol_path(vol_path: str, client_key: str) -> dict:
     return sf_entry
 
 
+def get_starfish_volumes(client_key: str) -> list:
+    """
+    Helper function to query Starfish API for a list of volumes. 
+    Caches results to avoid redundant API calls.
+    """
+    sf = get_starfish_client(client_key)
+    return sf.get_volumes()
+
+
 def get_starfish_client(client_key: str):
     """
     Helper function to get a Starfish API client instance.

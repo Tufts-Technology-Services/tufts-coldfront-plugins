@@ -10,7 +10,7 @@ from coldfront.core.allocation.models import Allocation, AllocationAttribute
 from coldfront.core.resource.models import Resource
 from tufts_local import billing_utils, utils
 from tufts_local.forms import ReportFilterForm
-from tufts_local.starfish_utils import get_starfish_usage_data_by_volume
+from tufts_local.starfish_utils import get_starfish_usage_data_by_volume, get_starfish_volumes
 from tufts_local.tasks import update_sf_approver_tags
 
 
@@ -103,7 +103,7 @@ def sf_report(request):
         return TemplateResponse("tufts_local/sf_report.html", {"message": "not allowed"}, status=403)
     if request.method != "GET":
         return TemplateResponse("tufts_local/sf_report.html", {"message": f"unsupported method {request.method}"}, status=400)
-    volumes = utils.get_sf_volumes_in_coldfront()
+    volumes = get_starfish_volumes("starfish")
     sf_data = []
     for volume in volumes:
         sf_data.extend(get_starfish_usage_data_by_volume(volume, "starfish"))
