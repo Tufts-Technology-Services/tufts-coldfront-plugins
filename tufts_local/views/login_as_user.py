@@ -10,11 +10,10 @@ from django_su.utils import su_login_callback
 @csrf_protect
 @require_POST
 @user_passes_test(su_login_callback)
-def login_as_user_view(request):
+def login_as_user_view(request, username):
     """
     View to allow superusers to log in as another user.
     """
-    username = request.POST.get('username')
     user_ids = get_user_model().objects.filter(username=username).values_list('id', flat=True)
     if len(user_ids) > 1:
         raise HttpResponseBadRequest("Multiple users found with the same username.")
