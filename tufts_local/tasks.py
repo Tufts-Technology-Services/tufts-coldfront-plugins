@@ -24,7 +24,7 @@ def update_sf_approver_tags(project_id):
     alloc_attr = AllocationAttribute.objects.filter(allocation__project=proj, allocation_attribute_type__name='sf_vol_path')
     for attr in alloc_attr:
         vol_path = attr.value
-        sync_approver_tags('starfish', vol_path, approver_usernames)
+        sync_approver_tags(vol_path, approver_usernames, 'starfish')
 
 
 def get_oversubscribed_no_cost_quotas():

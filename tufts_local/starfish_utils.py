@@ -52,7 +52,7 @@ def get_starfish_client(client_key: str):
     return StarfishAPIClient(host=client_config['host'], token=client_config['api_key'])
 
 
-def add_directory_to_index(client_key, vol_path, wait=5, retries=12):
+def add_directory_to_index(vol_path, client_key, wait=5, retries=12):
     """
     Add a top level directory to the index by initiating a scan of depth 0. 
     This is useful when a new project directory is created and needs to be tagged.
@@ -99,7 +99,7 @@ def parse_tags(tags: list) -> dict:
     return parsed_tags
 
 
-def sync_approver_tags(client_key, vol_path, approvers: list):
+def sync_approver_tags(vol_path, approvers: list, client_key):
     """
     Synchronize approver tags for a directory indexed by Starfish.
     This function will add or remove approver tags based on the current approvers in Coldfront.
@@ -123,7 +123,7 @@ def sync_approver_tags(client_key, vol_path, approvers: list):
         client.detach_tag(vol_path, tags_to_remove)
 
 
-def sync_tags(client_key, vol_path, tags: list):
+def sync_tags(vol_path, tags: list, client_key):
     """
     Synchronize tags for a directory indexed by Starfish.
     This function will add or remove tags based on the current tags in Starfish.
@@ -156,12 +156,12 @@ def sync_tags(client_key, vol_path, tags: list):
 
 def set_owner_tag(client_key, vol_path, owner: str):
     # valid tags: Owner, Group, LabGroup, Approver, Reporting
-    sync_tags(client_key, vol_path, [f"Owner:{owner.lower()}"])
+    sync_tags(vol_path, [f"Owner:{owner.lower()}"], client_key)
 
 
 def set_approver_tags(client_key, vol_path, approvers: list):
     # valid tags: Owner, Group, LabGroup, Approver, Reporting
-    sync_tags(client_key, vol_path, [f"Approver:{approver.lower()}" for approver in approvers])
+    sync_tags(vol_path, [f"Approver:{approver.lower()}" for approver in approvers], client_key)
 
 
 def match_owner_tags():
