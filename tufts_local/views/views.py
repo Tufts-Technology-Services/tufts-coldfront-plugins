@@ -108,3 +108,5 @@ def add_user_to_coldfront(request):
 
     except Exception as e:
         return JsonResponse({"message": f"error occurred: {str(e)}"}, status=500)
+
+

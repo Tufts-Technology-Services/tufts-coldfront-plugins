@@ -44,4 +44,9 @@ urlpatterns = [
         views.add_user_to_coldfront,
         name='add-user-to-coldfront',
     ),
+    path(
+        'local-login-as-user/<username>/',
+        views.login_as_user_view,
+        name='local-login-as-user',
+    )
 ]

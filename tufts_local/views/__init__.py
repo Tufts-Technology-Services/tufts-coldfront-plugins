@@ -3,6 +3,7 @@ from .views import (project_update_user_role, project_get_email_notification,
                     utln_autocomplete, add_user_to_coldfront)
 from .reports import (sf_report, no_cost_quotas_report, 
                     billing_code_audit)
+from .login_as_user import login_as_user_view
 
 __all__ = [
     "AdminProjectCreateView",
@@ -13,4 +14,5 @@ __all__ = [
     "no_cost_quotas_report",
     "billing_code_audit",
     "add_user_to_coldfront",
+    "login_as_user_view",
 ]
