@@ -1,11 +1,15 @@
+import logging
+
 from decimal import Decimal, ROUND_CEILING, ROUND_HALF_EVEN
 from coldfront.core.project.models import Project, ProjectUser
 from coldfront.core.allocation.models import Allocation, AllocationAttribute
 from coldfront.core.resource.models import Resource
 from coldfront_billing.models import NoCostQuotaAllotment
 
-from tufts_local.starfish_utils import get_starfish_usage_data_by_volume, sync_approver_tags
+from tufts_local.starfish_utils import get_starfish_usage_data_by_volume, sync_approver_tags, set_owner_tag
 from tufts_local.utils import update_project_approvers_from_subfolder_tags
+
+logger = logging.getLogger(__name__)
 
 
 def update_project_approvers_from_tags():
@@ -25,6 +29,36 @@ def update_sf_approver_tags(project_id):
     for attr in alloc_attr:
         vol_path = attr.value
         sync_approver_tags(vol_path, approver_usernames, 'starfish')
+
+
+def update_sf_owner_tags_from_allocations():
+    # write starfish tag corresponding to project owner for all allocations in Coldfront
+    storage = Resource.objects.filter(resource_type__name='Storage')
+    allocations = Allocation.objects.filter(status__name='Active', resources__in=storage).prefetch_related('allocationattribute_set', 'project__pi')
+    for alloc in allocations:
+        _set_sf_owner_tag(alloc)
+
+
+def set_sf_owner_tag(allocation_id):
+    # write starfish tag corresponding to project owner for all allocations in Coldfront
+    storage = Resource.objects.filter(resource_type__name='Storage')
+    alloc_set = Allocation.objects.filter(id=allocation_id, resources__in=storage).prefetch_related('allocationattribute_set', 'project__pi')
+    if not alloc_set.exists():
+        logger.debug(f"Allocation {allocation_id} does not have a storage resource. Skipping Starfish 'Owner' tagging.")
+        return
+    alloc = alloc_set.first()
+    _set_sf_owner_tag(alloc)
+
+
+def _set_sf_owner_tag(allocation):
+    owner = allocation.project.pi.username
+    alloc_attr = allocation.allocationattribute_set.filter(allocation_attribute_type__name='sf_vol_path').first()
+    if alloc_attr:
+        vol_path = alloc_attr.value
+        logger.debug(f"Setting Starfish 'Owner' tag for allocation {allocation.id} with vol_path {vol_path} to {owner}.")
+        set_owner_tag('starfish', vol_path, owner)
+    else:
+        logger.error(f"Allocation {allocation.id} does not have an 'sf_vol_path' attribute. Cannot set Starfish 'Owner' tag.")
 
 
 def get_oversubscribed_no_cost_quotas():
