@@ -39,4 +39,9 @@ urlpatterns = [
         views.billing_code_audit,
         name='billing-code-report',
     ),
+    path(
+        'add-user-to-coldfront/',
+        views.add_user_to_coldfront,
+        name='add-user-to-coldfront',
+    ),
 ]
