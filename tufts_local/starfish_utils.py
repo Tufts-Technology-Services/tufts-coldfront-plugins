@@ -1,8 +1,11 @@
 import logging
 from time import sleep
-from coldfront.core.allocation.models import AllocationAttribute
+from coldfront.core.project.models import (ProjectUser, ProjectUserRoleChoice, ProjectUserStatusChoice)
+from coldfront.core.allocation.models import (Allocation, AllocationAttribute, 
+                                              AllocationAttributeType)
 from coldfront_utils import ttl_cache
 from storage.utils import get_client_config
+from tufts_local.utils import create_user, get_project_by_key, volpath_to_project_key
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +30,7 @@ def get_starfish_data_by_vol_path(vol_path: str, client_key: str) -> dict:
     """
     volume, _ = vol_path.split(":", 1)
     subfolder_response = get_starfish_usage_data_by_volume(volume, client_key)
-    sf_entry = next((item for item in subfolder_response if item['vol_path'] == vol_path), None)
+    sf_entry = next((item for item in subfolder_response if item['vol_path'].lower() == vol_path.lower()), None)
     if not sf_entry:
         logger.warning(f"Subfolder with vol_path '{vol_path}' not found in Starfish.")
         return None
@@ -40,7 +43,7 @@ def get_starfish_volumes(client_key: str) -> list:
     Caches results to avoid redundant API calls.
     """
     #sf = get_starfish_client(client_key)
-    return ['cold', 'cold2', 'projects', 'rstore-cifs', 'rstore-nfs', 'tier2', 'other']  
+    return ['cold', 'projects', 'rstore-cifs', 'rstore-nfs', 'tier2', 'other']  
 
 
 def get_starfish_client(client_key: str):
@@ -123,6 +126,31 @@ def sync_approver_tags(vol_path, approvers: list, client_key):
         client.detach_tag(vol_path, tags_to_remove)
 
 
+def set_project_approvers_from_starfish(vol_path_data):
+    if not vol_path_data:
+        logger.warning(f"No data found for vol_path {vol_path_data['vol_path']} in Starfish.")
+        return
+    try:
+        project_key = volpath_to_project_key(vol_path_data['vol_path'])
+        proj = get_project_by_key(project_key)
+        tier1_exists = Allocation.objects.filter(project=proj, resources__name__contains='Tier 1', status__name='Active').distinct().exists()
+        if tier1_exists:
+            # skip tier2 and tier3 allocations since approvers are only relevant for tier1
+            if vol_path_data['vol_path'].split(':')[0] in ['tier2', 'cold']:
+                return
+        existing_tags = parse_tags(vol_path_data.get('tags_explicit', '').split(','))
+        existing_approvers = existing_tags.get('Approver', set())
+        for username in existing_approvers:
+            user = create_user(username)
+            proj_user, _ = ProjectUser.objects.get_or_create(user=user, project=proj,
+                                             defaults={'status': ProjectUserStatusChoice.objects.get(name='Active'),
+                                                       'role': ProjectUserRoleChoice.objects.get(name='Manager')})
+            proj_user.role = ProjectUserRoleChoice.objects.get(name='Manager')
+            proj_user.save()
+    except Exception as e:
+        logger.error(f"Error processing {vol_path_data['vol_path']}: {e}")
+        
+
 def sync_tags(vol_path, tags: list, client_key):
     """
     Synchronize tags for a directory indexed by Starfish.
@@ -185,4 +213,13 @@ def match_owner_tags():
             sf_owner = ''
         tag_compare.append({'vol_path': vol_path, 'sf_owner': sf_owner, 'coldfront_owner': vp.allocation.project.pi.username})
     return tag_compare
+
+
+def get_sf_volumes_in_coldfront():
+    """
+    Returns a list of all Starfish volumes that are in Coldfront.
+    """
+    sf_vol_path = AllocationAttributeType.objects.get(name='sf_vol_path')
+    volpaths = AllocationAttribute.objects.filter(allocation_attribute_type=sf_vol_path).values_list('value', flat=True)
+    return list(set([i.split(':')[0] for i in list(volpaths)]))
 

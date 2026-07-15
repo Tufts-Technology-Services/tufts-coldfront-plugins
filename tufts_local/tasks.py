@@ -6,16 +6,19 @@ from coldfront.core.allocation.models import Allocation, AllocationAttribute
 from coldfront.core.resource.models import Resource
 from coldfront_billing.models import NoCostQuotaAllotment
 
-from tufts_local.starfish_utils import get_starfish_usage_data_by_volume, sync_approver_tags, set_owner_tag
-from tufts_local.utils import update_project_approvers_from_subfolder_tags
+from tufts_local.starfish_utils import (get_starfish_usage_data_by_volume, get_starfish_volumes,
+                                        set_project_approvers_from_starfish,
+                                        sync_approver_tags, 
+                                        set_owner_tag)
 
 logger = logging.getLogger(__name__)
 
 
 def update_project_approvers_from_tags():
-    for volume in ['projects', 'tier2', 'cold', 'cold2', 'rstore-cifs', 'rstore-nfs']:
+    for volume in get_starfish_volumes('starfish'):
         subfolder_response = get_starfish_usage_data_by_volume(volume, 'starfish')
-        update_project_approvers_from_subfolder_tags(subfolder_response)
+        for vol_path_data in subfolder_response:
+            set_project_approvers_from_starfish(vol_path_data)
 
 
 def update_sf_approver_tags(project_id):

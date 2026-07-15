@@ -81,51 +81,10 @@ def update_project_owner(project_key, new_owner):
     return proj
 
 
-def get_sf_tag(sf_entry, tag_name):
-    if 'tags_explicit' not in sf_entry or not sf_entry['tags_explicit']:
-        return None
-    tag = [i for i in sf_entry['tags_explicit'].split(',') if i.startswith(f"{tag_name}:")]
-    return tag[0].split(':')[1] if tag else None
-
-
-def get_approvers_from_tags(sf_entry):
-    if 'tags_explicit' not in sf_entry or not sf_entry['tags_explicit']:
-        return None
-    tags = [i for i in sf_entry['tags_explicit'].split(',') if i.startswith("Approver:")]
-    return [i.split(':')[1] for i in tags] if tags else []
-
-
-def update_project_approvers_from_subfolder_tags(subfolder_response):
-    for s in subfolder_response:
-        try:
-            vol_path = s['vol_path']
-            project_key = volpath_to_project_key(vol_path)
-            proj = get_project_by_key(project_key)
-            tier1_exists = Allocation.objects.filter(project=proj, resources__name__contains='Tier 1').distinct().exists()
-            if tier1_exists:
-                # skip tier2 and tier3 allocations since approvers are only relevant for tier1
-                if s['volume'] in ['tier2', 'cold']:
-                    continue
-            #users = ProjectUser.objects.filter(project=proj, user__username__not_in=get_approvers_from_tags(s))
-            #for u in users:
-            #    u.role = ProjectUserRoleChoice.objects.get(name='User')
-            #    u.save()
-            for username in get_approvers_from_tags(s):
-                user = create_user(username)
-                proj_user, _ = ProjectUser.objects.get_or_create(user=user, project=proj,
-                                                 defaults={'status': ProjectUserStatusChoice.objects.get(name='Active'),
-                                                           'role': ProjectUserRoleChoice.objects.get(name='Manager')})
-                proj_user.role = ProjectUserRoleChoice.objects.get(name='Manager')
-                proj_user.save()
-        except Exception as e:
-            print(f"Error processing {s['vol_path']}: {e}")
-            continue
-
-
 def find_missing_projects(subfolder_response):
     for i in subfolder_response:
         if not project_exists(volpath_to_project_key(i['vol_path'])):
-            print(f"{i['vol_path']}")
+            logger.warning(f"{i['vol_path']}")
 
 
 def find_missing_allocations(resource_name, subfolder_response):
@@ -134,13 +93,9 @@ def find_missing_allocations(resource_name, subfolder_response):
             proj = get_project_by_key(volpath_to_project_key(i['vol_path']))
             alloc = Allocation.objects.filter(project=proj, resources__name__contains=resource_name).distinct()
             if not alloc.exists():
-                print(f"{proj.title} does not have {resource_name} allocation")
+                logger.warning(f"{proj.title} does not have {resource_name} allocation")
         except Exception as e:
-            print(f"Error processing {i['vol_path']}: {e}")
-
-
-def get_sf(project_key, subfolder_response):
-    return [i for i in subfolder_response if volpath_to_project_key(i['vol_path']).lower() == project_key.lower()]
+            logger.error(f"Error processing {i['vol_path']}: {e}")
 
 
 def create_allocation(project_key, resource_name, sf_entry):
@@ -157,7 +112,7 @@ def create_allocation(project_key, resource_name, sf_entry):
                                           status=AllocationStatusChoice.objects.get(name="Active"))
         alloc.resources.add(Resource.objects.get(name=resource_name))
     AllocationAttribute.objects.get_or_create(allocation=alloc, allocation_attribute_type=AllocationAttributeType.objects.get(name='sf_vol_path'), value=sf_entry['vol_path'])
-    print(f"Created {resource_name} allocation for {proj.title}")
+    logger.info(f"Created {resource_name} allocation for {proj.title}")
 
 
 class UserNotFoundError(Exception):
@@ -201,14 +156,6 @@ def user_autocomplete(search_string):
     search_obj = ADSearch(search_string, "autocomplete")
     result = search_obj.search_a_user(user_search_string=search_string, search_by="autocomplete")
     return result
-
-def get_sf_volumes_in_coldfront():
-    """
-    Returns a list of all Starfish volumes that are in Coldfront.
-    """
-    sf_vol_path = AllocationAttributeType.objects.get(name='sf_vol_path')
-    volpaths = AllocationAttribute.objects.filter(allocation_attribute_type=sf_vol_path).values_list('value', flat=True)
-    return list(set([i.split(':')[0] for i in list(volpaths)]))
 
 
 def delete_allocation_by_volpath(vol_path):
