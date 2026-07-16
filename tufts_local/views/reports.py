@@ -1,6 +1,7 @@
 import logging
 import csv
-from django.contrib.auth.decorators import login_required
+from django.contrib.auth.decorators import login_required, user_passes_test
+from django.views.decorators.http import require_GET
 from django.http import JsonResponse, HttpResponse
 from django.template.response import TemplateResponse
 from django.views.decorators.cache import cache_page
@@ -14,12 +15,10 @@ logger = logging.getLogger(__name__)
 
 
 @login_required
+@require_GET
+@user_passes_test(lambda u: u.is_superuser)
 @cache_page(60 * 5)  # Cache the view for 5 minutes
 def sf_report(request):
-    if request.user.is_superuser is False:
-        return TemplateResponse("tufts_local/sf_report.html", {"message": "not allowed"}, status=403)
-    if request.method != "GET":
-        return TemplateResponse("tufts_local/sf_report.html", {"message": f"unsupported method {request.method}"}, status=400)
     volumes = get_starfish_volumes("starfish")
     sf_data = []
     for volume in volumes:
@@ -99,9 +98,8 @@ def get_csv(data, filename="export.csv"):
 
 
 @login_required
+@require_GET
 def no_cost_quotas_report(request):
-    if request.method != "GET":
-        return TemplateResponse("tufts_local/no_cost_quotas_report.html", {"message": f"unsupported method {request.method}"}, status=400)
     if request.user.is_superuser:
         format = request.GET.get("format")
         form = ReportFilterForm(request.GET)
@@ -123,9 +121,8 @@ def no_cost_quotas_report(request):
 
 
 @login_required
+@require_GET
 def billing_code_audit(request):
-    if request.method != "GET":
-        return TemplateResponse("tufts_local/billing_code_audit.html", {"message": f"unsupported method {request.method}"}, status=400)
     if request.user.is_superuser:
         form = ReportFilterForm(request.GET)
         if form.is_valid():
@@ -143,3 +140,27 @@ def billing_code_audit(request):
     else:
         data = billing_utils.billing_code_audit(user=request.user.username)
         return TemplateResponse(request, "tufts_local/billing_code_audit.html", {"missing_billing_code": data['missing_billing_code'], "charge_report": data['charge_report'], "total_cost": data['total_cost'], "month": data['month']})
+
+
+@login_required
+@require_GET
+def charge_report(request):
+    if request.user.is_superuser:
+        form = ReportFilterForm(request.GET)
+        if form.is_valid():
+            username = form.cleaned_data['username']
+            billing_code = form.cleaned_data['billing_code']
+            data = billing_utils.get_cost_previews(user=username, billing_code=billing_code)
+
+            if request.GET.get("format") == "json":
+                return JsonResponse(data, status=200)
+            else:
+               return TemplateResponse(request, "tufts_local/charge_report.html", {"charge_report": data['charge_report'], "total_cost": data['total_cost'], "month": data['month'], "form": form})
+        else:
+            return TemplateResponse(request, "tufts_local/charge_report.html", {"message": "Invalid form data."}, status=400)
+    else:
+        if form := ReportFilterForm(request.GET):
+            if form.is_valid():
+                billing_code = form.cleaned_data['billing_code']
+                data = billing_utils.get_cost_previews(user=request.user.username, billing_code=billing_code)
+                return TemplateResponse(request, "tufts_local/charge_report.html", {"charge_report": data['charge_report'], "total_cost": data['total_cost'], "month": data['month'], "form": form})
