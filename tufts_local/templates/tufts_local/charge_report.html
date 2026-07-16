@@ -1,0 +1,100 @@
+{% extends "common/base.html" %}
+{% load common_tags %}
+{% load crispy_forms_tags %}
+{% load static %}
+
+{% block title %}
+Projected Cost Report
+{% endblock %}
+
+
+{% block content %}
+<h2>Projected Cost Report for Current Cycle</h2>
+<p>
+    This report shows a projection of monthly costs for projects with billing codes. 
+    Costs take into account any applied No Cost Quotas.
+</p>
+{% if form %}
+  <div class="mb-3" id="accordion">
+    <div class="card">
+      <div class="card-header">
+        <a id="expand_button" role="button" class="card-link " data-toggle="collapse" href="#collapseOne">
+          <div>
+          <i class="fas fa-filter" aria-hidden="true"></i> Filter
+          <i id="plus_minus" class="fas {{expand_accordion|get_icon}} float-right"></i>
+          </div>
+        </a>
+      </div>
+      <div id="collapseOne" class="collapse {{expand_accordion}} {% if form.username.value %}show{% endif %}" data-parent="#accordion">
+        <div class="card-body">
+          <form id="filter_form" method="GET" autocomplete="off">
+                {{ form.username|as_crispy_field }}
+                {{ form.billing_code|as_crispy_field }}
+            <input type="submit" class="btn btn-primary" value="Search">
+            <button id="form_reset_button" type="button" class="btn btn-secondary">Reset</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+  <hr>
+{% endif %}
+<div>
+    <h3>Projected Total Cost: ${{ total_cost|floatformat:2 }}</h3>
+</div>
+<!--<div> <a href="?format=json" class="btn btn-primary mb-2 floats-right">Download JSON</a></div>-->
+<div>
+
+    <div class="col-lg-12 mt-2">
+    <h2>Projects Billing Preview</h2>
+    <p>
+        This report previews the costs for projects with billing codes. Each line previews the cost that would be charged to each billing code for the project.
+    </p>
+    <hr>
+    {% if charge_report %}
+      <table class="table">
+        <thead>
+          <tr>
+            <th scope="col">Project</th>
+            <th scope="col">Owner</th>
+            <th scope="col">Project Cost</th>
+            <th scope="col">DeptID</th>
+            <th scope="col">Proj Num/Grant</th>
+            <th scope="col">Percentage</th>
+            <th scope="col">Charged to ID</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in charge_report %}
+          <tr>
+            <td style="text-align: justify; text-justify: inter-word;">
+              <a href="/project/{{item.project.id}}/" data-toggle="popover" data-trigger="hover" data-content="View project details.">{{ item.project.title }}</a>
+            </td>
+            <td style="text-align: justify; text-justify: inter-word;" class="text-nowrap">{{ item.project.pi.first_name }} {{ item.project.pi.last_name }} ({{ item.project.pi.username }})</td>
+            <td>${{ item.project_cost|floatformat:2}}</td>
+            <td>{{ item.department }}</td>
+            <td>{{ item.grant }}</td>
+            <td>{{ item.percentage }}%</td>
+            <td>${{ item.charged_to_id|floatformat:2 }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <div class="alert alert-info" role="alert">
+        <i class="fa fa-info-circle" aria-hidden="true"></i> There are no projects to display.
+      </div>
+    {% endif %}
+  </div>
+
+{% endblock %}
+
+{% block javascript %}
+{{ block.super }}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    $('[data-toggle="popover"]').popover();
+});
+</script> 
+
+{% endblock %}
