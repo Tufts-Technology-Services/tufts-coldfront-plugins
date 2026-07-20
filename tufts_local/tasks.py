@@ -1,11 +1,14 @@
 import logging
 
 from decimal import Decimal, ROUND_CEILING, ROUND_HALF_EVEN
+import json
 from coldfront.core.project.models import Project, ProjectUser
 from coldfront.core.allocation.models import Allocation, AllocationAttribute
 from coldfront.core.resource.models import Resource
 from coldfront_billing.models import NoCostQuotaAllotment
+from coldfront_billing.views.no_cost_quota.common import quota_with_remaining
 
+from tufts_local.billing_utils import no_cost_quotas_report
 from tufts_local.starfish_utils import (get_starfish_usage_data_by_volume, get_starfish_volumes,
                                         set_project_approvers_from_starfish,
                                         sync_approver_tags, 
@@ -86,3 +89,19 @@ def get_oversubscribed_no_cost_quotas():
                                         'total_allotments': total_rounded, 
                                         'ncq_allotments': ncq_allotment})
     return exceeded_allotments
+
+
+def send_ncq_report():
+    report = no_cost_quotas_report()
+    for i in report['allocations']:
+        del i['allocation']  # remove allocation object from report to avoid serialization issues
+    
+    ncq_remaining_report = []
+    for i in quota_with_remaining():
+        ncq_remaining_report.append({
+            'user': i.user.username,
+            'quota_type': i.quota_type,
+            'amount': i.amount,
+            'remaining': round(i.remaining, 2)
+        })
+    return ncq_remaining_report

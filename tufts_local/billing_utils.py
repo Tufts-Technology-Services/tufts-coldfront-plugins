@@ -3,7 +3,7 @@ from django.db.models import TextField
 from django.db.models.functions import Cast
 from django.core.exceptions import ObjectDoesNotExist
 from django.utils.timezone import localdate
-from coldfront.core.allocation.models import Allocation
+from coldfront.core.allocation.models import Allocation, AllocationAttribute
 from coldfront.core.resource.models import Resource
 from coldfront.core.project.models import Project
 from coldfront_billing.models import NoCostQuotaAllotment, CostCenterAssignment
@@ -163,3 +163,23 @@ def get_cost_previews(user=None, billing_code=None):
             charge_report.append(charges)
 
     return {"missing_billing_code": missing_billing_code, "charge_report": charge_report, "total_cost": round(total_cost, 2), "month": month }
+
+
+def get_cost_per_allocation():
+    rows = []
+    projects = get_projects_prefetch(Project.objects.all().order_by('pi__username', 'title'))
+    for project in projects:
+        billing_allocations = create_billing_allocations(getattr(project, BILLING_ATTRIBUTE_NAME, []))
+        for ba in billing_allocations:
+            vol_path = AllocationAttribute.objects.filter(allocation_id=ba.allocation_id, allocation_attribute_type__name="sf_vol_path").first().value
+            rows.append({
+                'owner': ba.extra.get('pi_name'),
+                'resource': ba.extra.get('resource_name'),
+                'vol_path': vol_path,
+                'quota_tb': ba.quota_tb,
+                'cost_per_tb': ba.cost_per_tb,
+                'cost': ba.quota_tb * ba.cost_per_tb,
+                'ncq_applied': sum([i.amount for i in ba.no_cost_quotas]),
+                'cost_after_ncq': ba.total_cost
+            })
+    return rows
