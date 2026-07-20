@@ -28,9 +28,9 @@ def no_cost_quotas_report(user=None):
     shared_allotments = []
     if user:
         # only show allocations owned by the user (user is the PI of the project)
-        allocations = Allocation.objects.filter(resources__in=requires_payment, status__name='Active', project__pi__username=user).order_by('project__pi__username', 'project__title').prefetch_related('allocationattribute_set')
+        allocations = Allocation.objects.filter(resources__in=requires_payment, status__name='Active', project__pi__username=user).order_by('project__pi__username', 'project__title').prefetch_related('allocationattribute_set', 'no_cost_quota_allotments')
     else:
-        allocations = Allocation.objects.filter(resources__in=requires_payment, status__name='Active').order_by('project__pi__username', 'project__title').prefetch_related('allocationattribute_set')
+        allocations = Allocation.objects.filter(resources__in=requires_payment, status__name='Active').order_by('project__pi__username', 'project__title').prefetch_related('allocationattribute_set', 'no_cost_quota_allotments')
 
     for allocation in allocations:
         try:
@@ -41,7 +41,7 @@ def no_cost_quotas_report(user=None):
             continue
         storage_owner = allocation.project.pi.username
         info = {'allocation': allocation, 'vol_path': vol_path, 'storage_owner': storage_owner, 'quota': f"{int(quota)/10**12:.5f}", 'allotments': []}
-        ncq_allotment = NoCostQuotaAllotment.objects.filter(allocation=allocation)
+        ncq_allotment = allocation.no_cost_quota_allotments
         ncq_allot_total = 0
         for allot in ncq_allotment:
             amount = float(allot.amount)

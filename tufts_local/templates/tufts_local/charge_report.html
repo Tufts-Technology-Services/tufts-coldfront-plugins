@@ -28,7 +28,9 @@ Projected Cost Report
       <div id="collapseOne" class="collapse {{expand_accordion}} {% if form.username.value %}show{% endif %}" data-parent="#accordion">
         <div class="card-body">
           <form id="filter_form" method="GET" autocomplete="off">
-                {{ form.username|as_crispy_field }}
+                {% if request.user.is_superuser %}
+                  {{ form.username|as_crispy_field }}
+                {% endif %}
                 {{ form.billing_code|as_crispy_field }}
             <input type="submit" class="btn btn-primary" value="Search">
             <button id="form_reset_button" type="button" class="btn btn-secondary">Reset</button>
