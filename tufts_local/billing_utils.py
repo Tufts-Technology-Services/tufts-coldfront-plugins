@@ -41,7 +41,7 @@ def no_cost_quotas_report(user=None):
             continue
         storage_owner = allocation.project.pi.username
         info = {'allocation': allocation, 'vol_path': vol_path, 'storage_owner': storage_owner, 'quota': f"{int(quota)/10**12:.5f}", 'allotments': []}
-        ncq_allotment = allocation.no_cost_quota_allotments
+        ncq_allotment = allocation.no_cost_quota_allotments.all()
         ncq_allot_total = 0
         for allot in ncq_allotment:
             amount = float(allot.amount)
