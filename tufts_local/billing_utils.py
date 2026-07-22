@@ -1,3 +1,4 @@
+from decimal import ROUND_CEILING, ROUND_HALF_EVEN, Decimal
 import logging
 from django.db.models import TextField
 from django.db.models.functions import Cast
@@ -178,8 +179,51 @@ def get_cost_per_allocation():
                 'vol_path': vol_path,
                 'quota_tb': ba.quota_tb,
                 'cost_per_tb': ba.cost_per_tb,
-                'cost': ba.quota_tb * ba.cost_per_tb,
+                'cost': Decimal(ba.quota_tb * ba.cost_per_tb).quantize(Decimal('0.01'), rounding=ROUND_CEILING),
                 'ncq_applied': sum([i.amount for i in ba.no_cost_quotas]),
                 'cost_after_ncq': ba.total_cost
             })
     return rows
+
+
+def get_oversubscribed_no_cost_quotas():
+    """
+    return any NoCostQuotaAllotments that are associated with an allocation where allotment total exceeds allocation quota.
+    # todo: check the rounding on this
+    """
+    requires_payment = Resource.objects.filter(requires_payment=True, resource_type__name='Storage')
+    allocations = Allocation.objects.filter(resources__in=requires_payment, status__name='Active').prefetch_related('allocationattribute_set')
+    exceeded_allotments = []
+    for allocation in allocations:
+        try:
+            quota = allocation.allocationattribute_set.filter(allocation_attribute_type__name='reported_quota_bytes').first().value
+        except AttributeError:
+            print(f"Allocation {allocation.id} does not have required attributes.")
+            continue
+        ncq_allotment = NoCostQuotaAllotment.objects.filter(allocation=allocation)
+        ncq_allot_total = sum(float(allot.amount) for allot in ncq_allotment)
+        total_rounded = Decimal(ncq_allot_total).quantize(Decimal('0.01'), rounding=ROUND_HALF_EVEN)
+        quota_rounded = Decimal(int(quota)/10**12).quantize(Decimal('0.01'), rounding=ROUND_CEILING)
+        if quota_rounded < total_rounded:
+            exceeded_allotments.append({'allocation': allocation, 'quota': quota_rounded, 
+                                        'total_allotments': total_rounded, 
+                                        'ncq_allotments': ncq_allotment})
+    return exceeded_allotments
+
+
+def get_all_storage_allocations():
+    """
+    get info about storage allocations that have expired and require payment, including the vol_path and the storage owner.
+    """
+    storage = Resource.objects.filter(resource_type__name='Storage')
+    expired_allocations = Allocation.objects.filter(resources__in=storage).prefetch_related('allocationattribute_set', 'project__pi')
+    data = []
+    for allocation in expired_allocations:
+        vol_path = allocation.allocationattribute_set.filter(allocation_attribute_type__name='sf_vol_path').first().value
+        storage_owner = allocation.project.pi.username
+        resource = allocation.resources
+        resource_name = resource.first().name if resource.exists() else ''
+        requires_payment = resource.first().requires_payment if resource.exists() else False
+        status = allocation.status.name
+        data.append({'owner': storage_owner, 'resource': resource_name, 'vol_path': vol_path, 'requires_payment': requires_payment, 'status': status,  'allocation': allocation})
+    return data
