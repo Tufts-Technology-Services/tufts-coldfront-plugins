@@ -88,10 +88,9 @@ Projected Cost Report
           <tr id="details-{{ forloop.counter }}" class="collapse fast-collapse">
             <td colspan="8" class="bg-light">
             <div class="p-3">
-              <h5>Project Details:</h5>
-              <ul>
+              <ul class="list-group">
                 {% for allocation in item.allocations %}
-                  <li><strong>{{ allocation.extras.resource_name }}:</strong>  {{ allocation.quota_tb }}TB  cost=${{ allocation.total_cost |floatformat:2 }}</li>
+                  <li class="list-group-item"><strong>{{ allocation.extra.resource_name }}:</strong>  {{ allocation.quota_tb }}TB  cost=${{ allocation.total_cost |floatformat:2 }}</li>
                 {% endfor %}
               </ul>
             </div>
