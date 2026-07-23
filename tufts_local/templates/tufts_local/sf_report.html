@@ -134,6 +134,41 @@ Starfish Report
     {% else %}
       <div class="alert alert-info" role="alert"><i class="fa fa-info-circle" aria-hidden="true"></i> There are no vol_paths to display.</div>
     {% endif %}
+
+
+    <div class="col-lg-12 mt-2">
+    <h2>Owner mismatch between Starfish and Coldfront</h2>
+    <hr>
+
+    {% if owner_mismatches %}
+      <ul class="list-group">
+        {% for vol_path, allocation, sf_owner in owner_mismatches %}
+          <li class="list-group-item">
+            {{ vol_path }} - Coldfront Owner: {{ allocation.project.pi.username }}, Starfish Owner: {{ sf_owner }}
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <div class="alert alert-info" role="alert"><i class="fa fa-info-circle" aria-hidden="true"></i> There are no owner mismatches to display.</div>
+    {% endif %}
+
+
+        <div class="col-lg-12 mt-2">
+    <h2>Approver mismatch between Starfish and Coldfront</h2>
+    <hr>
+
+    {% if approver_mismatches %}
+      <ul class="list-group">
+        {% for vol_path, allocation, cf_approvers, sf_approvers in approver_mismatches %}
+          <li class="list-group-item">
+            {{ vol_path }} - Coldfront Approvers: {{ cf_approvers|join:", " }}, Starfish Approvers: {{ sf_approvers|join:", " }}
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <div class="alert alert-info" role="alert"><i class="fa fa-info-circle" aria-hidden="true"></i> There are no approver mismatches to display.</div>
+    {% endif %}
+
   </div>
   <!-- end row div -->
 </div>

@@ -9,7 +9,7 @@ from coldfront.core.allocation.models import Allocation, AllocationAttribute
 from coldfront.core.resource.models import Resource
 from tufts_local import billing_utils
 from tufts_local.forms import ReportFilterForm
-from tufts_local.starfish_utils import get_starfish_usage_data_by_volume, get_starfish_volumes
+from tufts_local.starfish_utils import get_starfish_usage_data_by_volume, get_starfish_volumes, parse_tags
 
 logger = logging.getLogger(__name__)
 
@@ -23,25 +23,47 @@ def sf_report(request):
     sf_data = []
     for volume in volumes:
         sf_data.extend(get_starfish_usage_data_by_volume(volume, "starfish"))
-    sf_data = set([i['vol_path'].lower().strip() for i in sf_data])
+    vol_paths = set([i['vol_path'].lower().strip() for i in sf_data])
     storage = Resource.objects.filter(resource_type__name='Storage')
     storage_allocations = Allocation.objects.filter(resources__in=storage).prefetch_related('allocationattribute_set')
     missing_sf_attribute = []
     not_in_starfish = []
+    alloc_matches = {}
     for alloc in storage_allocations:
-        alloc_sf_attr = AllocationAttribute.objects.filter(allocation=alloc, allocation_attribute_type__name="sf_vol_path")
-        if not alloc_sf_attr.exists():
+        alloc_sf_attr = alloc.allocationattribute_set.filter(allocation_attribute_type__name="sf_vol_path")
+        sf_vol_path = alloc_sf_attr.first().value if alloc_sf_attr.exists() else None
+        if not sf_vol_path:
             missing_sf_attribute.append(alloc)
-        elif alloc_sf_attr.first().value.lower().strip() not in sf_data:
+        elif sf_vol_path.lower().strip() not in vol_paths:
             # only consider active allocations for not_in_starfish, as there could be archived allocations that are not in Starfish anymore
             if alloc.status.name.lower() == "active":
                 not_in_starfish.append(alloc)
+        else:
+            alloc_matches[sf_vol_path] = alloc
+    
+    owner_mismatches = []
+    approver_mismatches = []
+    for k, v in alloc_matches.items():
+        sf_entry = next((item for item in sf_data if item['vol_path'].lower().strip() == k.lower().strip()), None)
+        if sf_entry:
+            tags = parse_tags(sf_entry.get('tags_explicit', '').split(','))
+            if tags:
+                sf_owner = tags.get('Owner', set())
+                if len(sf_owner) > 0:
+                    sf_owner = list(sf_owner)[0]
+                    if v.project and v.project.pi.username != sf_owner:
+                        owner_mismatches.append((v, sf_owner, v.project.pi.username))
+                sf_approvers = tags.get('Approver', set())
+                if v.project:
+                    cf_approvers = set([pu.user.username for pu in v.project.projectuser_set.filter(role__name="Manager")])
+                    if cf_approvers != sf_approvers:
+                        approver_mismatches.append((k, v, cf_approvers, sf_approvers))
     
     vol_path_allocation_attributes = set(list(AllocationAttribute.objects.filter(
         allocation__in=storage_allocations, 
         allocation_attribute_type__name="sf_vol_path").values_list('value', flat=True)))
     vol_path_allocation_attributes = {i.lower().strip() for i in vol_path_allocation_attributes}
-    missing_from_coldfront = sf_data - vol_path_allocation_attributes
+    missing_from_coldfront = vol_paths - vol_path_allocation_attributes
     if request.GET.get("format") == "csv":
         data = {
             "header": ["sf_status", "sf_vol_path", "Resource Allocation", "Project", "Status"],
@@ -75,11 +97,29 @@ def sf_report(request):
                 "",
                 ""
             ])
+        for vol_path, allocation, sf_owner in owner_mismatches:
+            data["rows"].append([
+                "Owner mismatch",
+                vol_path,
+                allocation.get_parent_resource.name,
+                allocation.project.title if allocation.project else "",
+                f"Coldfront Owner: {allocation.project.pi.username}, Starfish Owner: {sf_owner}"
+            ])
+        for vol_path, allocation, cf_approvers, sf_approvers in approver_mismatches:
+            data["rows"].append([
+                "Approver mismatch",
+                vol_path,
+                allocation.get_parent_resource.name,
+                allocation.project.title if allocation.project else "",
+                f"Coldfront Approvers: {', '.join(cf_approvers)}, Starfish Approvers: {', '.join(sf_approvers)}"
+            ])
         return get_csv(data, filename="starfish_diff_report.csv")
     return TemplateResponse(request, "tufts_local/sf_report.html", {"volumes": volumes,
                                                                     "missing_starfish_attribute": missing_sf_attribute,
                                                                     "not_in_starfish": not_in_starfish,
-                                                                    "missing_from_coldfront": missing_from_coldfront 
+                                                                    "missing_from_coldfront": missing_from_coldfront,
+                                                                    "owner_mismatches": owner_mismatches,
+                                                                    "approver_mismatches": approver_mismatches
                                                                     })
 
 def get_csv(data, filename="export.csv"):
