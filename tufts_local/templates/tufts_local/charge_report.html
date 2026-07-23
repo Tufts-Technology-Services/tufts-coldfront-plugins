@@ -90,7 +90,9 @@ Projected Cost Report
             <div class="p-3">
               <h5>Project Details:</h5>
               <ul>
-                <li><strong>Allocation:</strong> 1.0 TB</li>
+                {% for allocation in item.allocations %}
+                  <li><strong>{{ allocation.extras.resource_name }}:</strong>  {{ allocation.quota_tb }}TB  cost=${{ allocation.quota_tb * allocation.cost_per_tb|floatformat:2 }}</li>
+                {% endfor %}
               </ul>
             </div>
             </td>

@@ -139,6 +139,7 @@ def get_cost_previews(user=None, billing_code=None):
             cost = round(project_cost * (int(pct) / 100), 2)
             charges = {
                 'project': project,
+                'allocations': billing_allocations,
                 'department': dept_id,
                 'grant': grant,
                 'percentage': pct,
