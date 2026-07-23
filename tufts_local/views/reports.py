@@ -122,24 +122,24 @@ def no_cost_quotas_report(request):
 
 @login_required
 @require_GET
-def billing_code_audit(request):
+def billing_code_report(request):
     if request.user.is_superuser:
         form = ReportFilterForm(request.GET)
         if form.is_valid():
             if form.cleaned_data['username']:
-                data = billing_utils.billing_code_audit(user=form.cleaned_data['username'])
+                data = billing_utils.billing_code_report(user=form.cleaned_data['username'])
             else:
-                data = billing_utils.billing_code_audit()
+                data = billing_utils.billing_code_report()
 
             if request.GET.get("format") == "json":
                 return JsonResponse(data, status=200)
             else:
-               return TemplateResponse(request, "tufts_local/billing_code_audit.html", {"missing_billing_code": data['missing_billing_code'], "charge_report": data['charge_report'], "total_cost": data['total_cost'], "month": data['month'], "form": form})
+               return TemplateResponse(request, "tufts_local/billing_code_report.html", {"missing_billing_code": data['missing_billing_code'], "charge_report": data['charge_report'], "total_cost": data['total_cost'], "month": data['month'], "form": form})
         else:
-            return TemplateResponse(request, "tufts_local/billing_code_audit.html", {"message": "Invalid form data."}, status=400)
+            return TemplateResponse(request, "tufts_local/billing_code_report.html", {"message": "Invalid form data."}, status=400)
     else:
-        data = billing_utils.billing_code_audit(user=request.user.username)
-        return TemplateResponse(request, "tufts_local/billing_code_audit.html", {"missing_billing_code": data['missing_billing_code'], "charge_report": data['charge_report'], "total_cost": data['total_cost'], "month": data['month']})
+        data = billing_utils.billing_code_report(user=request.user.username)
+        return TemplateResponse(request, "tufts_local/billing_code_report.html", {"missing_billing_code": data['missing_billing_code'], "charge_report": data['charge_report'], "total_cost": data['total_cost'], "month": data['month']})
 
 
 @login_required

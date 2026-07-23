@@ -36,13 +36,13 @@ urlpatterns = [
     ),
     path(
         'billing-code-report/',
-        views.billing_code_audit,
+        views.billing_code_report,
         name='billing-code-report',
     ),
     path(
-        'charge-report/',
+        'cost-preview-report/',
         views.charge_report,
-        name='charge-report',
+        name='cost-preview-report',
     ),
     path(
         'add-user-to-coldfront/',

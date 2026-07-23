@@ -72,7 +72,7 @@ def no_cost_quotas_report(user=None):
     return {"allocations": data, "shared_allotments": shared_allotments, "errors": errors}
 
 
-def billing_code_audit(user=None):
+def billing_code_report(user=None):
     """
     get info about billing codes for all allocations requiring payment.
     """
@@ -83,7 +83,6 @@ def billing_code_audit(user=None):
     else:   
         projects = get_projects_prefetch(Project.objects.all().order_by('pi__username', 'title'))
     total_cost = 0
-    charge_report = []
     for project in projects:
         billing_allocations = create_billing_allocations(getattr(project, BILLING_ATTRIBUTE_NAME, []))
         project_cost = sum(b.total_cost for b in billing_allocations)
@@ -92,28 +91,12 @@ def billing_code_audit(user=None):
             continue
         total_cost += project_cost
         try:
-            assignments = project.cost_center_assignment.assignments or []
+            _ = project.cost_center_assignment.assignments or []
         except ObjectDoesNotExist:
             # if the project does not have a CostCenterAssignment, we need to report these projects as missing billing codes
             missing_billing_code.append({'project': project, 'project_cost': project_cost})
-            continue
 
-        for assignment in sorted(assignments, key=lambda x: x.get('department')):
-            dept_id = assignment.get('department')
-            pct = assignment.get('percentage')
-            grant = assignment.get('grant', '')
-            cost = round(project_cost * (int(pct) / 100), 2)
-            charges = {
-                'project': project,
-                'department': dept_id,
-                'grant': grant,
-                'percentage': pct,
-                'charged_to_id': cost,
-                'project_cost': project_cost,
-            }
-            charge_report.append(charges)
-
-    return {"missing_billing_code": missing_billing_code, "charge_report": charge_report, "total_cost": round(total_cost, 2), "month": month }
+    return {"missing_billing_code": missing_billing_code, "total_cost": round(total_cost, 2), "month": month }
 
 
 def get_cost_previews(user=None, billing_code=None):
