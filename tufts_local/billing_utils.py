@@ -87,14 +87,13 @@ def billing_code_report(user=None):
         billing_allocations = create_billing_allocations(getattr(project, BILLING_ATTRIBUTE_NAME, []))
         project_cost = sum(b.total_cost for b in billing_allocations)
 
-        if not project_cost:
-            continue
-        total_cost += project_cost
-        try:
-            _ = project.cost_center_assignment.assignments or []
-        except ObjectDoesNotExist:
-            # if the project does not have a CostCenterAssignment, we need to report these projects as missing billing codes
-            missing_billing_code.append({'project': project, 'project_cost': project_cost})
+        if project_cost:
+            try:
+                _ = project.cost_center_assignment.assignments or []
+            except ObjectDoesNotExist:
+                total_cost += project_cost
+                # if the project does not have a CostCenterAssignment, we need to report these projects as missing billing codes
+                missing_billing_code.append({'project': project, 'project_cost': project_cost})
 
     return {"missing_billing_code": missing_billing_code, "total_cost": round(total_cost, 2), "month": month }
 
