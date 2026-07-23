@@ -56,6 +56,7 @@ def sf_report(request):
                 sf_approvers = tags.get('Approver', set())
                 if v.project:
                     cf_approvers = set([pu.user.username for pu in v.project.projectuser_set.filter(role__name="Manager")])
+                    cf_approvers.discard(v.project.pi.username)
                     if cf_approvers != sf_approvers:
                         approver_mismatches.append((k, v, cf_approvers, sf_approvers))
     
