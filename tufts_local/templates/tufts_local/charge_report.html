@@ -64,6 +64,7 @@ Projected Cost Report
             <th scope="col">Proj Num/Grant</th>
             <th scope="col">Percentage</th>
             <th scope="col">Charged to ID</th>
+            <th scope="col">Details</th>
           </tr>
         </thead>
         <tbody>
@@ -78,6 +79,21 @@ Projected Cost Report
             <td>{{ item.grant }}</td>
             <td>{{ item.percentage }}%</td>
             <td>${{ item.charged_to_id|floatformat:2 }}</td>
+            <td>
+              <a class="btn btn-sm btn-info" data-toggle="collapse" href="#details-{{ forloop.counter }}" role="button" aria-expanded="false" aria-controls="details-{{ forloop.counter }}">
+                View Details
+              </a>
+            </td>
+          </tr>
+          <tr id="details-{{ forloop.counter }}" class="collapse fast-collapse">
+            <td colspan="8" class="bg-light">
+            <div class="p-3">
+              <h5>Project Details:</h5>
+              <ul>
+                <li><strong>Allocation:</strong> 1.0 TB</li>
+              </ul>
+            </div>
+            </td>
           </tr>
           {% endfor %}
         </tbody>

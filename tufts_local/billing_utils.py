@@ -76,18 +76,20 @@ def billing_code_report(user=None):
     """
     get info about billing codes for all allocations requiring payment.
     """
-    missing_billing_code = []
+
     month = localdate().strftime("%Y-%m")
     if user:
         projects = get_projects_prefetch(Project.objects.filter(pi__username=user))
     else:   
         projects = get_projects_prefetch(Project.objects.all().order_by('pi__username', 'title'))
     total_cost = 0
+    missing_billing_code = []
     for project in projects:
         billing_allocations = create_billing_allocations(getattr(project, BILLING_ATTRIBUTE_NAME, []))
         project_cost = sum(b.total_cost for b in billing_allocations)
 
         if project_cost:
+
             try:
                 _ = project.cost_center_assignment.assignments or []
             except ObjectDoesNotExist:
