@@ -134,7 +134,7 @@ def billing_code_report(request):
             if request.GET.get("format") == "json":
                 return JsonResponse(data, status=200)
             else:
-               return TemplateResponse(request, "tufts_local/billing_code_report.html", {"missing_billing_code": data['missing_billing_code'], "charge_report": data['charge_report'], "total_cost": data['total_cost'], "month": data['month'], "form": form})
+               return TemplateResponse(request, "tufts_local/billing_code_report.html", {"missing_billing_code": data['missing_billing_code'], "total_cost": data['total_cost'], "month": data['month'], "form": form})
         else:
             return TemplateResponse(request, "tufts_local/billing_code_report.html", {"message": "Invalid form data."}, status=400)
     else:
