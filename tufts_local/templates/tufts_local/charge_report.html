@@ -91,7 +91,7 @@ Projected Cost Report
               <h5>Project Details:</h5>
               <ul>
                 {% for allocation in item.allocations %}
-                  <li><strong>{{ allocation.extras.resource_name }}:</strong>  {{ allocation.quota_tb }}TB  cost=${% widthratio allocation.quota_tb 1 allocation.cost_per_tb|floatformat:2 %}</li>
+                  <li><strong>{{ allocation.extras.resource_name }}:</strong>  {{ allocation.quota_tb }}TB  cost=${{ allocation.total_cost |floatformat:2 }}</li>
                 {% endfor %}
               </ul>
             </div>
