@@ -139,7 +139,7 @@ def billing_code_report(request):
             return TemplateResponse(request, "tufts_local/billing_code_report.html", {"message": "Invalid form data."}, status=400)
     else:
         data = billing_utils.billing_code_report(user=request.user.username)
-        return TemplateResponse(request, "tufts_local/billing_code_report.html", {"missing_billing_code": data['missing_billing_code'], "charge_report": data['charge_report'], "total_cost": data['total_cost'], "month": data['month']})
+        return TemplateResponse(request, "tufts_local/billing_code_report.html", {"missing_billing_code": data['missing_billing_code'], "total_cost": data['total_cost'], "month": data['month']})
 
 
 @login_required
