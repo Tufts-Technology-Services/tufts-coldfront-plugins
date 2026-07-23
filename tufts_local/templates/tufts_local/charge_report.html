@@ -90,7 +90,7 @@ Projected Cost Report
             <div class="p-3">
               <ul class="list-group">
                 {% for allocation in item.allocations %}
-                  <li class="list-group-item"><strong>{{ allocation.extra.resource_name }}:</strong>  {{ allocation.quota_tb }}TB  cost=${{ allocation.total_cost |floatformat:2 }}</li>
+                  <li class="list-group-item"><strong>{{ allocation.extra.resource_name }}:</strong>  {{ allocation.quota_tb }}TB  cost=${{ allocation.total_cost |floatformat:2 }} ncq={{ allocation.ncq_applied |floatformat:2 }}TB applied</li>
                 {% endfor %}
               </ul>
             </div>
