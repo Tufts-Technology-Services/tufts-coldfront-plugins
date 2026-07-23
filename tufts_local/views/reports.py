@@ -52,7 +52,7 @@ def sf_report(request):
                 if len(sf_owner) > 0:
                     sf_owner = list(sf_owner)[0]
                     if v.project and v.project.pi.username != sf_owner:
-                        owner_mismatches.append((v, sf_owner, v.project.pi.username))
+                        owner_mismatches.append((k, v, v.project.pi.username, sf_owner))
                 sf_approvers = tags.get('Approver', set())
                 if v.project:
                     cf_approvers = set([pu.user.username for pu in v.project.projectuser_set.filter(role__name="Manager")])

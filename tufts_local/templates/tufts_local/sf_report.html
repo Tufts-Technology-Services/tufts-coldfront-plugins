@@ -142,9 +142,9 @@ Starfish Report
 
     {% if owner_mismatches %}
       <ul class="list-group">
-        {% for vol_path, allocation, sf_owner in owner_mismatches %}
+        {% for vol_path, allocation, cf_owner, sf_owner in owner_mismatches %}
           <li class="list-group-item">
-            {{ vol_path }} - Coldfront Owner: {{ allocation.project.pi.username }}, Starfish Owner: {{ sf_owner }}
+            {{ vol_path }} - Coldfront Owner: {{ cf_owner }}, Starfish Owner: {{ sf_owner }}
           </li>
         {% endfor %}
       </ul>
