@@ -98,7 +98,8 @@ def parse_tags(tags: list) -> dict:
             key, value = tag.split(':', 1)
             parsed_tags.setdefault(key.strip(), set()).add(value.strip())
         else:
-            raise ValueError(f"Tag '{tag}' does not contain a colon ':' to separate key and value.")
+            logger.warning(f"Tag '{tag}' does not contain a namespace (colon) and will be added to 'other' category.")
+            parsed_tags.setdefault('other', set()).add(tag.strip())
     return parsed_tags
 
 
