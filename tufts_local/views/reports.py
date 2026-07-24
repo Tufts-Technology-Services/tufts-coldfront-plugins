@@ -54,6 +54,7 @@ def sf_report(request):
                     if v.project and v.project.pi.username != sf_owner:
                         owner_mismatches.append((k, v, v.project.pi.username, sf_owner))
                 sf_approvers = tags.get('Approver', set())
+                sf_approvers.discard(v.project.pi.username)  # remove the owner from the approvers list if present  
                 if v.project:
                     cf_approvers = set([pu.user.username for pu in v.project.projectuser_set.filter(role__name="Manager", status__name="Active")])
                     cf_approvers.discard(v.project.pi.username)
