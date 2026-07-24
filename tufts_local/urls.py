@@ -53,5 +53,10 @@ urlpatterns = [
         'local-login-as-user/<username>/',
         views.login_as_user_view,
         name='local-login-as-user',
-    )
+    ),
+    path(
+        'not-updated-report/',
+        views.not_updated_report,
+        name='not-updated-report',
+    ),
 ]

@@ -8,6 +8,7 @@ from django.views.decorators.cache import cache_page
 from coldfront.core.allocation.models import Allocation, AllocationAttribute
 from coldfront.core.resource.models import Resource
 from tufts_local import billing_utils
+from tufts_local import utils
 from tufts_local.forms import ReportFilterForm
 from tufts_local.starfish_utils import get_starfish_usage_data_by_volume, get_starfish_volumes, parse_tags
 
@@ -206,3 +207,10 @@ def charge_report(request):
                 billing_code = form.cleaned_data['billing_code']
                 data = billing_utils.get_cost_previews(user=request.user.username, billing_code=billing_code)
                 return TemplateResponse(request, "tufts_local/charge_report.html", {"charge_report": data['charge_report'], "total_cost": data['total_cost'], "month": data['month'], "form": form})
+
+
+@user_passes_test(lambda u: u.is_superuser)
+@require_GET
+def not_updated_report(request):
+    data = utils.not_updated_report()
+    return TemplateResponse(request, "tufts_local/not_updated_report.html", data)

@@ -1,0 +1,65 @@
+{% extends "common/base.html" %}
+{% load common_tags %}
+{% load crispy_forms_tags %}
+{% load static %}
+
+{% block title %}
+Storage Info Not Updated Report
+{% endblock %}
+
+
+{% block content %}
+<h2>Not Updated Report</h2>
+<p>
+    This report shows allocations where the quota or usage information has not been updated recently.
+</p>
+   <div class="col-lg-12 mt-2">
+    <hr>
+    {% if not_updated_allocations %}
+      <table class="table">
+        <thead>
+          <tr>
+            <th scope="col">Project</th>
+            <th scope="col">Owner</th>
+            <th scope="col">Resource Allocation</th>
+            <th scope="col">Quota Value Updated</th>
+            <th scope="col">Date</th>
+            <th scope="col">Usage Value Updated</th>
+            <th scope="col">Date</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in not_updated_allocations %}
+          <tr>
+            <td style="text-align: justify; text-justify: inter-word;" class="text-nowrap">{{ item.project_title }}</td>
+            <td style="text-align: justify; text-justify: inter-word;" class="text-nowrap">{{ item.pi.first_name }} {{ item.pi.last_name }} ({{ item.pi.username }})</td>
+            <td style="text-align: justify; text-justify: inter-word;">
+              <a href="/allocation/{{item.allocation.id}}/" data-toggle="popover" data-trigger="hover" data-content="View allocation details.">{{ item.allocation.get_parent_resource }}</a>
+            </td>
+            <td>{{ item.qrd_updated.0 }}</td>
+            <td>{{ item.qrd_updated.1 | date:"Y-m-d H:i" }}</td>
+            <td>{{ item.usage_updated.0 }}</td>
+            <td>{{ item.usage_updated.1 | date:"Y-m-d H:i" }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <div class="alert alert-info" role="alert">
+        <i class="fa fa-info-circle" aria-hidden="true"></i> There are no allocations to display.
+      </div>
+    {% endif %}
+  </div>
+
+
+{% endblock %}
+
+{% block javascript %}
+{{ block.super }}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    $('[data-toggle="popover"]').popover();
+});
+</script> 
+
+{% endblock %}

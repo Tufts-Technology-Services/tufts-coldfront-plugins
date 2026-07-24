@@ -187,17 +187,30 @@ def delete_project_if_no_allocations(proj):
         logger.info(f"Project with title: {proj.title} has allocations and was not deleted")
 
 
-def allocation_info_not_updated(allocation):
+def allocation_date_info_updated(allocation, attribute_type_name, days=1):
     """
-    Returns True if the allocation's info has not been updated in the last 24 hours.
+    Returns True if the allocation's info has been updated in the last `days` days.
     """
     if not allocation:
-        logger.warning(f"No allocation provided")
-        return True
-    last_updated = allocation.last_updated
-    if not last_updated:
-        logger.warning(f"Allocation {allocation.id} has no last_updated timestamp")
-        return True
-    if (datetime.datetime.now(datetime.timezone.utc) - last_updated).total_seconds() > 86400:
-        return True
-    return False
+        raise ValueError("No allocation provided")
+    attribs = allocation.allocationattribute_set.values('value', 'allocation_attribute_type__name')
+    match = next((item for item in attribs if item["allocation_attribute_type__name"] == attribute_type_name), None)
+    if not match or not match['value']:
+        logger.warning(f"Allocation {allocation.id} has no {attribute_type_name} attribute or value")
+        return (False, None)
+    return ((datetime.datetime.now() - datetime.datetime.fromisoformat(match['value'])).total_seconds() <= days * 86400), datetime.datetime.fromisoformat(match['value'])
+
+
+def not_updated_report():
+    """
+    Returns a list of allocations where the info has not been updated in the last `days` days.
+    """
+    storage = Resource.objects.filter(resource_type__name="Storage")
+    allocations = Allocation.objects.filter(resources_in=storage, status__name="Active").prefetch_related('allocationattribute_set', 'project__pi', 'project__title')
+    not_updated_allocations = []
+    for alloc in allocations:
+        qrd_updated = allocation_date_info_updated(alloc, attribute_type_name="quota_report_date", days=1)
+        usage_updated = allocation_date_info_updated(alloc, attribute_type_name="usage_report_date", days=1)
+        if not qrd_updated[0] or not usage_updated[0]:
+            not_updated_allocations.append({"allocation": alloc, "project_title": alloc.project.title, "pi": alloc.project.pi, "qrd_updated": qrd_updated, "usage_updated": usage_updated})
+    return {"not_updated_allocations": not_updated_allocations}
