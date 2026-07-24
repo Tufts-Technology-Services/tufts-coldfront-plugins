@@ -206,7 +206,7 @@ def not_updated_report():
     Returns a list of allocations where the info has not been updated in the last `days` days.
     """
     storage = Resource.objects.filter(resource_type__name="Storage")
-    allocations = Allocation.objects.filter(resources__in=storage, status__name="Active").prefetch_related('allocationattribute_set', 'project__pi', 'project__title')
+    allocations = Allocation.objects.filter(resources__in=storage, status__name="Active").prefetch_related('allocationattribute_set', 'project__pi', 'project')
     not_updated_allocations = []
     for alloc in allocations:
         qrd_updated = allocation_date_info_updated(alloc, attribute_type_name="quota_report_date", days=1)
