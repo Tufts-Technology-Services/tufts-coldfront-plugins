@@ -151,3 +151,11 @@ def refresh_ncq_eligibility():
                         ncq_logger.info(f"Deleting NoCostQuotaAllotment {allotment.amount} associated with allocation {allotment.allocation.id}.")
                         allotment.delete()
                 NoCostQuota.objects.filter(user=user).delete()
+
+
+def remove_empty_ncq_allotments():
+    empty_allotments = NoCostQuotaAllotment.objects.filter(amount__lte=0)
+    count = empty_allotments.count()
+    if count > 0:
+        logger.info(f"Removing {count} NoCostQuotaAllotment(s) with amount 0.")
+        empty_allotments.delete()
