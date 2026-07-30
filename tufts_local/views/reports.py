@@ -214,3 +214,10 @@ def charge_report(request):
 def not_updated_report(request):
     data = utils.not_updated_report()
     return TemplateResponse(request, "tufts_local/not_updated_report.html", data)
+
+
+@user_passes_test(lambda u: u.is_superuser)
+@require_GET
+def oversubscribed_allotments_report(request):
+    data = billing_utils.get_oversubscribed_no_cost_quotas()
+    return TemplateResponse(request, "tufts_local/oversubscribed_allotments_report.html", {'overages': data})

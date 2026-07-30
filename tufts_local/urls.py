@@ -59,4 +59,9 @@ urlpatterns = [
         views.not_updated_report,
         name='not-updated-report',
     ),
+    path(
+        'oversubscribed-allotments-report/',
+        views.oversubscribed_allotments_report,
+        name='oversubscribed-allotments-report',
+    ),
 ]
