@@ -1,7 +1,7 @@
 import logging
 
 from decimal import Decimal, ROUND_CEILING, ROUND_HALF_EVEN
-from django.contrib.auth.models import Group
+from django.contrib.auth.models import Group, User
 from coldfront.core.project.models import Project, ProjectUser
 from coldfront.core.allocation.models import Allocation, AllocationAttribute
 from coldfront.core.resource.models import Resource
@@ -116,23 +116,26 @@ def refresh_ncq_eligibility():
     tier2_group_name = 'faculty_pi_eligible_tier2'
     group_tier1 = Group.objects.get(name=tier1_group_name)
     group_tier2 = Group.objects.get(name=tier2_group_name)
+    tier1_users = User.objects.filter(groups=group_tier1).values_list('username', flat=True)
+    tier2_users = User.objects.filter(groups=group_tier2).values_list('username', flat=True)
     for entry in eligibility_data:
         is_eligible = entry.get('no_cost_quota_eligible', 'No')
         username = entry.get('username', '').lower()
-        user = create_user(username)
-        user_groups = user.groups.all()
-        in_tier_1 = group_tier1 in user_groups
-        in_tier_2 = group_tier2 in user_groups
+        in_tier_1 = username in tier1_users
+        in_tier_2 = username in tier2_users
         if is_eligible.lower().strip() == 'yes':
             if not in_tier_1:
                 ncq_logger.info(f"Adding user {username} to group {tier1_group_name}")
+                user = create_user(username)
                 user.groups.add(group_tier1)
             if not in_tier_2:
                 ncq_logger.info(f"Adding user {username} to group {tier2_group_name}")
+                user = create_user(username)
                 user.groups.add(group_tier2)
         else:
             if in_tier_1:
                 ncq_logger.info(f"Removing user {username} from group {tier1_group_name}")
+                user = create_user(username)
                 user.groups.remove(group_tier1)
                 allotments = NoCostQuotaAllotment.objects.filter(allocation__project__pi=user)
                 if allotments.exists():
@@ -143,6 +146,7 @@ def refresh_ncq_eligibility():
                 NoCostQuota.objects.filter(user=user).delete()
             if in_tier_2:
                 ncq_logger.info(f"Removing user {username} from group {tier2_group_name}")
+                user = create_user(username)
                 user.groups.remove(group_tier2)
                 allotments = NoCostQuotaAllotment.objects.filter(allocation__project__pi=user)
                 if allotments.exists():
