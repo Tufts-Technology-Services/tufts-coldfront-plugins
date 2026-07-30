@@ -7,7 +7,7 @@ from coldfront.core.allocation.models import Allocation, AllocationAttribute
 from coldfront.core.resource.models import Resource
 from coldfront_billing.models import NoCostQuotaAllotment, NoCostQuota
 from coldfront_billing.views.no_cost_quota.common import quota_with_remaining
-
+from coldfront_billing.reports.quota import auto_assign_quota 
 from tufts_local.analytics_utils import get_ncq_eligibility
 from tufts_local.billing_utils import no_cost_quotas_report
 from tufts_local.starfish_utils import (get_starfish_usage_data_by_volume, get_starfish_volumes,
@@ -159,3 +159,14 @@ def remove_empty_ncq_allotments():
     if count > 0:
         logger.info(f"Removing {count} NoCostQuotaAllotment(s) with amount 0.")
         empty_allotments.delete()
+    return f"Removed {count} NoCostQuotaAllotment(s) with amount 0."
+
+
+def autoallocate_ncq_allotments():
+    """
+    Automatically allocate NoCostQuotaAllotments to eligible users based on their remaining quota.
+    """
+    logger.info("Starting automatic allocation of NoCostQuotaAllotments.")
+    response = auto_assign_quota()
+    logger.info(f"Automatic allocation response: {response}")
+    return response
