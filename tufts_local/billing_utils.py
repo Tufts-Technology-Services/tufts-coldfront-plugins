@@ -198,6 +198,27 @@ def get_oversubscribed_no_cost_quotas():
     return exceeded_allotments
 
 
+def expired_storage_allocations_with_ncq_allotments():
+    """
+    get info about storage allocations that have expired and require payment, including the vol_path and the storage owner.
+    """
+    storage = Resource.objects.filter(resource_type__name='Storage')
+    expired_allocations = Allocation.objects.filter(resources__in=storage).exclude(status__name="Active").prefetch_related('allocationattribute_set', 'project__pi')
+    data = []
+    for allocation in expired_allocations:
+        ncq_allotment = NoCostQuotaAllotment.objects.filter(allocation=allocation)
+        if ncq_allotment.exists():
+            vol_path = allocation.allocationattribute_set.filter(allocation_attribute_type__name='sf_vol_path').first().value
+            storage_owner = allocation.project.pi.username
+            resource = allocation.resources
+            resource_name = resource.first().name if resource.exists() else ''
+            requires_payment = resource.first().requires_payment if resource.exists() else False
+            status = allocation.status.name
+            
+            data.append({'owner': storage_owner, 'resource': resource_name, 'vol_path': vol_path, 'requires_payment': requires_payment, 'status': status,  'allocation': allocation, 'ncq_allotments': ncq_allotment})
+    return data
+
+
 def get_all_storage_allocations():
     """
     get info about storage allocations that have expired and require payment, including the vol_path and the storage owner.

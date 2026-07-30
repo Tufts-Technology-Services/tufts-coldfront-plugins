@@ -221,3 +221,10 @@ def not_updated_report(request):
 def oversubscribed_allotments_report(request):
     data = billing_utils.get_oversubscribed_no_cost_quotas()
     return TemplateResponse(request, "tufts_local/oversubscribed_allotments_report.html", {'overages': data})
+
+
+@user_passes_test(lambda u: u.is_superuser)
+@require_GET
+def expired_allocations_report(request):
+    data = billing_utils.expired_storage_allocations_with_ncq_allotments()
+    return TemplateResponse(request, "tufts_local/expired_allocations_report.html", {'expired_allocations': data})

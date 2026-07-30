@@ -1,0 +1,40 @@
+{% extends "common/base.html" %}
+{% load common_tags %}
+{% load crispy_forms_tags %}
+{% load static %}
+
+{% block title %}
+Expired Allocations Report
+{% endblock %}
+
+
+{% block content %}
+<h2>Expired Allocations Report</h2>
+<p>
+    This report shows all expired Allocations with No Cost Quota allocations.
+</p>
+<!--<div> <a href="?format=json" class="btn btn-primary mb-2 floats-right">Download JSON</a></div>-->
+
+    <div class="col-lg-12 mt-2">
+    <h2>No Cost Quotas by Expired Allocation</h2>
+    <hr>
+
+    {% if expired_allocations %}
+      <ul class="list-group">
+        {% for allocation_allot_info in expired_allocations %}
+          <li class="list-group-item">
+            {{ allocation_allot_info.allocation.project.pi.username }}: {{ allocation_allot_info.allocation.project.title }}: {{ allocation_allot_info.allocation.resources.first.name|default_if_none:"" }}: {{allocation_allot_info.allocation.get_information|default_if_none:allocation_allot_info.allocation.description|default_if_none:""}}
+            <ul>
+              {% for allotment in allocation_allot_info.ncq_allotments %}
+                <li>{{ allotment.no_cost_quota.user }}: {{ allotment.amount }}</li>
+              {% endfor %}
+            </ul>
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <div class="alert alert-info" role="alert"><i class="fa fa-info-circle" aria-hidden="true"></i> There are no No Cost Quota allotments to display.</div>
+    {% endif %}
+  </div>
+
+{% endblock %}

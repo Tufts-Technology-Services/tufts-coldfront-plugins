@@ -64,4 +64,9 @@ urlpatterns = [
         views.oversubscribed_allotments_report,
         name='oversubscribed-allotments-report',
     ),
+    path(
+        'expired-allocations-report/',
+        views.expired_allocations_report,
+        name='expired-allocations-report',
+    ),
 ]
