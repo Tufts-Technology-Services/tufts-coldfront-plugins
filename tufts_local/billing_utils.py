@@ -227,9 +227,20 @@ def get_all_storage_allocations():
     allocations = Allocation.objects.filter(resources__in=storage).prefetch_related('allocationattribute_set', 'project__pi', 'no_cost_quota_allotments')
     data = []
     for allocation in allocations:
-        vol_path = allocation.allocationattribute_set.filter(allocation_attribute_type__name='sf_vol_path').first().value
-        quota = allocation.allocationattribute_set.filter(allocation_attribute_type__name='reported_quota_bytes').first().value
-        usage = allocation.allocationattribute_set.filter(allocation_attribute_type__name='reported_usage_bytes').first().value
+        vol_path_attr = allocation.allocationattribute_set.filter(allocation_attribute_type__name='sf_vol_path')
+        vol_path = vol_path_attr.first().value if vol_path_attr.exists() else 'NA'
+        quota_attr = allocation.allocationattribute_set.filter(allocation_attribute_type__name='reported_quota_bytes')
+        if quota_attr.exists():
+            quota = quota_attr.first().value
+            quota = (Decimal(quota)/10**12).quantize(Decimal('0.01'), rounding=ROUND_CEILING)
+        else:
+            quota = 'NA'
+        usage = allocation.allocationattribute_set.filter(allocation_attribute_type__name='reported_usage_bytes')
+        if usage.exists():
+            usage = usage.first().value
+            usage = (Decimal(usage)/10**12).quantize(Decimal('0.0001'), rounding=ROUND_CEILING)
+        else:
+            usage = 'NA'
         storage_owner = allocation.project.pi.username
         resource = allocation.resources
         resource_name = resource.first().name if resource.exists() else ''
@@ -240,11 +251,11 @@ def get_all_storage_allocations():
             for allot in ncq_allotment:
                 data.append({'owner': storage_owner, 'resource': resource_name, 
                              'vol_path': vol_path, 'requires_payment': requires_payment, 
-                             'status': status,  'quota': (Decimal(quota)/10**12).quantize(Decimal('0.01'), rounding=ROUND_CEILING), 'usage': (Decimal(usage)/10**12).quantize(Decimal('0.0001'), rounding=ROUND_CEILING),
+                             'status': status,  'quota': quota, 'usage': usage,
                              'ncq_owner': allot.no_cost_quota.user, 'ncq_amount': allot.amount, 'ncq_quota_type': allot.no_cost_quota.quota_type})
         else:
             data.append({'owner': storage_owner, 'resource': resource_name, 
                          'vol_path': vol_path, 'requires_payment': requires_payment, 
-                         'status': status,  'quota': (Decimal(quota)/10**12).quantize(Decimal('0.01'), rounding=ROUND_CEILING), 'usage': (Decimal(usage)/10**12).quantize(Decimal('0.0001'), rounding=ROUND_CEILING),
+                         'status': status,  'quota': quota, 'usage': usage,
                          'ncq_owner': None, 'ncq_amount': None, 'ncq_quota_type': None})
     return data
