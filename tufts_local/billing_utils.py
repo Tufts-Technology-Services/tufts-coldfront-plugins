@@ -224,14 +224,27 @@ def get_all_storage_allocations():
     get info about storage allocations that have expired and require payment, including the vol_path and the storage owner.
     """
     storage = Resource.objects.filter(resource_type__name='Storage')
-    expired_allocations = Allocation.objects.filter(resources__in=storage).prefetch_related('allocationattribute_set', 'project__pi')
+    allocations = Allocation.objects.filter(resources__in=storage).prefetch_related('allocationattribute_set', 'project__pi', 'no_cost_quota_allotments')
     data = []
-    for allocation in expired_allocations:
+    for allocation in allocations:
         vol_path = allocation.allocationattribute_set.filter(allocation_attribute_type__name='sf_vol_path').first().value
+        quota = allocation.allocationattribute_set.filter(allocation_attribute_type__name='reported_quota_bytes').first().value
+        usage = allocation.allocationattribute_set.filter(allocation_attribute_type__name='reported_usage_bytes').first().value
         storage_owner = allocation.project.pi.username
         resource = allocation.resources
         resource_name = resource.first().name if resource.exists() else ''
         requires_payment = resource.first().requires_payment if resource.exists() else False
         status = allocation.status.name
-        data.append({'owner': storage_owner, 'resource': resource_name, 'vol_path': vol_path, 'requires_payment': requires_payment, 'status': status,  'allocation': allocation})
+        ncq_allotment = allocation.no_cost_quota_allotments.all()
+        if ncq_allotment.exists():
+            for allot in ncq_allotment:
+                data.append({'owner': storage_owner, 'resource': resource_name, 
+                             'vol_path': vol_path, 'requires_payment': requires_payment, 
+                             'status': status,  'quota': (Decimal(quota)/10**12).quantize(Decimal('0.01'), rounding=ROUND_CEILING), 'usage': (Decimal(usage)/10**12).quantize(Decimal('0.0001'), rounding=ROUND_CEILING),
+                             'ncq_owner': allot.no_cost_quota.user, 'ncq_amount': allot.amount, 'ncq_quota_type': allot.no_cost_quota.quota_type})
+        else:
+            data.append({'owner': storage_owner, 'resource': resource_name, 
+                         'vol_path': vol_path, 'requires_payment': requires_payment, 
+                         'status': status,  'quota': (Decimal(quota)/10**12).quantize(Decimal('0.01'), rounding=ROUND_CEILING), 'usage': (Decimal(usage)/10**12).quantize(Decimal('0.0001'), rounding=ROUND_CEILING),
+                         'ncq_owner': None, 'ncq_amount': None, 'ncq_quota_type': None})
     return data

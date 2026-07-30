@@ -228,3 +228,13 @@ def oversubscribed_allotments_report(request):
 def expired_allocations_report(request):
     data = billing_utils.expired_storage_allocations_with_ncq_allotments()
     return TemplateResponse(request, "tufts_local/expired_allocations_report.html", {'expired_allocations': data})
+
+
+@user_passes_test(lambda u: u.is_superuser)
+@require_GET
+def all_allocations_allotments_report(request):
+    data = billing_utils.get_all_storage_allocations()
+    csv_data = {}
+    csv_data['header'] = data[0].keys() if data else []
+    csv_data['rows'] = [list(item.values()) for item in data]
+    return get_csv(csv_data, filename="allocations_allotments_report.csv")

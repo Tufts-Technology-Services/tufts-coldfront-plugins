@@ -4,7 +4,7 @@ from .views import (project_update_user_role, project_get_email_notification,
 from .reports import (sf_report, no_cost_quotas_report, 
                     billing_code_report, charge_report, not_updated_report,
                     oversubscribed_allotments_report,
-                    expired_allocations_report)
+                    expired_allocations_report, all_allocations_allotments_report)
 from .login_as_user import login_as_user_view
 
 __all__ = [
@@ -21,4 +21,5 @@ __all__ = [
     "not_updated_report",
     "oversubscribed_allotments_report",
     "expired_allocations_report",
+    "all_allocations_allotments_report",
 ]
