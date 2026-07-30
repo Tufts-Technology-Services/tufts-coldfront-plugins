@@ -14,15 +14,15 @@ def get_ncq_eligibility():
     start = 0
     all_eligibility = []
     while True:
-        response = requests.get(url, headers=headers, params={'start': start})
+        response = requests.get(url, headers=headers, params={'start': start, 'rows': 250})
         if response.status_code == 200:
             data = response.json()
-            rows = data.get('rows', 0)
             results = data.get('results', [])
+            total = data.get('total_count', 0)
             all_eligibility.extend(results)
-            if len(results) < rows:
+            if start + len(results) >= total:
                 break
-            start += rows
+            start += len(results)
         else:
             raise Exception(f"Failed to fetch NCQ eligibility: {response.status_code} - {response.text}")
     return all_eligibility
