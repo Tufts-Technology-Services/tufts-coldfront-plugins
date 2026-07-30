@@ -1,18 +1,20 @@
 import logging
 
 from decimal import Decimal, ROUND_CEILING, ROUND_HALF_EVEN
-import json
+from django.contrib.auth.models import Group
 from coldfront.core.project.models import Project, ProjectUser
 from coldfront.core.allocation.models import Allocation, AllocationAttribute
 from coldfront.core.resource.models import Resource
-from coldfront_billing.models import NoCostQuotaAllotment
+from coldfront_billing.models import NoCostQuotaAllotment, NoCostQuota
 from coldfront_billing.views.no_cost_quota.common import quota_with_remaining
 
+from tufts_local.analytics_utils import get_ncq_eligibility
 from tufts_local.billing_utils import no_cost_quotas_report
 from tufts_local.starfish_utils import (get_starfish_usage_data_by_volume, get_starfish_volumes,
                                         set_project_approvers_from_starfish,
                                         sync_approver_tags, 
                                         set_owner_tag)
+from tufts_local.utils import create_user, setup_custom_logger
 
 logger = logging.getLogger(__name__)
 
@@ -105,3 +107,47 @@ def send_ncq_report():
             'remaining': round(i.remaining, 2)
         })
     return ncq_remaining_report
+
+
+def refresh_ncq_eligibility():
+    ncq_logger = setup_custom_logger('ncq', 'ncq.log')
+    eligibility_data = get_ncq_eligibility()
+    tier1_group_name = 'faculty_pi_eligible_tier1'
+    tier2_group_name = 'faculty_pi_eligible_tier2'
+    group_tier1 = Group.objects.get(name=tier1_group_name)
+    group_tier2 = Group.objects.get(name=tier2_group_name)
+    for entry in eligibility_data:
+        is_eligible = entry.get('no_cost_quota_eligible', 'No')
+        username = entry.get('username', '').lower()
+        user = create_user(username)
+        user_groups = user.groups.all()
+        in_tier_1 = group_tier1 in user_groups
+        in_tier_2 = group_tier2 in user_groups
+        if is_eligible.lower().strip() == 'yes':
+            if not in_tier_1:
+                ncq_logger.info(f"Adding user {username} to group {tier1_group_name}")
+                user.groups.add(group_tier1)
+            if not in_tier_2:
+                ncq_logger.info(f"Adding user {username} to group {tier2_group_name}")
+                user.groups.add(group_tier2)
+        else:
+            if in_tier_1:
+                ncq_logger.info(f"Removing user {username} from group {tier1_group_name}")
+                user.groups.remove(group_tier1)
+                allotments = NoCostQuotaAllotment.objects.filter(allocation__project__pi=user)
+                if allotments.exists():
+                    ncq_logger.info(f"User {username} is no longer eligible for NoCostQuota. Deleting {allotments.count()} associated NoCostQuotaAllotment(s).")
+                    for allotment in allotments:
+                        ncq_logger.info(f"Deleting NoCostQuotaAllotment {allotment.amount} associated with allocation {allotment.allocation.id}.")
+                        allotment.delete()
+                NoCostQuota.objects.filter(user=user).delete()
+            if in_tier_2:
+                ncq_logger.info(f"Removing user {username} from group {tier2_group_name}")
+                user.groups.remove(group_tier2)
+                allotments = NoCostQuotaAllotment.objects.filter(allocation__project__pi=user)
+                if allotments.exists():
+                    ncq_logger.info(f"User {username} is no longer eligible for NoCostQuota. Deleting {allotments.count()} associated NoCostQuotaAllotment(s).")
+                    for allotment in allotments:
+                        ncq_logger.info(f"Deleting NoCostQuotaAllotment {allotment.amount} associated with allocation {allotment.allocation.id}.")
+                        allotment.delete()
+                NoCostQuota.objects.filter(user=user).delete()

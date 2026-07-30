@@ -214,3 +214,20 @@ def not_updated_report():
         if not qrd_updated[0] or not usage_updated[0]:
             not_updated_allocations.append({"allocation": alloc, "project_title": alloc.project.title, "pi": alloc.project.pi, "qrd_updated": qrd_updated, "usage_updated": usage_updated})
     return {"not_updated_allocations": not_updated_allocations}
+
+
+def setup_custom_logger(name, log_file, level=logging.INFO):
+    """Function to dynamically configure separate loggers."""
+    # Define a clean layout structure
+    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    
+    # Create the file handler bound to your target filename
+    handler = logging.FileHandler(log_file)        
+    handler.setFormatter(formatter)
+
+    # Instantiate the independent logger object
+    custom_logger = logging.getLogger(name)
+    custom_logger.setLevel(level)
+    custom_logger.addHandler(handler)
+    
+    return custom_logger
