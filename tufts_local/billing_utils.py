@@ -166,7 +166,7 @@ def get_cost_per_allocation():
                 'vol_path': vol_path,
                 'quota_tb': ba.quota_tb,
                 'cost_per_tb': ba.cost_per_tb,
-                'cost': Decimal(ba.quota_tb * ba.cost_per_tb).quantize(Decimal('0.01'), rounding=ROUND_CEILING),
+                'cost': (Decimal(ba.quota_tb).quantize(Decimal('0.1'), rounding=ROUND_CEILING) * Decimal(ba.cost_per_tb).quantize(Decimal('0.01'), rounding=ROUND_CEILING)).quantize(Decimal('0.01'), rounding=ROUND_CEILING),
                 'ncq_applied': sum([i.amount for i in ba.no_cost_quotas]),
                 'cost_after_ncq': ba.total_cost
             })
