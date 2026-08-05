@@ -132,6 +132,7 @@ def sync_approver_tags(vol_path, approvers: list, client_key=None):
     tags_to_remove = flatten_tags(tags_to_remove)
     if tags_to_remove:
         client.detach_tag(vol_path, tags_to_remove)
+    return {'vol_path': vol_path, 'added': tags_to_add, 'removed': tags_to_remove}
 
 
 def set_project_approvers_from_starfish(vol_path_data):

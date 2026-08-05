@@ -28,6 +28,7 @@ def update_project_approvers_from_tags():
 
 def update_sf_approver_tags(project_id):
     # write starfish tags corresponding to project approvers for all projects in Coldfront
+    updates = []
     proj = Project.objects.get(id=project_id)
     approvers = ProjectUser.objects.filter(project=proj, role__name='Manager')
     approver_usernames = []
@@ -37,7 +38,9 @@ def update_sf_approver_tags(project_id):
     alloc_attr = AllocationAttribute.objects.filter(allocation__project=proj, allocation_attribute_type__name='sf_vol_path')
     for attr in alloc_attr:
         vol_path = attr.value
-        sync_approver_tags(vol_path, approver_usernames, 'starfish')
+        update = sync_approver_tags(vol_path, approver_usernames, 'starfish')
+        updates.append(update)
+    return updates
 
 
 def update_sf_owner_tags_from_allocations():
