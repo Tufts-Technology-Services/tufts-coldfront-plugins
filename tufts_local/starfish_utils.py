@@ -106,7 +106,7 @@ def parse_tags(tags: list) -> dict:
     return parsed_tags
 
 
-def sync_approver_tags(vol_path, approvers: list, client_key):
+def sync_approver_tags(vol_path, approvers: list, client_key=None):
     """
     Synchronize approver tags for a directory indexed by Starfish.
     This function will add or remove approver tags based on the current approvers in Coldfront.
@@ -124,6 +124,8 @@ def sync_approver_tags(vol_path, approvers: list, client_key):
     tags_to_add = {'Approver': new_approvers - existing_approvers}
     tags_to_remove = {'Approver': existing_approvers - new_approvers}
     client = get_starfish_client(client_key)
+    # retrieving starfish data by vol_path is case-insensitive, but adding/removing tags is case-sensitive, so we need to use the vol_path from the starfish data
+    vol_path = sf_data.get('vol_path')
     tags_to_add = flatten_tags(tags_to_add)
     if tags_to_add:
         client.add_tag(vol_path, tags_to_add)
