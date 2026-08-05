@@ -10,7 +10,7 @@ from coldfront_billing.views.no_cost_quota.common import quota_with_remaining
 from coldfront_billing.reports.quota import auto_assign_quota 
 from tufts_local.analytics_utils import get_ncq_eligibility
 from tufts_local.billing_utils import no_cost_quotas_report
-from tufts_local.starfish_utils import (get_starfish_usage_data_by_volume, get_starfish_volumes,
+from tufts_local.starfish_utils import (add_to_starfish_index, get_starfish_usage_data_by_volume, get_starfish_volumes,
                                         set_project_approvers_from_starfish,
                                         sync_approver_tags, 
                                         set_owner_tag)
@@ -174,3 +174,21 @@ def autoallocate_ncq_allotments():
     response = auto_assign_quota()
     logger.info(f"Automatic allocation response: {response}")
     return response
+
+
+def index_new_allocation(allocation_id):
+    """
+    Index a new allocation in Starfish
+    """
+    try:
+        allocation = Allocation.objects.get(id=allocation_id)
+        vol_path_attr = allocation.allocationattribute_set.filter(allocation_attribute_type__name='sf_vol_path')
+        if not vol_path_attr.exists():
+            logger.warning(f"Allocation {allocation_id} does not have an 'sf_vol_path' attribute. Cannot index in Starfish.")
+            return
+        vol_path = vol_path_attr.first().value
+        add_to_starfish_index(vol_path, 'starfish')
+    except Allocation.DoesNotExist:
+        logger.error(f"Allocation with ID {allocation_id} does not exist. Cannot index in Starfish.")
+    except Exception as e:
+        logger.error(f"Error indexing allocation {allocation_id} in Starfish: {str(e)}")

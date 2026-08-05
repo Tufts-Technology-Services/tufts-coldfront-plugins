@@ -1,10 +1,10 @@
 import logging
 from django.dispatch import receiver
-from django_q.tasks import async_task
+from django_q.tasks import async_chain
 from coldfront.core.allocation.models import Allocation
 from coldfront.core.allocation.signals import allocation_activate
 from .constants import SF_OWNER_TAG_PERSIST
-from .tasks import set_sf_owner_tag
+from .tasks import index_new_allocation, set_sf_owner_tag
 
 logger = logging.getLogger(__name__)
 
@@ -17,11 +17,14 @@ def handle_allocation_activate(sender, **kwargs):
     allocation_id = kwargs.get('allocation_pk')
     allocation = Allocation.objects.get(id=allocation_id)
     if allocation.status.name not in ['Active']:
-        logger.debug(f"Allocation {allocation_id} is not active. Skipping Starfish 'Owner' tagging.")
+        logger.debug(f"Allocation {allocation_id} is not active. Skipping Starfish initialization.")
         return
     if SF_OWNER_TAG_PERSIST:
         logger.debug(f"Allocation {allocation.id} activated. Scheduling task to update owner tags in Starfish.")
-        async_task(set_sf_owner_tag, allocation_id)
+        async_chain(
+            (index_new_allocation, (allocation_id,), {"timeout": 600}),
+            (set_sf_owner_tag, (allocation_id,))
+        )
     else:
         logger.info(f"Allocation {allocation.id} activated. Skipping task to update owner tags in Starfish because SF_OWNER_TAG_PERSIST is False.")
 

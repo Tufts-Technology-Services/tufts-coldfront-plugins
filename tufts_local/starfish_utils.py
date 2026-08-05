@@ -28,7 +28,10 @@ def get_starfish_data_by_vol_path(vol_path: str, client_key: str) -> dict:
     Helper function to query Starfish API for usage data for a specific subfolder by its volume path. 
     Caches results to avoid redundant API calls.
     """
-    volume, _ = vol_path.split(":", 1)
+    try:
+        volume, _ = vol_path.split(":", 1)
+    except ValueError as e:
+        raise ValueError(f"Invalid vol_path format: '{vol_path}'. Expected format 'volume:path'.") from e
     subfolder_response = get_starfish_usage_data_by_volume(volume, client_key)
     sf_entry = next((item for item in subfolder_response if item['vol_path'].lower() == vol_path.lower()), None)
     if not sf_entry:
@@ -112,7 +115,9 @@ def sync_approver_tags(vol_path, approvers: list, client_key):
     It will ignore tag types that are not represented in the provided list.
     If the directory is not indexed, it will raise a ValueError
     """
-    sf_data = get_starfish_data_by_vol_path(vol_path, client_key)  # raises ValueError if not found
+    sf_data = get_starfish_data_by_vol_path(vol_path, client_key)
+    if not sf_data:
+        raise ValueError(f"Directory with vol_path '{vol_path}' is not indexed in Starfish.")
     existing_tags = parse_tags(sf_data.get('tags_explicit', '').split(','))
     existing_approvers = existing_tags.get('Approver', set())
     new_approvers = set(approvers)
@@ -224,3 +229,23 @@ def get_sf_volumes_in_coldfront():
     volpaths = AllocationAttribute.objects.filter(allocation_attribute_type=sf_vol_path).values_list('value', flat=True)
     return list(set([i.split(':')[0] for i in list(volpaths)]))
 
+
+def add_to_starfish_index(vol_path, client_key):
+    """
+    Add a top level directory to the index by initiating a scan of depth 0. 
+    This is useful when a new project directory is created and needs to be tagged.
+    """
+    client = get_starfish_client(client_key)
+    volume, path = vol_path.split(":", 1)
+    r = client.scan_new(volume, path)
+    scan_id = r['id']
+    for _ in range(12):  # retry for up to 1 minute
+        sleep(5)
+        status = client.get_scan(scan_id)
+        if not status['state']['is_running']:
+            if status['state']['is_successful']:
+                sleep(5)  # wait a bit for the scan to complete
+                return status
+            else:
+                raise RuntimeError(f"Scan {scan_id} failed with error: {status['reason']}")
+    raise TimeoutError(f"Scan {scan_id} did not complete in time.")
