@@ -230,7 +230,7 @@ def get_sf_volumes_in_coldfront():
     return list(set([i.split(':')[0] for i in list(volpaths)]))
 
 
-def add_to_starfish_index(vol_path, client_key):
+def add_to_starfish_index(vol_path, client_key, timeout=300, wait=5):
     """
     Add a top level directory to the index by initiating a scan of depth 0. 
     This is useful when a new project directory is created and needs to be tagged.
@@ -239,8 +239,8 @@ def add_to_starfish_index(vol_path, client_key):
     volume, path = vol_path.split(":", 1)
     r = client.scan_new(volume, path)
     scan_id = r['id']
-    for _ in range(12):  # retry for up to 1 minute
-        sleep(5)
+    for _ in range(timeout // wait):  # retry for up to timeout seconds
+        sleep(wait)
         status = client.get_scan(scan_id)
         if not status['state']['is_running']:
             if status['state']['is_successful']:

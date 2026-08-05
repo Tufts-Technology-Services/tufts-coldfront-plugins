@@ -32,7 +32,8 @@ def update_sf_approver_tags(project_id):
     approvers = ProjectUser.objects.filter(project=proj, role__name='Manager')
     approver_usernames = []
     if approvers.exists():
-        approver_usernames = [a.user.username for a in approvers]
+        # get the usernames of all approvers except the PI
+        approver_usernames = [a.user.username for a in approvers if a.user.username != proj.pi.username]
     alloc_attr = AllocationAttribute.objects.filter(allocation__project=proj, allocation_attribute_type__name='sf_vol_path')
     for attr in alloc_attr:
         vol_path = attr.value
@@ -176,7 +177,7 @@ def autoallocate_ncq_allotments():
     return response
 
 
-def index_new_allocation(allocation_id):
+def index_new_allocation(allocation_id, timeout):
     """
     Index a new allocation in Starfish
     """
@@ -187,7 +188,7 @@ def index_new_allocation(allocation_id):
             logger.warning(f"Allocation {allocation_id} does not have an 'sf_vol_path' attribute. Cannot index in Starfish.")
             return
         vol_path = vol_path_attr.first().value
-        add_to_starfish_index(vol_path, 'starfish')
+        add_to_starfish_index(vol_path, 'starfish', timeout=timeout)
     except Allocation.DoesNotExist:
         logger.error(f"Allocation with ID {allocation_id} does not exist. Cannot index in Starfish.")
     except Exception as e:

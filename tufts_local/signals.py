@@ -3,7 +3,7 @@ from django.dispatch import receiver
 from django_q.tasks import async_chain
 from coldfront.core.allocation.models import Allocation
 from coldfront.core.allocation.signals import allocation_activate
-from .constants import SF_OWNER_TAG_PERSIST
+from .constants import SF_OWNER_TAG_PERSIST, SF_INDEX_TIMEOUT
 from .tasks import index_new_allocation, set_sf_owner_tag
 
 logger = logging.getLogger(__name__)
@@ -21,8 +21,9 @@ def handle_allocation_activate(sender, **kwargs):
         return
     if SF_OWNER_TAG_PERSIST:
         logger.debug(f"Allocation {allocation.id} activated. Scheduling task to update owner tags in Starfish.")
+        timeout = SF_INDEX_TIMEOUT  # Set a timeout for the indexing task based on the constant
         async_chain(
-            (index_new_allocation, (allocation_id,), {"timeout": 600}),
+            (index_new_allocation, (allocation_id, timeout), {"timeout": timeout + 60}),  # Add a buffer to the timeout for the next task
             (set_sf_owner_tag, (allocation_id,))
         )
     else:
