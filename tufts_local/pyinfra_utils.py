@@ -1,0 +1,39 @@
+from pathlib import Path
+from pyinfra.api import Config, Inventory, State, deploy
+from pyinfra.api.connect import connect_all
+from pyinfra.api.operations import run_ops, add_deploy, files
+
+
+
+@deploy("Create personal scratch directory")
+def create_personal_scratch_directory(username: str = None):
+    scratch_dir = Path('/cluster/scratch') / username
+    files.directory(
+        name="Create personal scratch directory",
+        path=scratch_dir.as_posix(),
+        user="root",
+        group=f"{username}_g",
+        mode="770",
+    )
+
+
+def run_deployments(deployments, hosts, ssh_user=None, ssh_key=None) -> list:
+    override_data = {}
+    if ssh_user:
+        override_data['ssh_user'] = ssh_user
+    if ssh_key:
+        override_data['ssh_key'] = ssh_key
+
+    state = State(inventory=Inventory(hosts, override_data=override_data),
+                  config=Config(SUDO=True))
+
+    connect_all(state)
+
+    results = []
+    for deployment in deployments:
+        r = add_deploy(state, deployment[0], **deployment[1])
+        results.append(r)
+
+    run_ops(state)
+
+    return results

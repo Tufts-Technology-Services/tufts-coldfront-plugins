@@ -18,7 +18,8 @@ classifiers = [
     'Topic :: Internet :: WWW/HTTP :: WSGI :: Application',
 ]
 dependencies = [
-    "coldfront==1.1.7"
+    "coldfront==1.1.7",
+    "pyinfra>=3.10.0<=3.11.0",
 ]
 
 [dependency-groups]
