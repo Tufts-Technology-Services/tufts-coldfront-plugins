@@ -138,7 +138,7 @@ def get_cost_previews(user=None, billing_code=None):
             dept_id = assignment.get('department')
             pct = assignment.get('percentage')
             grant = assignment.get('grant', '')
-            cost = round(project_cost * (int(pct) / 100), 2)
+            cost = (project_cost * (int(pct) / 100)).quantize(Decimal('0.01'), rounding=ROUND_CEILING)
             charges = {
                 'project': project,
                 'allocations': billing_allocations,
@@ -150,7 +150,7 @@ def get_cost_previews(user=None, billing_code=None):
             }
             charge_report.append(charges)
 
-    return {"missing_billing_code": missing_billing_code, "charge_report": charge_report, "total_cost": round(total_cost, 2), "month": month }
+    return {"missing_billing_code": missing_billing_code, "charge_report": charge_report, "total_cost": total_cost.quantize(Decimal('0.01'), rounding=ROUND_CEILING), "month": month }
 
 
 def get_cost_per_allocation():

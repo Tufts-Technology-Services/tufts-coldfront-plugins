@@ -16,6 +16,9 @@ def create_personal_scratch_directory(username: str = None):
         group=f"{username}_g",
         mode="770",
     )
+"""
+r = run_deployments([(create_personal_scratch_directory, {'username': 'cdivol01'})], (['admin-p01.pax.tufts.edu'], {}), ssh_user='coldfront', ssh_key='/home/coldfront/.ssh/id_ed25519')
+"""
 
 
 def run_deployments(deployments, hosts, ssh_user=None, ssh_key=None) -> list:
