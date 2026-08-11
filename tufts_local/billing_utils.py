@@ -122,7 +122,7 @@ def get_cost_previews(user=None, billing_code=None):
         billing_allocations = create_billing_allocations(getattr(project, BILLING_ATTRIBUTE_NAME, []))
         project_cost = sum(b.total_cost for b in billing_allocations)
         for b in billing_allocations:
-            b.ncq_applied = sum([i.normalized_amount for i in b.no_cost_quotas])
+            b.ncq_applied = sum([i.amount_tb for i in b.no_cost_quotas])
                 
         if not project_cost:
             continue
