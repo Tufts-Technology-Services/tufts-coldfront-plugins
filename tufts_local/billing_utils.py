@@ -54,7 +54,7 @@ def no_cost_quotas_report(user=None):
             ncq_owner = ncq.user.username
             info['allotments'].append({'amount': str(amount), 'quota_type': quota_type, 'ncq_owner': ncq_owner})
         info['ncq_allot_total'] = str(ncq_allot_total)
-        info['billable_quota'] = f"{max(0, float(Decimal(quota/10**12) - ncq_allot_total)):.5f}"
+        info['billable_quota'] = f"{max(0, Decimal(int(quota)/10**12) - ncq_allot_total):.5f}"
         data.append(info)
     if user:
         # also look for any NoCostQuotaAllotments that the user owns, but are not associated with an allocation that they own
