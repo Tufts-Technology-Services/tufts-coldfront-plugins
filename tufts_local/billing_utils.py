@@ -43,18 +43,18 @@ def no_cost_quotas_report(user=None):
         storage_owner = allocation.project.pi.username
         info = {'allocation': allocation, 'vol_path': vol_path, 'storage_owner': storage_owner, 'quota': f"{int(quota)/10**12:.5f}", 'allotments': []}
         ncq_allotment = allocation.no_cost_quota_allotments.all()
-        ncq_allot_total = 0
+        ncq_allot_total = Decimal(0)
         for allot in ncq_allotment:
-            amount = float(allot.amount)
+            amount = allot.amount_tb
             ncq_allot_total += amount
             ncq = allot.no_cost_quota
             quota_type = ncq.quota_type
             #units = ncq.units
             #min_increment = ncq.minimum_increment
             ncq_owner = ncq.user.username
-            info['allotments'].append({'amount': amount, 'quota_type': quota_type, 'ncq_owner': ncq_owner})
-        info['ncq_allot_total'] = ncq_allot_total
-        info['billable_quota'] = f"{max(0, int(quota)/10**12 - ncq_allot_total):.5f}"
+            info['allotments'].append({'amount': str(amount), 'quota_type': quota_type, 'ncq_owner': ncq_owner})
+        info['ncq_allot_total'] = str(ncq_allot_total)
+        info['billable_quota'] = f"{max(0, float(Decimal(quota/10**12) - ncq_allot_total)):.5f}"
         data.append(info)
     if user:
         # also look for any NoCostQuotaAllotments that the user owns, but are not associated with an allocation that they own
@@ -65,7 +65,7 @@ def no_cost_quotas_report(user=None):
                 vol_path = allocation.allocationattribute_set.filter(allocation_attribute_type__name='sf_vol_path').first().value
                 quota = allocation.allocationattribute_set.filter(allocation_attribute_type__name='reported_usage_bytes').first().value
                 storage_owner = allocation.project.pi.username
-                amount = float(allot.amount)
+                amount = str(allot.amount_tb)
                 ncq_owner = allot.no_cost_quota.user.username
                 quota_type = allot.no_cost_quota.quota_type
                 shared_allotments.append({'allocation': allocation, 'vol_path': vol_path, 'storage_owner': storage_owner, 'quota': f"{int(quota)/10**12:.5f}", 'amount': amount, 'ncq_owner': ncq_owner, 'quota_type': quota_type})
@@ -167,7 +167,7 @@ def get_cost_per_allocation():
                 'quota_tb': ba.quota_tb,
                 'cost_per_tb': ba.cost_per_tb,
                 'cost': (Decimal(ba.quota_tb).quantize(Decimal('0.1'), rounding=ROUND_CEILING) * Decimal(ba.cost_per_tb).quantize(Decimal('0.01'), rounding=ROUND_CEILING)).quantize(Decimal('0.01'), rounding=ROUND_CEILING),
-                'ncq_applied': sum([i.amount for i in ba.no_cost_quotas]),
+                'ncq_applied': sum([i.amount_tb for i in ba.no_cost_quotas]),
                 'cost_after_ncq': ba.total_cost
             })
     return rows
@@ -188,7 +188,7 @@ def get_oversubscribed_no_cost_quotas():
             print(f"Allocation {allocation.id} does not have required attributes.")
             continue
         ncq_allotment = NoCostQuotaAllotment.objects.filter(allocation=allocation)
-        ncq_allot_total = sum(float(allot.amount) for allot in ncq_allotment)
+        ncq_allot_total = sum(allot.amount_tb for allot in ncq_allotment)
         total_rounded = Decimal(ncq_allot_total).quantize(Decimal('0.01'), rounding=ROUND_HALF_EVEN)
         quota_rounded = Decimal(int(quota)/10**12).quantize(Decimal('0.01'), rounding=ROUND_CEILING)
         if quota_rounded < total_rounded:
@@ -252,7 +252,7 @@ def get_all_storage_allocations():
                 data.append({'owner': storage_owner, 'resource': resource_name, 
                              'vol_path': vol_path, 'requires_payment': requires_payment, 
                              'status': status,  'quota': quota, 'usage': usage,
-                             'ncq_owner': allot.no_cost_quota.user, 'ncq_amount': allot.amount, 'ncq_quota_type': allot.no_cost_quota.quota_type})
+                             'ncq_owner': allot.no_cost_quota.user, 'ncq_amount': str(allot.amount_tb), 'ncq_quota_type': allot.no_cost_quota.quota_type})
         else:
             data.append({'owner': storage_owner, 'resource': resource_name, 
                          'vol_path': vol_path, 'requires_payment': requires_payment, 
