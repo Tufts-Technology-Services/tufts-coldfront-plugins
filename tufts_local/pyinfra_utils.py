@@ -1,8 +1,9 @@
 from pathlib import Path
 from pyinfra.api import Config, Inventory, State, deploy
 from pyinfra.api.connect import connect_all
-from pyinfra.api.operations import run_ops, add_deploy, files
-
+from pyinfra.api.operations import run_ops
+from pyinfra.operations import files
+from pyinfra.api.deploy import add_deploy
 
 
 @deploy("Create personal scratch directory")
