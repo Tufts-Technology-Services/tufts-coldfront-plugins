@@ -138,7 +138,7 @@ def get_cost_previews(user=None, billing_code=None):
             dept_id = assignment.get('department')
             pct = assignment.get('percentage')
             grant = assignment.get('grant', '')
-            cost = (project_cost * (int(pct) / 100)).quantize(Decimal('0.01'), rounding=ROUND_CEILING)
+            cost = (project_cost * Decimal(int(pct) / 100)).quantize(Decimal('0.01'), rounding=ROUND_CEILING)
             charges = {
                 'project': project,
                 'allocations': billing_allocations,
