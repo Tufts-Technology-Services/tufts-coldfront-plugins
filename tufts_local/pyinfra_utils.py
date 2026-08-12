@@ -4,6 +4,7 @@ from pyinfra.api.connect import connect_all, disconnect_all
 from pyinfra.api.operations import run_ops
 from pyinfra.operations import files
 from pyinfra.api.deploy import add_deploy
+from pyinfra.api.exceptions import PyinfraError
 
 
 @deploy("Create personal scratch directory")
@@ -27,14 +28,17 @@ def run_deployments(deployments, hosts, ssh_user=None, ssh_key=None) -> list:
 
     state = State(inventory=Inventory(hosts, override_data=override_data),
                   config=Config(SUDO=True))
+    try:
+        connect_all(state)
+        results = []
+        for deployment in deployments:
+            r = add_deploy(state, deployment[0], **deployment[1])
+            results.append(r)
 
-    connect_all(state)
-
-    results = []
-    for deployment in deployments:
-        r = add_deploy(state, deployment[0], **deployment[1])
-        results.append(r)
-
-    run_ops(state)
-    disconnect_all(state)
-    return results
+        run_ops(state)
+        return results
+    except PyinfraError as e:
+        print(f"Error running deployments: {e}")
+        raise e
+    finally:
+        disconnect_all(state)
