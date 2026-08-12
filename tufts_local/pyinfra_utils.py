@@ -1,8 +1,10 @@
 from pathlib import Path
+from unittest import result
+from venv import logger
 from pyinfra.api import Config, Inventory, State, deploy
 from pyinfra.api.connect import connect_all, disconnect_all
 from pyinfra.api.operations import run_ops
-from pyinfra.operations import files
+from pyinfra.operations import files, python
 from pyinfra.api.deploy import add_deploy
 from pyinfra.api.exceptions import PyinfraError
 
@@ -10,12 +12,19 @@ from pyinfra.api.exceptions import PyinfraError
 @deploy("Create personal scratch directory")
 def create_personal_scratch_directory(username: str = None):
     scratch_dir = Path('/cluster/scratch') / username
-    files.directory(
+    r = files.directory(
         name="Create personal scratch directory",
         path=scratch_dir.as_posix(),
         user="root",
         group=f"{username}_g",
         mode="770",
+    )
+    def callback():
+        print(f"Got result: {r.stdout}")
+
+    python.call(
+        name="Execute callback function",
+        function=callback,
     )
 
 
