@@ -30,13 +30,11 @@ def run_deployments(deployments, hosts, ssh_user=None, ssh_key=None) -> list:
                   config=Config(SUDO=True))
     try:
         connect_all(state)
-        results = []
         for deployment in deployments:
-            r = add_deploy(state, deployment[0], **deployment[1])
-            results.append(r)
+            add_deploy(state, deployment[0], **deployment[1])
 
         run_ops(state)
-        return results
+        return state
     except PyinfraError as e:
         print(f"Error running deployments: {e}")
         raise e
