@@ -12,20 +12,30 @@ from pyinfra.api.exceptions import PyinfraError
 @deploy("Create personal scratch directory")
 def create_personal_scratch_directory(username: str = None):
     scratch_dir = Path('/cluster/scratch') / username
-    r = files.directory(
-        name="Create personal scratch directory",
-        path=scratch_dir.as_posix(),
-        user="root",
-        group=f"{username}_g",
-        mode="770",
-    )
-    def callback():
-        print(f"Got result: {r.stdout}")
+    try:
+        r = files.directory(
+            name="Create personal scratch directory",
+            path=scratch_dir.as_posix(),
+            user="root",
+            group=f"{username}_g",
+            mode="770",
+        )
+        def success_callback():
+            print(f"Got result: {r.stdout}")
+    
+        python.call(
+            name="Execute callback function",
+            function=success_callback,
+        )
+    except PyinfraError as e:
+        print(f"Error creating personal scratch directory: {e}")
+        def error_callback():
+            print(r.stderr)
 
-    python.call(
-        name="Execute callback function",
-        function=callback,
-    )
+        python.call(
+            name="Execute error callback function",
+            function=error_callback,
+        )
 
 
 def run_deployments(deployments, hosts, ssh_user=None, ssh_key=None) -> list:
