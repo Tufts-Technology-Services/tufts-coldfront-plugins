@@ -251,9 +251,9 @@ def condense_history_values(history):
     return condensed_history
 
 
-def get_storage_allocation_history(allocation_id):
+def get_storage_allocation_history(allocation):
     attr = AllocationAttribute.objects.filter(
-        allocation_id=allocation_id,
+        allocation=allocation,
         allocation_attribute_type__name="Storage Quota (TB)"
     ).first()
     if not attr:
