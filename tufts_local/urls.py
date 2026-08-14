@@ -74,4 +74,9 @@ urlpatterns = [
         views.all_allocations_allotments_report,
         name='all-allocations-allotments-report',
     ),
+    path(
+        'storage-allocation-history/',
+        views.storage_allocation_history,
+        name='storage-allocation-history',
+    ),
 ]

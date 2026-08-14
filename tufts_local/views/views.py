@@ -108,3 +108,19 @@ def add_user_to_coldfront(request):
 
     except Exception as e:
         return JsonResponse({"message": f"error occurred: {str(e)}"}, status=500)
+
+
+@login_required
+@require_GET
+def storage_allocation_history(request):
+    # Placeholder for actual storage allocation history logic
+    allocation_id = request.GET.get("allocation_id", "")
+    if not allocation_id:
+        return JsonResponse({"message": "allocation_id is required"}, status=400)
+    if not (request.user.is_superuser or utils.user_has_allocation_access(request.user, allocation_id)):
+        return JsonResponse({"message": "not allowed"}, status=403)
+    try:
+        history, usage_history = utils.get_storage_allocation_history(allocation_id)
+        return JsonResponse({"quota_history": history, "usage_history": usage_history}, status=200)
+    except Exception as e:
+        return JsonResponse({"message": f"error occurred: {str(e)}"}, status=500)

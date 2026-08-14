@@ -7,7 +7,11 @@ from coldfront.core.project.models import (Project,
                                             ProjectUserRoleChoice,
                                             ProjectUserStatusChoice,
                                             ProjectStatusChoice)
-from coldfront.core.allocation.models import Allocation, AllocationAttribute, AllocationAttributeType, AllocationStatusChoice
+from coldfront.core.allocation.models import (Allocation,
+                                              AllocationAttribute,
+                                              AllocationAttributeType,
+                                              AllocationStatusChoice,
+                                              AllocationUser)
 from coldfront.core.resource.models import Resource
 from django.contrib.auth.models import User
 
@@ -233,14 +237,10 @@ def setup_custom_logger(name, log_file, level=logging.INFO):
     return custom_logger
 
 
-def get_quota_history(allocation_id):
-    history = AllocationAttribute.objects.filter(
-        allocation__id=allocation_id,
-        allocation_attribute_type__name="Storage Quota (TB)"
-    ).first().history.distinct().values_list('value', 'modified')
-    history = list(history)
-    history.reverse()
-    history = [(float(value), modified) for value, modified in history]
+def condense_history_values(history):
+    """
+    Condenses a list of (value, modified) tuples by removing consecutive duplicates.
+    """
     condensed_history = []
     for i in range(len(history)):
         if i == 0:
@@ -249,3 +249,36 @@ def get_quota_history(allocation_id):
             if history[i][0] != history[i-1][0]:
                 condensed_history.append(history[i])
     return condensed_history
+
+
+def get_storage_allocation_history(allocation_id):
+    attr = AllocationAttribute.objects.filter(
+        allocation_id=allocation_id,
+        allocation_attribute_type__name="Storage Quota (TB)"
+    ).first()
+    if not attr:
+        return [], []
+    usage_history = AllocationAttribute.objects.get(id=attr.id).history.distinct().values_list('value', 'modified')
+    usage_history = list(usage_history)
+    usage_history.reverse()
+    usage_history = [(float(value) if len(value) > 0 else 0.0, modified.isoformat()) for value, modified in usage_history]
+    condensed_usage_history = condense_history_values(usage_history)
+    history = attr.history.distinct().values_list('value', 'modified')
+    history = list(history)
+    history.reverse()
+    history = [(float(value) if len(value) > 0 else 0.0, modified.isoformat()) for value, modified in history]
+    condensed_history = []
+    condensed_history = condense_history_values(history)
+    return condensed_history, condensed_usage_history
+
+
+def user_has_allocation_access(user, allocation_id):
+    # Placeholder for actual access check logic
+    # Return True if the user has access to the allocation, False otherwise
+    return AllocationUser.objects.filter(allocation_id=allocation_id, user=user).exists()
+
+
+def user_has_project_access(user, project_id):
+    # Placeholder for actual access check logic
+    # Return True if the user has access to the project, False otherwise
+    return ProjectUser.objects.filter(project_id=project_id, user=user).exists()
