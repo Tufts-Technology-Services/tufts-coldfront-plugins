@@ -141,22 +141,24 @@ def refresh_ncq_eligibility():
                 ncq_logger.info(f"Removing user {username} from group {tier1_group_name}")
                 user = create_user(username)
                 user.groups.remove(group_tier1)
-                allotments = NoCostQuotaAllotment.objects.filter(allocation__project__pi=user)
+                # delete the allotments associated with this user first so that we can log the details of what is being deleted
+                allotments = NoCostQuotaAllotment.objects.filter(no_cost_quota__user=user)
                 if allotments.exists():
                     ncq_logger.info(f"User {username} is no longer eligible for NoCostQuota. Deleting {allotments.count()} associated NoCostQuotaAllotment(s).")
                     for allotment in allotments:
-                        ncq_logger.info(f"Deleting NoCostQuotaAllotment {allotment.amount_tb} associated with allocation {allotment.allocation.id}.")
+                        ncq_logger.info(f"Deleting NoCostQuotaAllotment of size {allotment.amount_tb} TB associated with allocation {allotment.allocation.id}.")
                         allotment.delete()
                 NoCostQuota.objects.filter(user=user).delete()
             if in_tier_2:
                 ncq_logger.info(f"Removing user {username} from group {tier2_group_name}")
                 user = create_user(username)
                 user.groups.remove(group_tier2)
-                allotments = NoCostQuotaAllotment.objects.filter(allocation__project__pi=user)
+                # delete the allotments associated with this user first so that we can log the details of what is being deleted
+                allotments = NoCostQuotaAllotment.objects.filter(no_cost_quota__user=user)
                 if allotments.exists():
                     ncq_logger.info(f"User {username} is no longer eligible for NoCostQuota. Deleting {allotments.count()} associated NoCostQuotaAllotment(s).")
                     for allotment in allotments:
-                        ncq_logger.info(f"Deleting NoCostQuotaAllotment {allotment.amount_tb} associated with allocation {allotment.allocation.id}.")
+                        ncq_logger.info(f"Deleting NoCostQuotaAllotment of size {allotment.amount_tb} TB associated with allocation {allotment.allocation.id}.")
                         allotment.delete()
                 NoCostQuota.objects.filter(user=user).delete()
 
