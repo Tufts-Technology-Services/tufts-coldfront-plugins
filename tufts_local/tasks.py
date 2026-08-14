@@ -87,7 +87,7 @@ def get_oversubscribed_no_cost_quotas():
             print(f"Allocation {allocation.id} does not have required attributes.")
             continue
         ncq_allotment = NoCostQuotaAllotment.objects.filter(allocation=allocation)
-        ncq_allot_total = sum(float(allot.amount) for allot in ncq_allotment)
+        ncq_allot_total = sum(float(allot.amount_tb) for allot in ncq_allotment)
         total_rounded = Decimal(ncq_allot_total).quantize(Decimal('0.01'), rounding=ROUND_HALF_EVEN)
         quota_rounded = Decimal(int(quota)/10**12).quantize(Decimal('0.01'), rounding=ROUND_CEILING)
         if quota_rounded < total_rounded:
@@ -107,7 +107,7 @@ def send_ncq_report():
         ncq_remaining_report.append({
             'user': i.user.username,
             'quota_type': i.quota_type,
-            'amount': i.amount,
+            'amount': i.amount_tb,
             'remaining': round(i.remaining, 2)
         })
     return ncq_remaining_report
@@ -145,7 +145,7 @@ def refresh_ncq_eligibility():
                 if allotments.exists():
                     ncq_logger.info(f"User {username} is no longer eligible for NoCostQuota. Deleting {allotments.count()} associated NoCostQuotaAllotment(s).")
                     for allotment in allotments:
-                        ncq_logger.info(f"Deleting NoCostQuotaAllotment {allotment.amount} associated with allocation {allotment.allocation.id}.")
+                        ncq_logger.info(f"Deleting NoCostQuotaAllotment {allotment.amount_tb} associated with allocation {allotment.allocation.id}.")
                         allotment.delete()
                 NoCostQuota.objects.filter(user=user).delete()
             if in_tier_2:
@@ -156,13 +156,13 @@ def refresh_ncq_eligibility():
                 if allotments.exists():
                     ncq_logger.info(f"User {username} is no longer eligible for NoCostQuota. Deleting {allotments.count()} associated NoCostQuotaAllotment(s).")
                     for allotment in allotments:
-                        ncq_logger.info(f"Deleting NoCostQuotaAllotment {allotment.amount} associated with allocation {allotment.allocation.id}.")
+                        ncq_logger.info(f"Deleting NoCostQuotaAllotment {allotment.amount_tb} associated with allocation {allotment.allocation.id}.")
                         allotment.delete()
                 NoCostQuota.objects.filter(user=user).delete()
 
 
 def remove_empty_ncq_allotments():
-    empty_allotments = NoCostQuotaAllotment.objects.filter(amount__lte=0)
+    empty_allotments = NoCostQuotaAllotment.objects.filter(amount_tb__lte=0)
     count = empty_allotments.count()
     if count > 0:
         logger.info(f"Removing {count} NoCostQuotaAllotment(s) with amount 0.")

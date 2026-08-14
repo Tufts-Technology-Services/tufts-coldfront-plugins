@@ -231,3 +231,21 @@ def setup_custom_logger(name, log_file, level=logging.INFO):
     custom_logger.addHandler(handler)
     
     return custom_logger
+
+
+def get_quota_history(allocation_id):
+    history = AllocationAttribute.objects.filter(
+        allocation__id=allocation_id,
+        allocation_attribute_type__name="Storage Quota (TB)"
+    ).first().history.distinct().values_list('value', 'modified')
+    history = list(history)
+    history.reverse()
+    history = [(float(value), modified) for value, modified in history]
+    condensed_history = []
+    for i in range(len(history)):
+        if i == 0:
+            condensed_history.append(history[i])
+        else:
+            if history[i][0] != history[i-1][0]:
+                condensed_history.append(history[i])
+    return condensed_history
