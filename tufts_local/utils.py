@@ -9,6 +9,7 @@ from coldfront.core.project.models import (Project,
                                             ProjectStatusChoice)
 from coldfront.core.allocation.models import (Allocation,
                                               AllocationAttribute,
+                                              AllocationAttributeUsage,
                                               AllocationAttributeType,
                                               AllocationStatusChoice,
                                               AllocationUser)
@@ -258,7 +259,7 @@ def get_storage_allocation_history(allocation):
     ).first()
     if not attr:
         return [], []
-    usage_history = AllocationAttribute.objects.get(id=attr.id).history.distinct().values_list('value', 'modified')
+    usage_history = attr.allocationattributeusage.history.distinct().values_list('value', 'modified')
     usage_history = list(usage_history)
     usage_history.reverse()
     usage_history = [(float(value) if len(value) > 0 else 0.0, modified.isoformat()) for value, modified in usage_history]
