@@ -263,6 +263,7 @@ def get_storage_allocation_history(allocation):
     usage_history.reverse()
     usage_history = [(float(value) if len(value) > 0 else 0.0, modified.isoformat()) for value, modified in usage_history]
     condensed_usage_history = condense_history_values(usage_history)
+
     history = attr.history.distinct().values_list('value', 'modified')
     history = list(history)
     history.reverse()
@@ -270,6 +271,25 @@ def get_storage_allocation_history(allocation):
     condensed_history = []
     condensed_history = condense_history_values(history)
     return condensed_history, condensed_usage_history
+
+
+def history_chart_format(quota_history, usage_history, quota_label="Storage Quota (TB)", usage_label="Storage Usage (TB)"):
+    """
+    Formats two (value, iso_timestamp) history series, e.g. from
+    get_storage_allocation_history, into Chart.js datasets using {x, y}
+    points on a time scale. Using per-point x values (rather than a shared
+    labels array) keeps the two series correctly aligned even though quota
+    and usage change at different timestamps.
+    """
+    def to_points(history):
+        return [{"x": modified, "y": value} for value, modified in history]
+
+    return {
+        "datasets": [
+            {"label": quota_label, "data": to_points(quota_history)},
+            {"label": usage_label, "data": to_points(usage_history)},
+        ]
+    }
 
 
 def user_has_allocation_access(user, allocation_id):

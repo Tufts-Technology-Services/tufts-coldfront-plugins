@@ -122,6 +122,6 @@ def storage_allocation_history(request, allocation_id):
     try:
         get_object_or_404(Allocation, id=allocation_id)  # Ensure the allocation exists
         history, usage_history = utils.get_storage_allocation_history(allocation_id)
-        return JsonResponse({"quota_history": history, "usage_history": usage_history}, status=200)
+        return JsonResponse(utils.history_chart_format(history, usage_history), status=200)
     except Exception as e:
         return JsonResponse({"message": f"error occurred: {str(e)}"}, status=500)
