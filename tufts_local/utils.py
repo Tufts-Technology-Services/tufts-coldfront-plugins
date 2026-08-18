@@ -261,7 +261,7 @@ def get_storage_allocation_history(allocation):
     usage_history = attr.allocationattributeusage.history.distinct().values_list('value', 'modified')
     usage_history = list(usage_history)
     usage_history.reverse()
-    usage_history = [(float(value) if len(value) > 0 else 0.0, modified.isoformat()) for value, modified in usage_history]
+    usage_history = [(value, modified.isoformat()) for value, modified in usage_history]
     condensed_usage_history = condense_history_values(usage_history)
 
     history = attr.history.distinct().values_list('value', 'modified')
