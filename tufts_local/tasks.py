@@ -1,6 +1,7 @@
 import logging
-
+import datetime
 from decimal import Decimal, ROUND_CEILING, ROUND_HALF_EVEN
+from django_q.tasks import schedule, Schedule
 from django.contrib.auth.models import Group, User
 from coldfront.core.project.models import Project, ProjectUser
 from coldfront.core.allocation.models import Allocation, AllocationAttribute
@@ -182,7 +183,7 @@ def autoallocate_ncq_allotments():
     return response
 
 
-def index_new_allocation(allocation_id, timeout):
+def index_new_allocation(allocation_id, scan_id=None, retries=5, wait=5):
     """
     Index a new allocation in Starfish
     """
@@ -190,11 +191,29 @@ def index_new_allocation(allocation_id, timeout):
         allocation = Allocation.objects.get(id=allocation_id)
         vol_path_attr = allocation.allocationattribute_set.filter(allocation_attribute_type__name='sf_vol_path')
         if not vol_path_attr.exists():
-            logger.warning(f"Allocation {allocation_id} does not have an 'sf_vol_path' attribute. Cannot index in Starfish.")
-            return
+            raise ValueError(f"Allocation {allocation_id} does not have an 'sf_vol_path' attribute. Cannot index in Starfish.")
+            
         vol_path = vol_path_attr.first().value
-        add_to_starfish_index(vol_path, 'starfish', timeout=timeout)
-    except Allocation.DoesNotExist:
+        scan_id, status = add_to_starfish_index(vol_path, scan_id, 'starfish')
+        if status is True:
+            # do new allocation starfish actions
+            set_sf_owner_tag(allocation_id)
+            update_sf_approver_tags(allocation.project.id)
+
+        else:
+            if retries <= 0:
+                raise TimeoutError(f"allocation {vol_path} not yet indexed. can't add tags")
+            else:
+                schedule('tufts_local.tasks.index_new_allocation',
+                        allocation_id, scan_id, retries-1, wait,
+                        schedule_type=Schedule.ONCE,
+                        next_run=datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(minutes=wait)
+                )
+
+            return status
+    except Allocation.DoesNotExist as e:
         logger.error(f"Allocation with ID {allocation_id} does not exist. Cannot index in Starfish.")
+        raise e
     except Exception as e:
         logger.error(f"Error indexing allocation {allocation_id} in Starfish: {str(e)}")
+        raise e

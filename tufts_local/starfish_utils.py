@@ -58,28 +58,6 @@ def get_starfish_client(client_key: str):
     return StarfishAPIClient(host=client_config['host'], token=client_config['api_key'])
 
 
-def add_directory_to_index(vol_path, client_key, wait=5, retries=12):
-    """
-    Add a top level directory to the index by initiating a scan of depth 0. 
-    This is useful when a new project directory is created and needs to be tagged.
-    """
-    client = get_starfish_client(client_key)
-    volume, path = vol_path.split(":", 1)
-    r = client.scan_new(volume, path)
-    scan_id = r['id']
-    for _ in range(retries):
-        sleep(wait)
-        status = client.get_scan(scan_id)
-        if not status['state']['is_running']:
-            if status['state']['is_successful']:
-                sleep(wait)
-                return status
-            else:
-                raise RuntimeError(f"Scan {scan_id} failed with error: {status['reason']}")
-
-    raise TimeoutError(f"Scan {scan_id} did not complete in time.")
-
-
 def flatten_tags(tags: dict) -> list:
     """
     Flatten a dictionary of tags into a list of strings in the format 'key:value'.
@@ -142,23 +120,48 @@ def set_project_approvers_from_starfish(vol_path_data):
     try:
         project_key = volpath_to_project_key(vol_path_data['vol_path'])
         proj = get_project_by_key(project_key)
-        tier1_exists = Allocation.objects.filter(project=proj, resources__name__contains='Tier 1', status__name='Active').distinct().exists()
+        tier1_exists = Allocation.objects.filter(project=proj,
+                                                 resources__name__contains='Tier 1',
+                                                 status__name='Active').exists()
         if tier1_exists:
             # skip tier2 and tier3 allocations since approvers are only relevant for tier1
             if vol_path_data['vol_path'].split(':')[0] in ['tier2', 'cold']:
                 return
         existing_tags = parse_tags(vol_path_data.get('tags_explicit', '').split(','))
-        existing_approvers = existing_tags.get('Approver', set())
-        for username in existing_approvers:
+        sf_approvers = existing_tags.get('Approver', set())
+        approver = ProjectUserRoleChoice.objects.get(name='Manager')
+        member = ProjectUserRoleChoice.objects.get(name='User')
+        active_status = ProjectUserStatusChoice.objects.get(name='Active')
+        project_users = proj.projectuser_set.all()
+
+        for proj_user in project_users:
+            if proj_user.user.username in sf_approvers:
+                if proj_user.status != active_status:
+                    proj_user.status = active_status
+                    proj_user.save()
+                set_project_user_role(proj_user, approver)
+            else:
+                if proj_user.status == active_status:
+                    set_project_user_role(proj_user, member)
+
+        # could be approvers in starfish that aren't users or project users yet
+        new_users = sf_approvers - set([i[0] for i in project_users.values_list('user__username')])
+        for username in new_users:
             user = create_user(username)
             proj_user, _ = ProjectUser.objects.get_or_create(user=user, project=proj,
-                                             defaults={'status': ProjectUserStatusChoice.objects.get(name='Active'),
-                                                       'role': ProjectUserRoleChoice.objects.get(name='Manager')})
-            proj_user.role = ProjectUserRoleChoice.objects.get(name='Manager')
+                                             defaults={'status': active_status,
+                                                       'role': approver})
+            proj_user.role = approver
             proj_user.save()
     except Exception as e:
         logger.error(f"Error processing {vol_path_data['vol_path']}: {e}")
-        
+
+
+def set_project_user_role(proj_user, role):
+    if proj_user.role != role:
+        proj_user.role = role
+        proj_user.save()
+
 
 def sync_tags(vol_path, tags: list, client_key):
     """
@@ -233,22 +236,34 @@ def get_sf_volumes_in_coldfront():
     return list(set([i.split(':')[0] for i in list(volpaths)]))
 
 
-def add_to_starfish_index(vol_path, client_key, timeout=300, wait=5):
-    """
-    Add a top level directory to the index by initiating a scan of depth 0. 
-    This is useful when a new project directory is created and needs to be tagged.
-    """
+def scan_new_directory(vol_path, client_key):
     client = get_starfish_client(client_key)
     volume, path = vol_path.split(":", 1)
     r = client.scan_new(volume, path)
     scan_id = r['id']
-    for _ in range(timeout // wait):  # retry for up to timeout seconds
-        sleep(wait)
-        status = client.get_scan(scan_id)
-        if not status['state']['is_running']:
-            if status['state']['is_successful']:
-                sleep(5)  # wait a bit for the scan to complete
-                return status
-            else:
-                raise RuntimeError(f"Scan {scan_id} failed with error: {status['reason']}")
-    raise TimeoutError(f"Scan {scan_id} did not complete in time.")
+    return scan_id
+
+
+def add_to_starfish_index(vol_path, client_key, scan_id=None, wait=5):
+    """
+    Add a top level directory to the index by initiating a scan of depth 0. 
+    This is useful when a new project directory is created and needs to be tagged.
+    """
+    if scan_id is None:
+        entry = get_starfish_data_by_vol_path(vol_path, client_key)
+        if entry is not None:
+            # no need to add the directory to the index
+            return None, True
+    
+        scan_id = scan_new_directory(vol_path, client_key)
+
+    sleep(wait)
+    client = get_starfish_client(client_key)
+    status = client.get_scan(scan_id)
+    if not status['state']['is_running']:
+        if status['state']['is_successful']:
+            sleep(5)  # wait a bit for the scan to complete
+            return scan_id, True
+        else:
+            raise RuntimeError(f"Scan {scan_id} failed with error: {status['reason']}")
+    return scan_id, status
