@@ -12,6 +12,7 @@ from coldfront.core.allocation.models import (Allocation,
                                               AllocationAttributeType,
                                               AllocationStatusChoice,
                                               AllocationUser)
+from coldfront.core.user.models import UserProfile
 from coldfront.core.resource.models import Resource
 from django.contrib.auth.models import User
 
@@ -58,7 +59,9 @@ def create_tufts_project(project_key, owner, group=None):
     pi, created = User.objects.get_or_create(username=owner)
     if created:
         print(f'Created new user {owner}')
+
     proj, created = Project.objects.get_or_create(title=project_key, pi=pi, status=ProjectStatusChoice.objects.get(name='Active'))
+    update_pi_status(pi)
     ProjectUser.objects.get_or_create(user=pi, role=ProjectUserRoleChoice.objects.get(name='Manager'), project=proj, status=ProjectUserStatusChoice.objects.get(name='Active'))
     if group:
         ProjectAttribute.objects.get_or_create(proj_attr_type=ProjectAttributeType.objects.get(name='Group'), value=group, project=proj)
@@ -75,14 +78,29 @@ def update_project_owner(project_key, new_owner):
         new_pi = new_pi.first()
     else:
         new_pi = create_user(new_owner)
+
+    old_pi = proj.pi
+    if old_pi != new_pi:
+        proj.pi = new_pi
+        proj.save()
         
-    proj.pi = new_pi
-    proj.save()
     # Update ProjectUser for the new PI
-    project_user, _ = ProjectUser.objects.get_or_create(user=new_pi, project=proj, 
-                                                        defaults={'status': ProjectUserStatusChoice.objects.get(name='Active'), 
-                                                                  'role': ProjectUserRoleChoice.objects.get(name='Manager')})
+    ProjectUser.objects.get_or_create(user=new_pi, project=proj, 
+                                    defaults={'status': ProjectUserStatusChoice.objects.get(name='Active'), 
+                                              'role': ProjectUserRoleChoice.objects.get(name='Manager')})
+    # update user profile is_pi status for new pi and old pi
+    update_pi_status(old_pi)
+    update_pi_status(new_pi)
     return proj
+
+
+def update_pi_status(user: User) -> None:
+    projects_owned = Project.objects.filter(pi=user, status__name='Active').exists()
+    # update user profile is_pi status for user
+    profile, _ = UserProfile.objects.get_or_create(user=user)
+    if profile.is_pi != projects_owned:
+        profile.is_pi = projects_owned
+        profile.save()
 
 
 def find_missing_projects(subfolder_response):
@@ -102,7 +120,7 @@ def find_missing_allocations(resource_name, subfolder_response):
             logger.error(f"Error processing {i['vol_path']}: {e}")
 
 
-def create_allocation(project_key, resource_name, sf_entry):
+def create_sf_allocation(project_key, resource_name, sf_entry):
     proj = get_project_by_key(project_key)
     alloc = Allocation.objects.filter(project=proj, resources__name=resource_name)
     if not alloc.exists():
