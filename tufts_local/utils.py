@@ -41,11 +41,11 @@ def get_project_by_key(project_key):
     if match.count() == 1:
         return match.first().project
     elif match and len(match) > 1:
-        print(f"Multiple projects found with key: {project_key}")
+        logger.error(f"Multiple projects found with key: {project_key}")
         for m in match:
-            print(f" - Project ID: {m.project.id}, Title: {m.project.title}")
+            logger.error(f" - Project ID: {m.project.id}, Title: {m.project.title}")
         raise Exception(f"Multiple projects found with key: {project_key}")
-    print(f"No project found with key: {project_key}")
+    logger.error(f"No project found with key: {project_key}")
     return None
 
 

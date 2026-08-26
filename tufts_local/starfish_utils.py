@@ -74,6 +74,7 @@ def parse_tags(tags: list) -> dict:
     Parse a list of tags into a dictionary where keys are tag types and values are a set of tag values
     """
     parsed_tags = {}
+    tags = [t.strip() for t in tags if len(t.strip()) > 0]
     for tag in tags:
         if ':' in tag:
             key, value = tag.split(':', 1)
@@ -120,6 +121,8 @@ def set_project_approvers_from_starfish(vol_path_data):
     try:
         project_key = volpath_to_project_key(vol_path_data['vol_path'])
         proj = get_project_by_key(project_key)
+        if proj is None:
+            raise ValueError("no matching project found")
         tier1_exists = Allocation.objects.filter(project=proj,
                                                  resources__name__contains='Tier 1',
                                                  status__name='Active').exists()
