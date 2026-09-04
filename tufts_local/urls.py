@@ -2,7 +2,6 @@ from django.urls import path
 
 from tufts_local import views
 
-
 urlpatterns = [
     path(
         'project-update-user-role/',
@@ -10,9 +9,9 @@ urlpatterns = [
         name='project-update-user-role',
     ),
     path(
-       'project-user-get-email-notification/<project_user_id>/',
-       views.project_get_email_notification,
-       name='project-user-get-email-notification'
+        'project-user-get-email-notification/<project_user_id>/',
+        views.project_get_email_notification,
+        name='project-user-get-email-notification',
     ),
     path(
         'admin-project-create/',
@@ -33,16 +32,6 @@ urlpatterns = [
         'no-cost-quotas-report/',
         views.no_cost_quotas_report,
         name='no-cost-quotas-report',
-    ),
-    path(
-        'billing-code-report/',
-        views.billing_code_report,
-        name='billing-code-report',
-    ),
-    path(
-        'cost-preview-report/',
-        views.charge_report,
-        name='cost-preview-report',
     ),
     path(
         'add-user-to-coldfront/',
