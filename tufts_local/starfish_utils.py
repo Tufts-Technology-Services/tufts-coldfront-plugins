@@ -26,7 +26,7 @@ def get_starfish_usage_data_by_volume(volume: str, client_key: str) -> list:
     return subfolder_response
 
 
-def get_starfish_data_by_vol_path(vol_path: str, client_key: str) -> dict:
+def get_starfish_data_by_vol_path(vol_path: str, client_key: str, cached: bool = True) -> dict:
     """
     Helper function to query Starfish API for usage data for a specific subfolder by its volume path.
     Caches results to avoid redundant API calls.
@@ -35,7 +35,12 @@ def get_starfish_data_by_vol_path(vol_path: str, client_key: str) -> dict:
         volume, _ = vol_path.split(':', 1)
     except ValueError as e:
         raise ValueError(f"Invalid vol_path format: '{vol_path}'. Expected format 'volume:path'.") from e
-    subfolder_response = get_starfish_usage_data_by_volume(volume, client_key)
+
+    subfolder_response = (
+        get_starfish_usage_data_by_volume(volume, client_key)
+        if cached
+        else get_starfish_usage_data_by_volume.__wrapped__(volume, client_key)
+    )
     sf_entry = next((item for item in subfolder_response if item['vol_path'].lower() == vol_path.lower()), None)
     if not sf_entry:
         logger.warning(f"Subfolder with vol_path '{vol_path}' not found in Starfish.")
@@ -89,6 +94,14 @@ def parse_tags(tags: list) -> dict:
     return parsed_tags
 
 
+def get_owners_approvers_from_starfish(vol_path, client_key=None, cached=True) -> set:
+    sf_data = get_starfish_data_by_vol_path(vol_path, client_key, cached=cached)
+    if not sf_data:
+        raise ValueError(f"Directory with vol_path '{vol_path}' is not indexed in Starfish.")
+    tags = parse_tags(sf_data.get('tags_explicit', '').split(','))
+    return tags.get('Owner', set()), tags.get('Approver', set())
+
+
 def sync_approver_tags(vol_path, approvers: list, client_key=None):
     """
     Synchronize approver tags for a directory indexed by Starfish.
@@ -98,22 +111,20 @@ def sync_approver_tags(vol_path, approvers: list, client_key=None):
     It will ignore tag types that are not represented in the provided list.
     If the directory is not indexed, it will raise a ValueError
     """
-    sf_data = get_starfish_data_by_vol_path(vol_path, client_key)
-    if not sf_data:
-        raise ValueError(f"Directory with vol_path '{vol_path}' is not indexed in Starfish.")
-    existing_tags = parse_tags(sf_data.get('tags_explicit', '').split(','))
-    existing_approvers = existing_tags.get('Approver', set())
-    new_approvers = set(approvers)
-    tags_to_add = {'Approver': new_approvers - existing_approvers}
-    tags_to_remove = {'Approver': existing_approvers - new_approvers}
+    _, sf_approvers = get_owners_approvers_from_starfish(vol_path, client_key, cached=False)
+    cf_approvers = set(approvers)
+    tags_to_add = flatten_tags({'Approver': cf_approvers - sf_approvers})
+    tags_to_remove = flatten_tags({'Approver': sf_approvers - cf_approvers})
     client = get_starfish_client(client_key)
     # retrieving starfish data by vol_path is case-insensitive, but adding/removing tags is case-sensitive, so we need to use the vol_path from the starfish data
+    sf_data = get_starfish_data_by_vol_path(vol_path, client_key)
     vol_path = sf_data.get('vol_path')
-    tags_to_add = flatten_tags(tags_to_add)
+
     if tags_to_add:
+        logger.info(f'Adding tags {", ".join(tags_to_add)} to vol_path {vol_path}.')
         client.add_tag(vol_path, tags_to_add)
-    tags_to_remove = flatten_tags(tags_to_remove)
     if tags_to_remove:
+        logger.info(f'Removing tags {", ".join(tags_to_remove)} from vol_path {vol_path}.')
         client.detach_tag(vol_path, tags_to_remove)
     return {'vol_path': vol_path, 'added': tags_to_add, 'removed': tags_to_remove}
 

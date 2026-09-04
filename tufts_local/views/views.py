@@ -12,6 +12,7 @@ from coldfront.core.project.models import ProjectUser, ProjectUserRoleChoice
 
 from tufts_local import utils
 from tufts_local.tasks import update_sf_approver_tags
+from tufts_local.utils import approver_at_least
 
 logger = logging.getLogger(__name__)
 
@@ -22,20 +23,7 @@ def project_update_user_role(request):
     data = request.POST
     project_user_obj = get_object_or_404(ProjectUser, id=data.get('user_project_id'))
 
-    project_obj = project_user_obj.project
-
-    allowed = False
-    if project_obj.pi == request.user:
-        allowed = True
-
-    if project_obj.projectuser_set.filter(user=request.user, role__name='Manager', status__name='Active').exists():
-        allowed = True
-
-    if project_user_obj.user == request.user:
-        allowed = True
-
-    if request.user.is_superuser:
-        allowed = True
+    allowed = approver_at_least(project_user_obj.project, request.user)
 
     if allowed is False:
         return JsonResponse({'message': 'not allowed'}, status=403)

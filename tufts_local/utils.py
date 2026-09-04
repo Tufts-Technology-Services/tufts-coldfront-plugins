@@ -370,3 +370,13 @@ def user_has_project_access(user, project_id):
     # Placeholder for actual access check logic
     # Return True if the user has access to the project, False otherwise
     return ProjectUser.objects.filter(project_id=project_id, user=user).exists()
+
+
+def approver_at_least(project_obj, user):
+    if user.is_superuser:
+        return True
+    if project_obj.pi == user:
+        return True
+    if project_obj.projectuser_set.filter(user=user, role__name='Manager', status__name='Active').exists():
+        return True
+    return False

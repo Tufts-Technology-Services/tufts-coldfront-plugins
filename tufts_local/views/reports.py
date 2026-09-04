@@ -12,7 +12,12 @@ from coldfront.core.resource.models import Resource
 
 from tufts_local import billing_utils, utils
 from tufts_local.forms import ReportFilterForm
-from tufts_local.starfish_utils import get_starfish_usage_data_by_volume, get_starfish_volumes, parse_tags
+from tufts_local.starfish_utils import (
+    get_owners_approvers_from_starfish,
+    get_starfish_usage_data_by_volume,
+    get_starfish_volumes,
+    parse_tags,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -49,6 +54,11 @@ def sf_report(request):
     for k, v in alloc_matches.items():
         sf_entry = next((item for item in sf_data if item['vol_path'].lower().strip() == k.lower().strip()), None)
         if sf_entry:
+            sf_owner, sf_approvers = get_owners_approvers_from_starfish(k, 'starfish')
+            if v.project and {v.project.pi.username} != sf_owner:
+                owner_mismatches.append((k, v, v.project.pi.username, sf_owner.pop() if sf_owner else ''))
+            sf_approvers.discard(v.project.pi.username)  # remove the owner from the approvers list if present
+
             tags = parse_tags(sf_entry.get('tags_explicit', '').split(','))
             if tags:
                 sf_owner = tags.get('Owner', set())
@@ -60,10 +70,9 @@ def sf_report(request):
                 sf_approvers.discard(v.project.pi.username)  # remove the owner from the approvers list if present
                 if v.project:
                     cf_approvers = set(
-                        [
-                            pu.user.username
-                            for pu in v.project.projectuser_set.filter(role__name='Manager', status__name='Active')
-                        ]
+                        v.project.projectuser_set.filter(role__name='Manager', status__name='Active').values_list(
+                            'user__username', flat=True
+                        )
                     )
                     cf_approvers.discard(v.project.pi.username)
                     if cf_approvers != sf_approvers:
