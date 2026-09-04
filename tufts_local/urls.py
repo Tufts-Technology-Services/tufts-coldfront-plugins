@@ -29,11 +29,6 @@ urlpatterns = [
         name='sf-report',
     ),
     path(
-        'no-cost-quotas-report/',
-        views.no_cost_quotas_report,
-        name='no-cost-quotas-report',
-    ),
-    path(
         'add-user-to-coldfront/',
         views.add_user_to_coldfront,
         name='add-user-to-coldfront',
@@ -47,21 +42,6 @@ urlpatterns = [
         'not-updated-report/',
         views.not_updated_report,
         name='not-updated-report',
-    ),
-    path(
-        'oversubscribed-allotments-report/',
-        views.oversubscribed_allotments_report,
-        name='oversubscribed-allotments-report',
-    ),
-    path(
-        'expired-allocations-report/',
-        views.expired_allocations_report,
-        name='expired-allocations-report',
-    ),
-    path(
-        'all-allocations-allotments-report/',
-        views.all_allocations_allotments_report,
-        name='all-allocations-allotments-report',
     ),
     path(
         'storage-allocation-history/<allocation_id>/',

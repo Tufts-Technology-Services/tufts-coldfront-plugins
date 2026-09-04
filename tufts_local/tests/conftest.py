@@ -37,20 +37,11 @@ _stub_module('coldfront_utils.util')
 _stub_module('coldfront_utils.util.ad_search', ADSearch=type('ADSearch', (), {}))
 
 _stub_module('coldfront_billing')
-_stub_module('coldfront_billing.constants', BILLING_ATTRIBUTE_NAME='billing_id')
-_stub_module('coldfront_billing.data')
-_stub_module('coldfront_billing.data.billing', create_billing_allocations=lambda *a, **k: [])
 _stub_module(
     'coldfront_billing.models',
     NoCostQuota=type('NoCostQuota', (), {}),
     NoCostQuotaAllotment=type('NoCostQuotaAllotment', (), {}),
 )
-_stub_module('coldfront_billing.prefetch', get_projects_prefetch=lambda *a, **k: None)
-_stub_module('coldfront_billing.reports')
-_stub_module('coldfront_billing.reports.quota', auto_assign_quota=lambda *a, **k: None)
-_stub_module('coldfront_billing.views')
-_stub_module('coldfront_billing.views.no_cost_quota')
-_stub_module('coldfront_billing.views.no_cost_quota.common', quota_with_remaining=lambda *a, **k: None)
 
 _stub_module('storage')
 _stub_module('storage.utils', get_client_config=lambda *a, **k: {})
