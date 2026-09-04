@@ -1,18 +1,21 @@
 import logging
 from time import sleep
-from coldfront.core.project.models import (ProjectUser, ProjectUserRoleChoice, ProjectUserStatusChoice)
-from coldfront.core.allocation.models import (Allocation, AllocationAttribute, 
-                                              AllocationAttributeType)
+
 from coldfront_utils import ttl_cache
 from storage.utils import get_client_config
+
+from coldfront.core.allocation.models import Allocation, AllocationAttribute, AllocationAttributeType
+from coldfront.core.project.models import ProjectUser, ProjectUserRoleChoice, ProjectUserStatusChoice
+
 from tufts_local.utils import create_user, get_project_by_key, volpath_to_project_key
 
 logger = logging.getLogger(__name__)
 
-@ttl_cache(timeout=60*60)
+
+@ttl_cache(timeout=60 * 60)
 def get_starfish_usage_data_by_volume(volume: str, client_key: str) -> list:
     """
-    Helper function to query Starfish API for usage data for all subfolders of a given volume. 
+    Helper function to query Starfish API for usage data for all subfolders of a given volume.
     Caches results to avoid redundant API calls.
     """
     sf = get_starfish_client(client_key)
@@ -25,11 +28,11 @@ def get_starfish_usage_data_by_volume(volume: str, client_key: str) -> list:
 
 def get_starfish_data_by_vol_path(vol_path: str, client_key: str) -> dict:
     """
-    Helper function to query Starfish API for usage data for a specific subfolder by its volume path. 
+    Helper function to query Starfish API for usage data for a specific subfolder by its volume path.
     Caches results to avoid redundant API calls.
     """
     try:
-        volume, _ = vol_path.split(":", 1)
+        volume, _ = vol_path.split(':', 1)
     except ValueError as e:
         raise ValueError(f"Invalid vol_path format: '{vol_path}'. Expected format 'volume:path'.") from e
     subfolder_response = get_starfish_usage_data_by_volume(volume, client_key)
@@ -42,18 +45,19 @@ def get_starfish_data_by_vol_path(vol_path: str, client_key: str) -> dict:
 
 def get_starfish_volumes(client_key: str) -> list:
     """
-    Helper function to query Starfish API for a list of volumes. 
+    Helper function to query Starfish API for a list of volumes.
     Caches results to avoid redundant API calls.
     """
-    #sf = get_starfish_client(client_key)
-    return ['cold', 'projects', 'rstore-cifs', 'rstore-nfs', 'tier2', 'other']  
+    # sf = get_starfish_client(client_key)
+    return ['cold', 'projects', 'rstore-cifs', 'rstore-nfs', 'tier2', 'other']
 
 
 def get_starfish_client(client_key: str):
     """
     Helper function to get a Starfish API client instance.
     """
-    from starfish_api_client import StarfishAPIClient # pylint: ignore=import-outside-toplevel
+    from starfish_api_client import StarfishAPIClient  # pylint: ignore=import-outside-toplevel
+
     client_config = get_client_config(client_key)
     return StarfishAPIClient(host=client_config['host'], token=client_config['api_key'])
 
@@ -65,7 +69,7 @@ def flatten_tags(tags: dict) -> list:
     flattened = []
     for key, values in tags.items():
         for value in values:
-            flattened.append(f"{key}:{value}")
+            flattened.append(f'{key}:{value}')
     return flattened
 
 
@@ -89,8 +93,8 @@ def sync_approver_tags(vol_path, approvers: list, client_key=None):
     """
     Synchronize approver tags for a directory indexed by Starfish.
     This function will add or remove approver tags based on the current approvers in Coldfront.
-    It will not add tags that are already present, and it will remove tags 
-    that are not in the provided list. 
+    It will not add tags that are already present, and it will remove tags
+    that are not in the provided list.
     It will ignore tag types that are not represented in the provided list.
     If the directory is not indexed, it will raise a ValueError
     """
@@ -116,16 +120,16 @@ def sync_approver_tags(vol_path, approvers: list, client_key=None):
 
 def set_project_approvers_from_starfish(vol_path_data):
     if not vol_path_data:
-        logger.warning(f"No data found for vol_path {vol_path_data['vol_path']} in Starfish.")
+        logger.warning(f'No data found for vol_path {vol_path_data["vol_path"]} in Starfish.')
         return
     try:
         project_key = volpath_to_project_key(vol_path_data['vol_path'])
         proj = get_project_by_key(project_key)
         if proj is None:
-            raise ValueError("no matching project found")
-        tier1_exists = Allocation.objects.filter(project=proj,
-                                                 resources__name__contains='Tier 1',
-                                                 status__name='Active').exists()
+            raise ValueError('no matching project found')
+        tier1_exists = Allocation.objects.filter(
+            project=proj, resources__name__contains='Tier 1', status__name='Active'
+        ).exists()
         if tier1_exists:
             # skip tier2 and tier3 allocations since approvers are only relevant for tier1
             if vol_path_data['vol_path'].split(':')[0] in ['tier2', 'cold']:
@@ -151,13 +155,13 @@ def set_project_approvers_from_starfish(vol_path_data):
         new_users = sf_approvers - set([i[0] for i in project_users.values_list('user__username')])
         for username in new_users:
             user = create_user(username)
-            proj_user, _ = ProjectUser.objects.get_or_create(user=user, project=proj,
-                                             defaults={'status': active_status,
-                                                       'role': approver})
+            proj_user, _ = ProjectUser.objects.get_or_create(
+                user=user, project=proj, defaults={'status': active_status, 'role': approver}
+            )
             proj_user.role = approver
             proj_user.save()
     except Exception as e:
-        logger.error(f"Error processing {vol_path_data['vol_path']}: {e}")
+        logger.error(f'Error processing {vol_path_data["vol_path"]}: {e}')
 
 
 def set_project_user_role(proj_user, role):
@@ -170,8 +174,8 @@ def sync_tags(vol_path, tags: list, client_key):
     """
     Synchronize tags for a directory indexed by Starfish.
     This function will add or remove tags based on the current tags in Starfish.
-    It will not add tags that are already present, and it will remove tags 
-    that are not in the provided list. 
+    It will not add tags that are already present, and it will remove tags
+    that are not in the provided list.
     It will ignore tag types that are not represented in the provided list.
     If the directory is not indexed, it will raise a ValueError
     """
@@ -199,26 +203,26 @@ def sync_tags(vol_path, tags: list, client_key):
 
 def set_owner_tag(client_key, vol_path, owner: str):
     # valid tags: Owner, Group, LabGroup, Approver, Reporting
-    sync_tags(vol_path, [f"Owner:{owner.lower()}"], client_key)
+    sync_tags(vol_path, [f'Owner:{owner.lower()}'], client_key)
 
 
 def set_approver_tags(client_key, vol_path, approvers: list):
     # valid tags: Owner, Group, LabGroup, Approver, Reporting
-    sync_tags(vol_path, [f"Approver:{approver.lower()}" for approver in approvers], client_key)
+    sync_tags(vol_path, [f'Approver:{approver.lower()}' for approver in approvers], client_key)
 
 
 def match_owner_tags():
-    all_vol_paths = AllocationAttribute.objects.filter(allocation_attribute_type__name="sf_vol_path")
+    all_vol_paths = AllocationAttribute.objects.filter(allocation_attribute_type__name='sf_vol_path')
     tag_compare = []
     for vp in all_vol_paths:
         vol_path = vp.value
         sf = get_starfish_data_by_vol_path(vol_path, 'starfish')  # raises ValueError if not found
         if not sf:
-            print(f"Vol path {vol_path} not found in Starfish.")
+            print(f'Vol path {vol_path} not found in Starfish.')
             continue
         tags = parse_tags(sf.get('tags_explicit', '').split(','))
         if not tags:
-            print(f"No tags found for vol_path {vol_path}")
+            print(f'No tags found for vol_path {vol_path}')
             sf_owner = set()
         else:
             sf_owner = tags.get('Owner', set())
@@ -226,7 +230,9 @@ def match_owner_tags():
             sf_owner = list(sf_owner)[0]
         else:
             sf_owner = ''
-        tag_compare.append({'vol_path': vol_path, 'sf_owner': sf_owner, 'coldfront_owner': vp.allocation.project.pi.username})
+        tag_compare.append(
+            {'vol_path': vol_path, 'sf_owner': sf_owner, 'coldfront_owner': vp.allocation.project.pi.username}
+        )
     return tag_compare
 
 
@@ -241,7 +247,7 @@ def get_sf_volumes_in_coldfront():
 
 def scan_new_directory(vol_path, client_key):
     client = get_starfish_client(client_key)
-    volume, path = vol_path.split(":", 1)
+    volume, path = vol_path.split(':', 1)
     r = client.scan_new(volume, path)
     scan_id = r['id']
     return scan_id
@@ -249,7 +255,7 @@ def scan_new_directory(vol_path, client_key):
 
 def add_to_starfish_index(vol_path, client_key, scan_id=None, wait=5):
     """
-    Add a top level directory to the index by initiating a scan of depth 0. 
+    Add a top level directory to the index by initiating a scan of depth 0.
     This is useful when a new project directory is created and needs to be tagged.
     """
     if scan_id is None:
@@ -257,7 +263,7 @@ def add_to_starfish_index(vol_path, client_key, scan_id=None, wait=5):
         if entry is not None:
             # no need to add the directory to the index
             return None, True
-    
+
         scan_id = scan_new_directory(vol_path, client_key)
 
     sleep(wait)
@@ -268,5 +274,5 @@ def add_to_starfish_index(vol_path, client_key, scan_id=None, wait=5):
             sleep(5)  # wait a bit for the scan to complete
             return scan_id, True
         else:
-            raise RuntimeError(f"Scan {scan_id} failed with error: {status['reason']}")
+            raise RuntimeError(f'Scan {scan_id} failed with error: {status["reason"]}')
     return scan_id, status

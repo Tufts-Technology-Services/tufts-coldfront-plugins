@@ -2,4 +2,4 @@ from django.apps import AppConfig
 
 
 class LocalConfig(AppConfig):
-    name = "tufts_local"
+    name = 'tufts_local'
