@@ -2,7 +2,7 @@ import csv
 import logging
 
 from django.contrib.auth.decorators import login_required, user_passes_test
-from django.http import HttpResponse, JsonResponse
+from django.http import HttpResponse
 from django.template.response import TemplateResponse
 from django.views.decorators.cache import cache_page
 from django.views.decorators.http import require_GET
@@ -10,8 +10,7 @@ from django.views.decorators.http import require_GET
 from coldfront.core.allocation.models import Allocation, AllocationAttribute
 from coldfront.core.resource.models import Resource
 
-from tufts_local import billing_utils, utils
-from tufts_local.forms import ReportFilterForm
+from tufts_local import utils
 from tufts_local.starfish_utils import (
     get_owners_approvers_from_starfish,
     get_starfish_usage_data_by_volume,
@@ -168,46 +167,6 @@ def get_csv(data, filename='export.csv'):
     return response
 
 
-@login_required
-@require_GET
-def no_cost_quotas_report(request):
-    if request.user.is_superuser:
-        format = request.GET.get('format')
-        form = ReportFilterForm(request.GET)
-        if form.is_valid() and format != 'json':
-            if form.cleaned_data['username']:
-                data = billing_utils.no_cost_quotas_report(user=form.cleaned_data['username'])
-            else:
-                data = billing_utils.no_cost_quotas_report()
-        else:
-            data = billing_utils.no_cost_quotas_report()
-
-        if format == 'json':
-            return JsonResponse(data, status=200)
-        else:
-            return TemplateResponse(
-                request,
-                'tufts_local/no_cost_quotas_report.html',
-                {
-                    'message': data['errors'],
-                    'allocations': data['allocations'],
-                    'shared_allotments': data['shared_allotments'],
-                    'form': form,
-                },
-            )
-    else:
-        data = billing_utils.no_cost_quotas_report(user=request.user.username)
-        return TemplateResponse(
-            request,
-            'tufts_local/no_cost_quotas_report.html',
-            {
-                'message': data['errors'],
-                'allocations': data['allocations'],
-                'shared_allotments': data['shared_allotments'],
-            },
-        )
-
-
 @user_passes_test(lambda u: u.is_superuser)
 @require_GET
 def not_updated_report(request):
@@ -218,27 +177,3 @@ def not_updated_report(request):
     """
     data = utils.not_updated_report()
     return TemplateResponse(request, 'tufts_local/not_updated_report.html', data)
-
-
-@user_passes_test(lambda u: u.is_superuser)
-@require_GET
-def oversubscribed_allotments_report(request):
-    data = billing_utils.get_oversubscribed_no_cost_quotas()
-    return TemplateResponse(request, 'tufts_local/oversubscribed_allotments_report.html', {'overages': data})
-
-
-@user_passes_test(lambda u: u.is_superuser)
-@require_GET
-def expired_allocations_report(request):
-    data = billing_utils.expired_storage_allocations_with_ncq_allotments()
-    return TemplateResponse(request, 'tufts_local/expired_allocations_report.html', {'expired_allocations': data})
-
-
-@user_passes_test(lambda u: u.is_superuser)
-@require_GET
-def all_allocations_allotments_report(request):
-    data = billing_utils.get_all_storage_allocations()
-    csv_data = {}
-    csv_data['header'] = data[0].keys() if data else []
-    csv_data['rows'] = [list(item.values()) for item in data]
-    return get_csv(csv_data, filename='allocations_allotments_report.csv')

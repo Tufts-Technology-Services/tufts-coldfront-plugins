@@ -1,10 +1,7 @@
 import datetime
 import logging
-from decimal import ROUND_CEILING, ROUND_HALF_EVEN, Decimal
 
 from coldfront_billing.models import NoCostQuota, NoCostQuotaAllotment
-from coldfront_billing.reports.quota import auto_assign_quota
-from coldfront_billing.views.no_cost_quota.common import quota_with_remaining
 from django.contrib.auth.models import Group, User
 from django_q.tasks import Schedule, schedule
 
@@ -13,7 +10,6 @@ from coldfront.core.project.models import Project, ProjectUser
 from coldfront.core.resource.models import Resource
 
 from tufts_local.analytics_utils import get_ncq_eligibility
-from tufts_local.billing_utils import no_cost_quotas_report
 from tufts_local.starfish_utils import (
     add_to_starfish_index,
     get_starfish_usage_data_by_volume,
@@ -91,59 +87,6 @@ def _set_sf_owner_tag(allocation):
         )
 
 
-def get_oversubscribed_no_cost_quotas():
-    """
-    return any NoCostQuotaAllotments that are associated with an allocation where allotment total exceeds allocation quota.
-    """
-    requires_payment = Resource.objects.filter(requires_payment=True, resource_type__name='Storage')
-    allocations = Allocation.objects.filter(resources__in=requires_payment, status__name='Active').prefetch_related(
-        'allocationattribute_set'
-    )
-    exceeded_allotments = []
-    for allocation in allocations:
-        try:
-            quota = (
-                allocation.allocationattribute_set.filter(allocation_attribute_type__name='reported_quota_bytes')
-                .first()
-                .value
-            )
-        except AttributeError:
-            print(f'Allocation {allocation.id} does not have required attributes.')
-            continue
-        ncq_allotment = NoCostQuotaAllotment.objects.filter(allocation=allocation)
-        ncq_allot_total = sum(float(allot.amount_tb) for allot in ncq_allotment)
-        total_rounded = Decimal(ncq_allot_total).quantize(Decimal('0.01'), rounding=ROUND_HALF_EVEN)
-        quota_rounded = Decimal(int(quota) / 10**12).quantize(Decimal('0.01'), rounding=ROUND_CEILING)
-        if quota_rounded < total_rounded:
-            exceeded_allotments.append(
-                {
-                    'allocation': allocation,
-                    'quota': quota_rounded,
-                    'total_allotments': total_rounded,
-                    'ncq_allotments': ncq_allotment,
-                }
-            )
-    return exceeded_allotments
-
-
-def send_ncq_report():
-    report = no_cost_quotas_report()
-    for i in report['allocations']:
-        del i['allocation']  # remove allocation object from report to avoid serialization issues
-
-    ncq_remaining_report = []
-    for i in quota_with_remaining():
-        ncq_remaining_report.append(
-            {
-                'user': i.user.username,
-                'quota_type': i.quota_type,
-                'amount': i.amount_tb,
-                'remaining': round(i.remaining, 2),
-            }
-        )
-    return ncq_remaining_report
-
-
 def refresh_ncq_eligibility():
     ncq_logger = setup_custom_logger('ncq', 'ncq.log')
     eligibility_data = get_ncq_eligibility()
@@ -200,25 +143,6 @@ def refresh_ncq_eligibility():
                         )
                         allotment.delete()
                 NoCostQuota.objects.filter(user=user).delete()
-
-
-def remove_empty_ncq_allotments():
-    empty_allotments = NoCostQuotaAllotment.objects.filter(amount_tb__lte=0)
-    count = empty_allotments.count()
-    if count > 0:
-        logger.info(f'Removing {count} NoCostQuotaAllotment(s) with amount 0.')
-        empty_allotments.delete()
-    return f'Removed {count} NoCostQuotaAllotment(s) with amount 0.'
-
-
-def autoallocate_ncq_allotments():
-    """
-    Automatically allocate NoCostQuotaAllotments to eligible users based on their remaining quota.
-    """
-    logger.info('Starting automatic allocation of NoCostQuotaAllotments.')
-    response = auto_assign_quota()
-    logger.info(f'Automatic allocation response: {response}')
-    return response
 
 
 def index_new_allocation(allocation_id, scan_id=None, retries=5, wait=5):
