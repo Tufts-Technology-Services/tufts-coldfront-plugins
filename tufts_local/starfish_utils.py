@@ -94,7 +94,7 @@ def parse_tags(tags: list) -> dict:
     return parsed_tags
 
 
-def get_owners_approvers_from_starfish(vol_path, client_key=None, cached=True) -> set:
+def get_owners_approvers_from_starfish(vol_path, client_key=None, cached=True) -> tuple:
     sf_data = get_starfish_data_by_vol_path(vol_path, client_key, cached=cached)
     if not sf_data:
         raise ValueError(f"Directory with vol_path '{vol_path}' is not indexed in Starfish.")
@@ -118,6 +118,9 @@ def sync_approver_tags(vol_path, approvers: list, client_key=None):
     client = get_starfish_client(client_key)
     # retrieving starfish data by vol_path is case-insensitive, but adding/removing tags is case-sensitive, so we need to use the vol_path from the starfish data
     sf_data = get_starfish_data_by_vol_path(vol_path, client_key)
+    if sf_data is None:
+        logger.error(f"Directory with vol_path '{vol_path}' is not indexed in Starfish.")
+        raise ValueError(f"Directory with vol_path '{vol_path}' is not indexed in Starfish.")
     vol_path = sf_data.get('vol_path')
 
     if tags_to_add:
