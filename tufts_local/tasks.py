@@ -85,6 +85,9 @@ def _set_sf_owner_tag(allocation):
         logger.error(
             f"Allocation {allocation.id} does not have an 'sf_vol_path' attribute. Cannot set Starfish 'Owner' tag."
         )
+        raise ValueError(
+            f"Allocation {allocation.id} does not have an 'sf_vol_path' attribute. Cannot set Starfish 'Owner' tag."
+        )
 
 
 def refresh_ncq_eligibility():
@@ -158,16 +161,29 @@ def index_new_allocation(allocation_id, scan_id=None, retries=5, wait=5):
             )
 
         vol_path = vol_path_attr.first().value
+        logger.info(f'Indexing allocation with vol_path {vol_path} in Starfish.')
         scan_id, status = add_to_starfish_index(vol_path, scan_id, 'starfish')
         if status is True:
             # do new allocation starfish actions
-            set_sf_owner_tag(allocation_id)
-            update_sf_approver_tags(allocation.project.id)
+            logger.info(f'Successfully indexed allocation with vol_path {vol_path} in Starfish.')
+            try:
+                set_sf_owner_tag(allocation_id)
+                logger.info(f'Setting Starfish owner tag for allocation with vol_path {vol_path}.')
+                update_sf_approver_tags(allocation.project.id)
+                logger.info(f'Updating Starfish approver tags for allocation with vol_path {vol_path}.')
+            except Exception as e:
+                logger.error(f'Error setting Starfish tags for allocation with vol_path {vol_path}: {e}')
 
         else:
             if retries <= 0:
+                logger.error(
+                    f'Failed to index allocation with vol_path {vol_path} in Starfish after {retries} retries.'
+                )
                 raise TimeoutError(f"allocation {vol_path} not yet indexed. can't add tags")
             else:
+                logger.warning(
+                    f'Will recheck allocation with vol_path {vol_path} in Starfish in {wait} minutes. {retries - 1} retries left.'
+                )
                 schedule(
                     'tufts_local.tasks.index_new_allocation',
                     allocation_id,
