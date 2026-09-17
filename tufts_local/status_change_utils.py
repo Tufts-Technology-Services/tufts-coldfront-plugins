@@ -30,7 +30,7 @@ class StatusChangeAPIClient:
     def grant_grace_period(self, record_id, reviewer, expiration_date, note=None):
         raise NotImplementedError
 
-    def add_note(self, record_id, note):
+    def add_note(self, record_id, note, user):
         raise NotImplementedError
 
 
@@ -54,14 +54,15 @@ class DummyStatusChangeAPIClient(StatusChangeAPIClient):
             'old_active_status': 'Active',
             'new_active_status': 'Active',
             'old_title': 'Research Assistant Professor',
-            'new_title': 'Alumni',
+            'new_title': 'Emeritus',
             'old_primary_affiliation': 'faculty',
-            'new_primary_affiliation': 'alumni',
+            'new_primary_affiliation': 'affiliate',
             'reviewed_by_rdms': False,
+            'reviewed_by': None,
             'review_date': None,
             'ncq_expiration_date': None,
             'notes': [
-                {'timestamp': '2026-09-10T09:15:00', 'note': 'Flagged by nightly AD sync job.'},
+                {'timestamp': '2026-09-10T09:15:00', 'note': 'Flagged by nightly AD sync job.', 'user': 'system'},
             ],
         },
         {
@@ -80,6 +81,7 @@ class DummyStatusChangeAPIClient(StatusChangeAPIClient):
             'old_primary_affiliation': 'staff',
             'new_primary_affiliation': 'staff',
             'reviewed_by_rdms': False,
+            'reviewed_by': None,
             'review_date': None,
             'ncq_expiration_date': None,
             'notes': [],
@@ -100,11 +102,20 @@ class DummyStatusChangeAPIClient(StatusChangeAPIClient):
             'old_primary_affiliation': 'student',
             'new_primary_affiliation': 'alumni',
             'reviewed_by_rdms': False,
+            'reviewed_by': None,
             'review_date': None,
             'ncq_expiration_date': None,
             'notes': [
-                {'timestamp': '2026-09-14T11:02:00', 'note': 'PI requested extension pending grant renewal.'},
-                {'timestamp': '2026-09-15T08:30:00', 'note': 'Grant renewal confirmed by RA office.'},
+                {
+                    'timestamp': '2026-09-14T11:02:00',
+                    'note': 'PI requested extension pending grant renewal.',
+                    'user': 'jsmith',
+                },
+                {
+                    'timestamp': '2026-09-15T08:30:00',
+                    'note': 'Grant renewal confirmed by RA office.',
+                    'user': 'jsmith',
+                },
             ],
         },
     ]
@@ -129,25 +140,27 @@ class DummyStatusChangeAPIClient(StatusChangeAPIClient):
     def acknowledge(self, record_id, reviewer, note=None):
         record = self._get_record(record_id)
         record['reviewed_by_rdms'] = True
+        record['reviewed_by'] = reviewer
         record['review_date'] = datetime.now().isoformat()
         logger.info(f"Status change record {record_id} acknowledged by '{reviewer}'.")
         if note:
-            self.add_note(record_id, note)
+            self.add_note(record_id, note, user=reviewer)
 
     def grant_grace_period(self, record_id, reviewer, expiration_date, note=None):
         record = self._get_record(record_id)
         record['reviewed_by_rdms'] = True
+        record['reviewed_by'] = reviewer
         record['review_date'] = datetime.now().isoformat()
         record['ncq_expiration_date'] = expiration_date
         logger.info(
             f"Grace period until {expiration_date} granted for status change record {record_id} by '{reviewer}'."
         )
         if note:
-            self.add_note(record_id, note)
+            self.add_note(record_id, note, user=reviewer)
 
-    def add_note(self, record_id, note):
+    def add_note(self, record_id, note, user):
         record = self._get_record(record_id)
-        record.setdefault('notes', []).append({'timestamp': datetime.now().isoformat(), 'note': note})
+        record.setdefault('notes', []).append({'timestamp': datetime.now().isoformat(), 'note': note, 'user': user})
 
 
 def get_status_change_client():

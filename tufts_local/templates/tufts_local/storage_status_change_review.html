@@ -16,7 +16,7 @@ Storage User Status Changes
   </form>
 </div>
 <p>
-  Users whose NCQ eligibility or project active status has changed. Acknowledge to confirm
+  Users whose NCQ eligibility or project active status has changed. Select No Action to confirm
   no further action is needed, or grant a grace period to temporarily extend NCQ eligibility.
 </p>
 <div class="col-lg-12 mt-2">
@@ -78,11 +78,11 @@ Storage User Status Changes
           <td>
             {% if r.notes %}
               {% with latest=r.notes|last %}
-              <span class="small">{{ latest.note|truncatechars:40 }}</span>
+              <span class="small">{{ latest.user }}: {{ latest.note|truncatechars:40 }}</span>
               {% endwith %}
               {% if r.notes|length > 1 %}
               <a href="#" tabindex="0" class="note-history" data-toggle="popover" data-trigger="focus" data-html="true"
-                 data-content="{% for n in r.notes %}<div class='small'><strong>{{ n.timestamp }}</strong>: {{ n.note }}</div>{% endfor %}">
+                 data-content="{% for n in r.notes %}<div class='small'><strong>{{ n.timestamp }}</strong> ({{ n.user }}): {{ n.note }}</div>{% endfor %}">
                 <i class="fa fa-history" aria-hidden="true"></i>
               </a>
               {% endif %}
@@ -91,31 +91,79 @@ Storage User Status Changes
             {% endif %}
           </td>
           <td class="text-nowrap">
-            <form method="post" class="form-inline">
-              {% csrf_token %}
-              <input type="hidden" name="record_id" value="{{ r.id }}">
-              <input type="text" class="form-control form-control-sm mr-1" name="notes" placeholder="Note (optional)" style="width:8rem">
-              <button type="submit" name="action" value="acknowledge" class="btn btn-success btn-sm mr-1 confirm-ack">Acknowledge</button>
-              <button type="button" class="btn btn-primary btn-sm" data-toggle="collapse" data-target="#grace-{{ r.id }}">Grace Period</button>
-            </form>
-          </td>
-        </tr>
-        <tr class="collapse" id="grace-{{ r.id }}">
-          <td colspan="11">
-            <form method="post" class="form-inline">
-              {% csrf_token %}
-              <input type="hidden" name="record_id" value="{{ r.id }}">
-              <label class="mr-2" for="exp-{{ r.id }}">NCQ Expiration Date</label>
-              <input type="date" class="form-control form-control-sm mr-2" name="ncq_expiration_date" id="exp-{{ r.id }}" required>
-              <input type="text" class="form-control form-control-sm mr-2" name="notes" placeholder="Note (optional)" style="width:10rem">
-              <button type="submit" name="action" value="grace-period" class="btn btn-warning btn-sm">Confirm Grace Period</button>
-            </form>
+            <button type="button" class="btn btn-success btn-sm mr-1" data-toggle="modal" data-target="#noaction-{{ r.id }}">No Action</button>
+            <button type="button" class="btn btn-primary btn-sm" data-toggle="modal" data-target="#grace-{{ r.id }}">Set Grace Period</button>
           </td>
         </tr>
         {% endfor %}
       </tbody>
     </table>
   </div>
+
+  {% for r in records %}
+  <div class="modal fade" id="noaction-{{ r.id }}" tabindex="-1" role="dialog" aria-labelledby="noaction-label-{{ r.id }}" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+      <div class="modal-content">
+        <form method="post">
+          {% csrf_token %}
+          <input type="hidden" name="record_id" value="{{ r.id }}">
+          <input type="hidden" name="action" value="acknowledge">
+          <div class="modal-header">
+            <h5 class="modal-title" id="noaction-label-{{ r.id }}">No Action &mdash; {{ r.utln }}</h5>
+            <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+              <span aria-hidden="true">&times;</span>
+            </button>
+          </div>
+          <div class="modal-body">
+            {% include "tufts_local/_storage_status_change_summary.html" %}
+            <div class="form-group mt-3 mb-0">
+              <label for="noaction-notes-{{ r.id }}">Notes</label>
+              <textarea class="form-control" id="noaction-notes-{{ r.id }}" name="notes" rows="3"></textarea>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+            <button type="submit" class="btn btn-success">Confirm</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal fade" id="grace-{{ r.id }}" tabindex="-1" role="dialog" aria-labelledby="grace-label-{{ r.id }}" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+      <div class="modal-content">
+        <form method="post">
+          {% csrf_token %}
+          <input type="hidden" name="record_id" value="{{ r.id }}">
+          <input type="hidden" name="action" value="grace-period">
+          <div class="modal-header">
+            <h5 class="modal-title" id="grace-label-{{ r.id }}">Set Grace Period &mdash; {{ r.utln }}</h5>
+            <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+              <span aria-hidden="true">&times;</span>
+            </button>
+          </div>
+          <div class="modal-body">
+            {% include "tufts_local/_storage_status_change_summary.html" %}
+            <div class="form-group mt-3">
+              <label for="exp-{{ r.id }}">NCQ Expiration Date</label>
+              <input type="date" class="form-control" name="ncq_expiration_date" id="exp-{{ r.id }}" required>
+            </div>
+            <div class="form-group mb-0">
+              <label for="grace-notes-{{ r.id }}">Notes</label>
+              <textarea class="form-control" id="grace-notes-{{ r.id }}" name="notes" rows="3"></textarea>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+            <button type="submit" class="btn btn-warning">Confirm Grace Period</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+
   {% else %}
   <div class="alert alert-info" role="alert">
     <i class="fa fa-info-circle" aria-hidden="true"></i> There are no status changes pending review.
@@ -132,9 +180,6 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 $(document).on('click', '.confirm-reset', function(){
     return confirm('Reset all demo data back to its original seed state? This will discard any acknowledgements, grace periods, and notes added so far.');
-});
-$(document).on('click', '.confirm-ack', function(){
-    return confirm('Acknowledge this status change with no further action?');
 });
 </script>
 {% endblock %}
