@@ -1,0 +1,129 @@
+{% extends "common/base.html" %}
+{% load crispy_forms_tags %}
+
+{% block title %}
+Storage User Status Changes
+{% endblock %}
+
+{% block content %}
+<h2>Storage User Status Changes Pending Review</h2>
+<p>
+  Users whose NCQ eligibility or project active status has changed. Acknowledge to confirm
+  no further action is needed, or grant a grace period to temporarily extend NCQ eligibility.
+</p>
+<div class="col-lg-12 mt-2">
+  <hr>
+  {% if records %}
+  <div class="table-responsive">
+    <table class="table table-sm">
+      <thead>
+        <tr>
+          <th scope="col">Date</th>
+          <th scope="col">UTLN</th>
+          <th scope="col">Owner</th>
+          <th scope="col">Approver</th>
+          <th scope="col">Shares NCQ</th>
+          <th scope="col">NCQ Eligibility</th>
+          <th scope="col">Active Status</th>
+          <th scope="col">Title</th>
+          <th scope="col">Primary Affiliation</th>
+          <th scope="col">Notes</th>
+          <th scope="col">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in records %}
+        <tr>
+          <td class="text-nowrap">{{ r.date }}</td>
+          <td class="text-nowrap">{{ r.utln }}</td>
+          <td>{% if r.current_project_owner %}<span class="badge badge-secondary">Owner</span>{% endif %}</td>
+          <td>{% if r.current_project_approver %}<span class="badge badge-secondary">Approver</span>{% endif %}</td>
+          <td>{{ r.share_ncq|yesno:"Yes,No" }}</td>
+          <td class="text-nowrap">
+            {% if r.old_ncq_eligibility != r.new_ncq_eligibility %}
+              <span class="badge badge-warning">{{ r.old_ncq_eligibility }} &rarr; {{ r.new_ncq_eligibility }}</span>
+            {% else %}
+              {{ r.new_ncq_eligibility }}
+            {% endif %}
+          </td>
+          <td class="text-nowrap">
+            {% if r.old_active_status != r.new_active_status %}
+              <span class="badge badge-warning">{{ r.old_active_status }} &rarr; {{ r.new_active_status }}</span>
+            {% else %}
+              {{ r.new_active_status }}
+            {% endif %}
+          </td>
+          <td class="text-nowrap">
+            {% if r.old_title != r.new_title %}
+              <span class="badge badge-warning">{{ r.old_title }} &rarr; {{ r.new_title }}</span>
+            {% else %}
+              {{ r.new_title }}
+            {% endif %}
+          </td>
+          <td class="text-nowrap">
+            {% if r.old_primary_affiliation != r.new_primary_affiliation %}
+              <span class="badge badge-warning">{{ r.old_primary_affiliation }} &rarr; {{ r.new_primary_affiliation }}</span>
+            {% else %}
+              {{ r.new_primary_affiliation }}
+            {% endif %}
+          </td>
+          <td>
+            {% if r.notes %}
+              {% with latest=r.notes|last %}
+              <span class="small">{{ latest.note|truncatechars:40 }}</span>
+              {% endwith %}
+              {% if r.notes|length > 1 %}
+              <a href="#" tabindex="0" class="note-history" data-toggle="popover" data-trigger="focus" data-html="true"
+                 data-content="{% for n in r.notes %}<div class='small'><strong>{{ n.timestamp }}</strong>: {{ n.note }}</div>{% endfor %}">
+                <i class="fa fa-history" aria-hidden="true"></i>
+              </a>
+              {% endif %}
+            {% else %}
+              <span class="text-muted">&mdash;</span>
+            {% endif %}
+          </td>
+          <td class="text-nowrap">
+            <form method="post" class="form-inline">
+              {% csrf_token %}
+              <input type="hidden" name="record_id" value="{{ r.id }}">
+              <input type="text" class="form-control form-control-sm mr-1" name="notes" placeholder="Note (optional)" style="width:8rem">
+              <button type="submit" name="action" value="acknowledge" class="btn btn-success btn-sm mr-1 confirm-ack">Acknowledge</button>
+              <button type="button" class="btn btn-primary btn-sm" data-toggle="collapse" data-target="#grace-{{ r.id }}">Grace Period</button>
+            </form>
+          </td>
+        </tr>
+        <tr class="collapse" id="grace-{{ r.id }}">
+          <td colspan="11">
+            <form method="post" class="form-inline">
+              {% csrf_token %}
+              <input type="hidden" name="record_id" value="{{ r.id }}">
+              <label class="mr-2" for="exp-{{ r.id }}">NCQ Expiration Date</label>
+              <input type="date" class="form-control form-control-sm mr-2" name="ncq_expiration_date" id="exp-{{ r.id }}" required>
+              <input type="text" class="form-control form-control-sm mr-2" name="notes" placeholder="Note (optional)" style="width:10rem">
+              <button type="submit" name="action" value="grace-period" class="btn btn-warning btn-sm">Confirm Grace Period</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="alert alert-info" role="alert">
+    <i class="fa fa-info-circle" aria-hidden="true"></i> There are no status changes pending review.
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block javascript %}
+{{ block.super }}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    $('[data-toggle="popover"]').popover();
+});
+$(document).on('click', '.confirm-ack', function(){
+    return confirm('Acknowledge this status change with no further action?');
+});
+</script>
+{% endblock %}
