@@ -82,7 +82,7 @@ def parse_tags(tags: list) -> dict:
     """
     Parse a list of tags into a dictionary where keys are tag types and values are a set of tag values
     """
-    parsed_tags = {}
+    parsed_tags: dict = {}
     tags = [t.strip() for t in tags if len(t.strip()) > 0]
     for tag in tags:
         if ':' in tag:
@@ -290,3 +290,7 @@ def add_to_starfish_index(vol_path, client_key, scan_id=None, wait=5):
         else:
             raise RuntimeError(f'Scan {scan_id} failed with error: {status["reason"]}')
     return scan_id, status
+
+
+class StarfishDirectoryNotFoundError(Exception):
+    pass
