@@ -48,4 +48,9 @@ urlpatterns = [
         views.storage_allocation_history,
         name='storage-allocation-history',
     ),
+    path(
+        'update-project-owner/',
+        views.UpdateProjectOwnerView.as_view(),
+        name='update-project-owner',
+    ),
 ]

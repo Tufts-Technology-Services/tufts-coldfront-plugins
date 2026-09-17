@@ -64,11 +64,9 @@ def create_tufts_project(project_key, owner, group=None):
     if created:
         print(f'Created new user {owner}')
 
-    proj, created = Project.objects.get_or_create(
-        title=project_key, pi=pi, status=ProjectStatusChoice.objects.get(name='Active')
-    )
+    proj = Project.objects.create(title=project_key, pi=pi, status=ProjectStatusChoice.objects.get(name='Active'))
     update_pi_status(pi)
-    ProjectUser.objects.get_or_create(
+    ProjectUser.objects.create(
         user=pi,
         role=ProjectUserRoleChoice.objects.get(name='Manager'),
         project=proj,
@@ -99,15 +97,25 @@ def update_project_owner(project_key, new_owner):
         proj.pi = new_pi
         proj.save()
 
+    manager = ProjectUserRoleChoice.objects.get(name='Manager')
+    active = ProjectUserStatusChoice.objects.get(name='Active')
     # Update ProjectUser for the new PI
-    ProjectUser.objects.get_or_create(
+    pu, created = ProjectUser.objects.get_or_create(
         user=new_pi,
         project=proj,
         defaults={
-            'status': ProjectUserStatusChoice.objects.get(name='Active'),
-            'role': ProjectUserRoleChoice.objects.get(name='Manager'),
+            'status': active,
+            'role': manager,
         },
     )
+    if not created:
+        if pu.role != manager:
+            pu.role = manager
+            pu.save()
+        if pu.status != active:
+            pu.status = active
+            pu.save()
+
     # update user profile is_pi status for new pi and old pi
     update_pi_status(old_pi)
     update_pi_status(new_pi)

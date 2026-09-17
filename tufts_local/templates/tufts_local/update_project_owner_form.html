@@ -1,0 +1,16 @@
+{% extends "common/base.html" %}
+{% load crispy_forms_tags %}
+
+{% block title %}
+Update Project Owner
+{% endblock %}
+
+{% block content %}
+<h2>Update Project Owner</h2>
+<form method="post">
+  {% csrf_token %}
+  {{ form|crispy }}
+  <input class="btn btn-primary" type="submit" value="Update Owner" />
+  <a class="btn btn-secondary" href="{% url 'project-list' %}" role="button">Cancel</a>
+</form>
+{% endblock %}
