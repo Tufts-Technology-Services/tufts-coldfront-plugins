@@ -4,6 +4,7 @@ from .reports import (
     not_updated_report,
     sf_report,
 )
+from .update_project_owner_view import UpdateProjectOwnerView
 from .views import (
     add_user_to_coldfront,
     project_get_email_notification,
@@ -22,4 +23,5 @@ __all__ = [
     'login_as_user_view',
     'not_updated_report',
     'storage_allocation_history',
+    'UpdateProjectOwnerView',
 ]

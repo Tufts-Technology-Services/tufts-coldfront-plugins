@@ -2,7 +2,7 @@ from django import forms
 
 from coldfront.core.project.models import Project, ProjectAttribute
 
-from tufts_local.utils import create_user, entry_exists
+from tufts_local.utils import create_user, entry_exists, project_exists
 
 
 class AdminProjectCreationForm(forms.ModelForm):
@@ -50,6 +50,20 @@ class RequiredProjectAttributeForm(forms.Form):
         except Exception as e:
             raise forms.ValidationError(f'Invalid group name: {str(e)}')
         return cleaned_data
+
+
+class UpdateProjectOwnerForm(forms.Form):
+    project_key = forms.SlugField(max_length=50, required=True, label='Project Key')
+    new_owner = forms.CharField(max_length=10, required=True, label='New Project Owner (utln)')
+
+    def clean_project_key(self):
+        project_key = self.cleaned_data['project_key'].lower()
+        if not project_exists(project_key):
+            raise forms.ValidationError(f"No project found with key '{project_key}'.")
+        return project_key
+
+    def clean_new_owner(self):
+        return self.cleaned_data['new_owner'].lower().strip()
 
 
 class ReportFilterForm(forms.Form):

@@ -20,6 +20,7 @@ classifiers = [
 dependencies = [
     "coldfront==1.1.7",
     "pyinfra>=3.10.0,<=3.11.0",
+    "djangosaml2"
 ]
 
 [dependency-groups]
