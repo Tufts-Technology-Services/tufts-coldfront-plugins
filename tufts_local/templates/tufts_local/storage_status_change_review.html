@@ -6,7 +6,15 @@ Storage User Status Changes
 {% endblock %}
 
 {% block content %}
-<h2>Storage User Status Changes Pending Review</h2>
+<div class="d-flex justify-content-between align-items-center">
+  <h2>Storage User Status Changes Pending Review</h2>
+  <form method="post" action="{% url 'storage-status-change-reset' %}">
+    {% csrf_token %}
+    <button type="submit" class="btn btn-outline-secondary btn-sm confirm-reset">
+      <i class="fa fa-undo" aria-hidden="true"></i> Reset Demo Data
+    </button>
+  </form>
+</div>
 <p>
   Users whose NCQ eligibility or project active status has changed. Acknowledge to confirm
   no further action is needed, or grant a grace period to temporarily extend NCQ eligibility.
@@ -121,6 +129,9 @@ Storage User Status Changes
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     $('[data-toggle="popover"]').popover();
+});
+$(document).on('click', '.confirm-reset', function(){
+    return confirm('Reset all demo data back to its original seed state? This will discard any acknowledgements, grace periods, and notes added so far.');
 });
 $(document).on('click', '.confirm-ack', function(){
     return confirm('Acknowledge this status change with no further action?');

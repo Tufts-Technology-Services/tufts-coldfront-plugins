@@ -103,6 +103,26 @@ class TestGrantGracePeriod:
             client.grant_grace_period(999, reviewer='rdms_admin', expiration_date='2026-12-31')
 
 
+class TestReset:
+    def test_restores_seed_data_after_mutation(self, client):
+        seed_snapshot = copy.deepcopy(DummyStatusChangeAPIClient._SEED_RECORDS)
+
+        client.acknowledge(1, reviewer='rdms_admin', note='mutated')
+        client.grant_grace_period(2, reviewer='rdms_admin', expiration_date='2026-12-31')
+
+        DummyStatusChangeAPIClient.reset()
+
+        assert DummyStatusChangeAPIClient._records == seed_snapshot
+
+    def test_reset_does_not_mutate_seed_data(self, client):
+        seed_snapshot = copy.deepcopy(DummyStatusChangeAPIClient._SEED_RECORDS)
+
+        DummyStatusChangeAPIClient.reset()
+        client.acknowledge(1, reviewer='rdms_admin')
+
+        assert DummyStatusChangeAPIClient._SEED_RECORDS == seed_snapshot
+
+
 class TestAddNote:
     def test_appends_to_existing_notes(self, client):
         notes_before = len(client._get_record(3)['notes'])
