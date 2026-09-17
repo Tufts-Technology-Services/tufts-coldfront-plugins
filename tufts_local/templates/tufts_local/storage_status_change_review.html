@@ -28,14 +28,10 @@ Storage User Status Changes
         <tr>
           <th scope="col">Date</th>
           <th scope="col">UTLN</th>
-          <th scope="col">Owner</th>
-          <th scope="col">Approver</th>
+          <th scope="col">Role</th>
           <th scope="col">Shares NCQ</th>
-          <th scope="col">NCQ Eligibility</th>
-          <th scope="col">Active Status</th>
-          <th scope="col">Title</th>
-          <th scope="col">Primary Affiliation</th>
-          <th scope="col">Notes</th>
+          <th scope="col">Changes</th>
+          <th scope="col" style="min-width: 16rem;">Notes</th>
           <th scope="col">Actions</th>
         </tr>
       </thead>
@@ -44,35 +40,27 @@ Storage User Status Changes
         <tr>
           <td class="text-nowrap">{{ r.date }}</td>
           <td class="text-nowrap">{{ r.utln }}</td>
-          <td>{% if r.current_project_owner %}<span class="badge badge-secondary">Owner</span>{% endif %}</td>
-          <td>{% if r.current_project_approver %}<span class="badge badge-secondary">Approver</span>{% endif %}</td>
+          <td class="text-nowrap">
+            {% if r.current_project_owner %}<span class="badge badge-secondary mr-1">Owner</span>{% endif %}
+            {% if r.current_project_approver %}<span class="badge badge-secondary">Approver</span>{% endif %}
+            {% if not r.current_project_owner and not r.current_project_approver %}<span class="text-muted">&mdash;</span>{% endif %}
+          </td>
           <td>{{ r.share_ncq|yesno:"Yes,No" }}</td>
-          <td class="text-nowrap">
+          <td>
             {% if r.old_ncq_eligibility != r.new_ncq_eligibility %}
-              <span class="badge badge-warning">{{ r.old_ncq_eligibility }} &rarr; {{ r.new_ncq_eligibility }}</span>
-            {% else %}
-              {{ r.new_ncq_eligibility }}
+              <span class="badge badge-warning d-block mb-1">NCQ Eligibility</span>
             {% endif %}
-          </td>
-          <td class="text-nowrap">
             {% if r.old_active_status != r.new_active_status %}
-              <span class="badge badge-warning">{{ r.old_active_status }} &rarr; {{ r.new_active_status }}</span>
-            {% else %}
-              {{ r.new_active_status }}
+              <span class="badge badge-warning d-block mb-1">Active Status</span>
             {% endif %}
-          </td>
-          <td class="text-nowrap">
             {% if r.old_title != r.new_title %}
-              <span class="badge badge-warning">{{ r.old_title }} &rarr; {{ r.new_title }}</span>
-            {% else %}
-              {{ r.new_title }}
+              <span class="badge badge-warning d-block mb-1">Title</span>
             {% endif %}
-          </td>
-          <td class="text-nowrap">
             {% if r.old_primary_affiliation != r.new_primary_affiliation %}
-              <span class="badge badge-warning">{{ r.old_primary_affiliation }} &rarr; {{ r.new_primary_affiliation }}</span>
-            {% else %}
-              {{ r.new_primary_affiliation }}
+              <span class="badge badge-warning d-block mb-1">Primary Affiliation</span>
+            {% endif %}
+            {% if r.old_ncq_eligibility == r.new_ncq_eligibility and r.old_active_status == r.new_active_status and r.old_title == r.new_title and r.old_primary_affiliation == r.new_primary_affiliation %}
+              <span class="text-muted">No changes</span>
             {% endif %}
           </td>
           <td>
@@ -91,8 +79,7 @@ Storage User Status Changes
             {% endif %}
           </td>
           <td class="text-nowrap">
-            <button type="button" class="btn btn-success btn-sm mr-1" data-toggle="modal" data-target="#noaction-{{ r.id }}">No Action</button>
-            <button type="button" class="btn btn-primary btn-sm" data-toggle="modal" data-target="#grace-{{ r.id }}">Set Grace Period</button>
+            <button type="button" class="btn btn-primary btn-sm" data-toggle="modal" data-target="#review-{{ r.id }}">Review</button>
           </td>
         </tr>
         {% endfor %}
@@ -101,44 +88,14 @@ Storage User Status Changes
   </div>
 
   {% for r in records %}
-  <div class="modal fade" id="noaction-{{ r.id }}" tabindex="-1" role="dialog" aria-labelledby="noaction-label-{{ r.id }}" aria-hidden="true">
+  <div class="modal fade" id="review-{{ r.id }}" tabindex="-1" role="dialog" aria-labelledby="review-label-{{ r.id }}" aria-hidden="true">
     <div class="modal-dialog" role="document">
       <div class="modal-content">
         <form method="post">
           {% csrf_token %}
           <input type="hidden" name="record_id" value="{{ r.id }}">
-          <input type="hidden" name="action" value="acknowledge">
           <div class="modal-header">
-            <h5 class="modal-title" id="noaction-label-{{ r.id }}">No Action &mdash; {{ r.utln }}</h5>
-            <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-              <span aria-hidden="true">&times;</span>
-            </button>
-          </div>
-          <div class="modal-body">
-            {% include "tufts_local/_storage_status_change_summary.html" %}
-            <div class="form-group mt-3 mb-0">
-              <label for="noaction-notes-{{ r.id }}">Notes</label>
-              <textarea class="form-control" id="noaction-notes-{{ r.id }}" name="notes" rows="3"></textarea>
-            </div>
-          </div>
-          <div class="modal-footer">
-            <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
-            <button type="submit" class="btn btn-success">Confirm</button>
-          </div>
-        </form>
-      </div>
-    </div>
-  </div>
-
-  <div class="modal fade" id="grace-{{ r.id }}" tabindex="-1" role="dialog" aria-labelledby="grace-label-{{ r.id }}" aria-hidden="true">
-    <div class="modal-dialog" role="document">
-      <div class="modal-content">
-        <form method="post">
-          {% csrf_token %}
-          <input type="hidden" name="record_id" value="{{ r.id }}">
-          <input type="hidden" name="action" value="grace-period">
-          <div class="modal-header">
-            <h5 class="modal-title" id="grace-label-{{ r.id }}">Set Grace Period &mdash; {{ r.utln }}</h5>
+            <h5 class="modal-title" id="review-label-{{ r.id }}">Review Status Change &mdash; {{ r.utln }}</h5>
             <button type="button" class="close" data-dismiss="modal" aria-label="Close">
               <span aria-hidden="true">&times;</span>
             </button>
@@ -146,17 +103,18 @@ Storage User Status Changes
           <div class="modal-body">
             {% include "tufts_local/_storage_status_change_summary.html" %}
             <div class="form-group mt-3">
-              <label for="exp-{{ r.id }}">NCQ Expiration Date</label>
+              <label for="exp-{{ r.id }}">NCQ Expiration Date <span class="text-muted small">(required to set a grace period)</span></label>
               <input type="date" class="form-control" name="ncq_expiration_date" id="exp-{{ r.id }}" required>
             </div>
             <div class="form-group mb-0">
-              <label for="grace-notes-{{ r.id }}">Notes</label>
-              <textarea class="form-control" id="grace-notes-{{ r.id }}" name="notes" rows="3"></textarea>
+              <label for="review-notes-{{ r.id }}">Notes</label>
+              <textarea class="form-control" id="review-notes-{{ r.id }}" name="notes" rows="3"></textarea>
             </div>
           </div>
           <div class="modal-footer">
             <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
-            <button type="submit" class="btn btn-warning">Confirm Grace Period</button>
+            <button type="submit" name="action" value="acknowledge" formnovalidate class="btn btn-success">No Action</button>
+            <button type="submit" name="action" value="grace-period" class="btn btn-warning">Confirm Grace Period</button>
           </div>
         </form>
       </div>
