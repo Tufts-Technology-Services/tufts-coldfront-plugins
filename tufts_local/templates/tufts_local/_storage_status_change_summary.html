@@ -1,0 +1,45 @@
+<dl class="row small mb-0">
+  <dt class="col-sm-5">UTLN</dt>
+  <dd class="col-sm-7">{{ r.utln }}</dd>
+  <dt class="col-sm-5">Date</dt>
+  <dd class="col-sm-7">{{ r.date }}</dd>
+  <dt class="col-sm-5">Role</dt>
+  <dd class="col-sm-7">
+    {% if r.current_project_owner %}<span class="badge badge-secondary">Owner</span>{% endif %}
+    {% if r.current_project_approver %}<span class="badge badge-secondary">Approver</span>{% endif %}
+  </dd>
+  <dt class="col-sm-5">Shares NCQ</dt>
+  <dd class="col-sm-7">{{ r.share_ncq|yesno:"Yes,No" }}</dd>
+  <dt class="col-sm-5">NCQ Eligibility</dt>
+  <dd class="col-sm-7">
+    {% if r.old_ncq_eligibility != r.new_ncq_eligibility %}
+      <span class="badge badge-warning">{{ r.old_ncq_eligibility }} &rarr; {{ r.new_ncq_eligibility }}</span>
+    {% else %}
+      {{ r.new_ncq_eligibility }}
+    {% endif %}
+  </dd>
+  <dt class="col-sm-5">Active Status</dt>
+  <dd class="col-sm-7">
+    {% if r.old_active_status != r.new_active_status %}
+      <span class="badge badge-warning">{{ r.old_active_status }} &rarr; {{ r.new_active_status }}</span>
+    {% else %}
+      {{ r.new_active_status }}
+    {% endif %}
+  </dd>
+  <dt class="col-sm-5">Title</dt>
+  <dd class="col-sm-7">
+    {% if r.old_title != r.new_title %}
+      <span class="badge badge-warning">{{ r.old_title }} &rarr; {{ r.new_title }}</span>
+    {% else %}
+      {{ r.new_title }}
+    {% endif %}
+  </dd>
+  <dt class="col-sm-5">Primary Affiliation</dt>
+  <dd class="col-sm-7">
+    {% if r.old_primary_affiliation != r.new_primary_affiliation %}
+      <span class="badge badge-warning">{{ r.old_primary_affiliation }} &rarr; {{ r.new_primary_affiliation }}</span>
+    {% else %}
+      {{ r.new_primary_affiliation }}
+    {% endif %}
+  </dd>
+</dl>

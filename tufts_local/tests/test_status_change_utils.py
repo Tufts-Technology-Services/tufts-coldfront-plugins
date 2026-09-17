@@ -37,7 +37,7 @@ class TestStatusChangeAPIClientStub:
         with pytest.raises(NotImplementedError):
             stub.grant_grace_period(1, reviewer='rdms_admin', expiration_date='2026-01-01')
         with pytest.raises(NotImplementedError):
-            stub.add_note(1, 'note')
+            stub.add_note(1, 'note', user='rdms_admin')
 
 
 class TestGetPendingReviews:
@@ -63,11 +63,18 @@ class TestAcknowledge:
         assert record['reviewed_by_rdms'] is True
         assert record['review_date'] is not None
 
+    def test_sets_reviewed_by(self, client):
+        client.acknowledge(1, reviewer='rdms_admin')
+
+        record = client._get_record(1)
+        assert record['reviewed_by'] == 'rdms_admin'
+
     def test_appends_note_when_given(self, client):
         client.acknowledge(1, reviewer='rdms_admin', note='looks fine')
 
         record = client._get_record(1)
         assert record['notes'][-1]['note'] == 'looks fine'
+        assert record['notes'][-1]['user'] == 'rdms_admin'
         assert 'timestamp' in record['notes'][-1]
 
     def test_no_note_added_when_note_is_none(self, client):
@@ -90,6 +97,12 @@ class TestGrantGracePeriod:
         assert record['reviewed_by_rdms'] is True
         assert record['ncq_expiration_date'] == '2026-12-31'
 
+    def test_sets_reviewed_by(self, client):
+        client.grant_grace_period(2, reviewer='rdms_admin', expiration_date='2026-12-31')
+
+        record = client._get_record(2)
+        assert record['reviewed_by'] == 'rdms_admin'
+
     def test_appends_note_when_given(self, client):
         client.grant_grace_period(
             2, reviewer='rdms_admin', expiration_date='2026-12-31', note='extended per PI request'
@@ -97,6 +110,7 @@ class TestGrantGracePeriod:
 
         record = client._get_record(2)
         assert record['notes'][-1]['note'] == 'extended per PI request'
+        assert record['notes'][-1]['user'] == 'rdms_admin'
 
     def test_unknown_record_raises(self, client):
         with pytest.raises(StatusChangeAPIError):
@@ -127,12 +141,13 @@ class TestAddNote:
     def test_appends_to_existing_notes(self, client):
         notes_before = len(client._get_record(3)['notes'])
 
-        client.add_note(3, 'additional context')
+        client.add_note(3, 'additional context', user='rdms_admin')
 
         record = client._get_record(3)
         assert len(record['notes']) == notes_before + 1
         assert record['notes'][-1]['note'] == 'additional context'
+        assert record['notes'][-1]['user'] == 'rdms_admin'
 
     def test_unknown_record_raises(self, client):
         with pytest.raises(StatusChangeAPIError):
-            client.add_note(999, 'note')
+            client.add_note(999, 'note', user='rdms_admin')
