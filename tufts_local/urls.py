@@ -53,4 +53,9 @@ urlpatterns = [
         views.UpdateProjectOwnerView.as_view(),
         name='update-project-owner',
     ),
+    path(
+        'storage-status-change-review/',
+        views.storage_status_change_review,
+        name='storage-status-change-review',
+    ),
 ]
