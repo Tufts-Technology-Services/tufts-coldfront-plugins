@@ -47,3 +47,17 @@ def storage_status_change_review(request):
         messages.error(request, f'Could not reach status-change service: {e}')
 
     return TemplateResponse(request, 'tufts_local/storage_status_change_review.html', {'records': records})
+
+
+@login_required
+@user_passes_test(lambda u: u.is_superuser)
+@require_http_methods(['POST'])
+def storage_status_change_reset_demo_data(request):
+    client = get_status_change_client()
+    reset = getattr(client, 'reset', None)
+    if callable(reset):
+        reset()
+        messages.success(request, 'Demo data has been reset.')
+    else:
+        messages.error(request, 'Reset is not supported for the current data source.')
+    return redirect('storage-status-change-review')

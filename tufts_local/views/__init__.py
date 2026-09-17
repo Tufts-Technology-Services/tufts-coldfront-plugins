@@ -4,7 +4,10 @@ from .reports import (
     not_updated_report,
     sf_report,
 )
-from .storage_status_change_view import storage_status_change_review
+from .storage_status_change_view import (
+    storage_status_change_reset_demo_data,
+    storage_status_change_review,
+)
 from .update_project_owner_view import UpdateProjectOwnerView
 from .views import (
     add_user_to_coldfront,
@@ -25,5 +28,6 @@ __all__ = [
     'not_updated_report',
     'storage_allocation_history',
     'storage_status_change_review',
+    'storage_status_change_reset_demo_data',
     'UpdateProjectOwnerView',
 ]

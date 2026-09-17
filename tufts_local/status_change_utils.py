@@ -1,3 +1,4 @@
+import copy
 import logging
 from datetime import datetime
 
@@ -40,7 +41,7 @@ class DummyStatusChangeAPIClient(StatusChangeAPIClient):
     be swapped out later without changing callers.
     """
 
-    _records = [
+    _SEED_RECORDS = [
         {
             'id': 1,
             'date': '2026-09-10',
@@ -108,6 +109,14 @@ class DummyStatusChangeAPIClient(StatusChangeAPIClient):
         },
     ]
 
+    _records = copy.deepcopy(_SEED_RECORDS)
+
+    @classmethod
+    def reset(cls):
+        """Restore the in-memory dataset to its original seed state."""
+        cls._records = copy.deepcopy(cls._SEED_RECORDS)
+        logger.info('Dummy status change dataset reset to seed data.')
+
     def get_pending_reviews(self):
         return [record for record in self._records if not record['reviewed_by_rdms']]
 
@@ -130,7 +139,9 @@ class DummyStatusChangeAPIClient(StatusChangeAPIClient):
         record['reviewed_by_rdms'] = True
         record['review_date'] = datetime.now().isoformat()
         record['ncq_expiration_date'] = expiration_date
-        logger.info(f"Grace period until {expiration_date} granted for status change record {record_id} by '{reviewer}'.")
+        logger.info(
+            f"Grace period until {expiration_date} granted for status change record {record_id} by '{reviewer}'."
+        )
         if note:
             self.add_note(record_id, note)
 

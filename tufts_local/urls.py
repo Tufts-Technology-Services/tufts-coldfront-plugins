@@ -58,4 +58,9 @@ urlpatterns = [
         views.storage_status_change_review,
         name='storage-status-change-review',
     ),
+    path(
+        'storage-status-change-review/reset/',
+        views.storage_status_change_reset_demo_data,
+        name='storage-status-change-reset',
+    ),
 ]
