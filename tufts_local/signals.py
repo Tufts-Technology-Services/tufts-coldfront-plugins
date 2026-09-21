@@ -24,7 +24,11 @@ def handle_allocation_activate(sender, **kwargs):
         return
     if SF_OWNER_TAG_PERSIST:
         logger.debug(f'Allocation {allocation.id} activated. Scheduling task to update owner tags in Starfish.')
-        async_task(index_new_allocation, allocation_id)
+        options = {
+            'task_name': f'add_sf_tags_alloc_activate_{allocation_id}',
+            'group': 'starfish',
+        }
+        async_task(index_new_allocation, allocation_id, q_options=options)
     else:
         logger.info(
             f'Allocation {allocation.id} activated. Skipping task to update owner tags in Starfish because SF_OWNER_TAG_PERSIST is False.'
