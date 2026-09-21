@@ -1,0 +1,161 @@
+{% extends "common/base.html" %}
+{% load crispy_forms_tags %}
+
+{% block title %}
+Background Task Report
+{% endblock %}
+
+{% block content %}
+<h2>Background Task Report</h2>
+<p>
+  Tasks handled by the django-q cluster: what is still waiting to run, and what has already
+  run along with the result it returned. Filter by the task name or group label a job was
+  queued with.
+</p>
+
+<div class="col-lg-12 mt-2">
+  <form method="get" class="form-inline mb-3">
+    <div class="mr-2">{{ form.name|as_crispy_field }}</div>
+    <div class="mr-2">{{ form.group|as_crispy_field }}</div>
+    <button type="submit" class="btn btn-primary mr-1">
+      <i class="fa fa-filter" aria-hidden="true"></i> Filter
+    </button>
+    <a href="{% url 'task-report' %}" class="btn btn-secondary">Reset</a>
+  </form>
+
+  <h3>Pending</h3>
+  <hr>
+  {% if pending_rows %}
+  <div class="table-responsive">
+    <table class="table table-sm">
+      <thead>
+        <tr>
+          <th scope="col">Type</th>
+          <th scope="col">Name</th>
+          <th scope="col">Group</th>
+          <th scope="col">Function</th>
+          <th scope="col">Next Run</th>
+          <th scope="col">Detail</th>
+          <th scope="col">Last Run</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in pending_rows %}
+        <tr>
+          <td class="text-nowrap">
+            {% if row.kind == 'Scheduled' %}
+            <span class="badge badge-info">Scheduled</span>
+            {% else %}
+            <span class="badge badge-secondary">Queued</span>
+            {% endif %}
+          </td>
+          <td class="text-nowrap">{{ row.name|default:"—" }}</td>
+          <td class="text-nowrap">{{ row.group|default:"—" }}</td>
+          <td>{{ row.func }}</td>
+          <td class="text-nowrap">{{ row.when|date:"Y-m-d H:i"|default:"—" }}</td>
+          <td class="text-nowrap">
+            {{ row.detail }}
+            {% if row.repeats and row.repeats > 0 %}<span class="text-muted small">({{ row.repeats }} left)</span>{% endif %}
+          </td>
+          <td class="text-nowrap">
+            {% if row.last_run %}
+              {% if row.last_run.success %}
+              <span class="badge badge-success">Success</span>
+              {% else %}
+              <span class="badge badge-danger">Failed</span>
+              {% endif %}
+              <span class="text-muted small">{{ row.last_run.stopped|date:"Y-m-d H:i" }}</span>
+            {% else %}
+            <span class="text-muted">&mdash;</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="alert alert-info" role="alert">
+    <i class="fa fa-info-circle" aria-hidden="true"></i> There are no pending tasks to display.
+    Tasks waiting in the queue are only listed when django-q is configured to use the ORM broker.
+  </div>
+  {% endif %}
+
+  <h3 class="mt-4">Completed <span class="badge badge-secondary">{{ task_count }}</span></h3>
+  <hr>
+  {% if page_obj.object_list %}
+  <div class="table-responsive">
+    <table class="table table-sm">
+      <thead>
+        <tr>
+          <th scope="col">Status</th>
+          <th scope="col">Name</th>
+          <th scope="col">Group</th>
+          <th scope="col">Function</th>
+          <th scope="col">Started</th>
+          <th scope="col">Stopped</th>
+          <th scope="col">Duration</th>
+          <th scope="col">Attempts</th>
+          <th scope="col" style="min-width: 16rem;">Result</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for task in page_obj %}
+        <tr>
+          <td class="text-nowrap">
+            {% if task.success %}
+            <span class="badge badge-success">Success</span>
+            {% else %}
+            <span class="badge badge-danger">Failed</span>
+            {% endif %}
+          </td>
+          <td class="text-nowrap">{{ task.name|default:"—" }}</td>
+          <td class="text-nowrap">{{ task.group|default:"—" }}</td>
+          <td>{{ task.func }}</td>
+          <td class="text-nowrap">{{ task.started|date:"Y-m-d H:i:s" }}</td>
+          <td class="text-nowrap">{{ task.stopped|date:"Y-m-d H:i:s" }}</td>
+          <td class="text-nowrap">{{ task.time_taken|floatformat:1 }}s</td>
+          <td>{{ task.attempt_count }}</td>
+          <td>
+            <span class="small">{{ task.result|default_if_none:""|truncatechars:60 }}</span>
+            <a href="#" tabindex="0" class="task-detail" data-toggle="popover" data-trigger="focus" data-html="true"
+               data-title="{{ task.name }}"
+               data-content="<div class='small'><strong>Args</strong><pre>{{ task.args|default_if_none:"" }}</pre><strong>Kwargs</strong><pre>{{ task.kwargs|default_if_none:"" }}</pre><strong>Result</strong><pre>{{ task.result|default_if_none:"" }}</pre></div>">
+              <i class="fa fa-search-plus" aria-hidden="true"></i>
+            </a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% if is_paginated %} Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
+    <ul class="pagination float-right mr-3">
+      {% if page_obj.has_previous %}
+        <li class="page-item"><a class="page-link" href="?{{ filter_parameters }}page={{ page_obj.previous_page_number }}">Previous</a></li>
+      {% else %}
+        <li class="page-item disabled"><a class="page-link" href="#">Previous</a></li>
+      {% endif %}
+      {% if page_obj.has_next %}
+        <li class="page-item"><a class="page-link" href="?{{ filter_parameters }}page={{ page_obj.next_page_number }}">Next</a></li>
+      {% else %}
+        <li class="page-item disabled"><a class="page-link" href="#">Next</a></li>
+      {% endif %}
+    </ul>
+  {% endif %}
+  {% else %}
+  <div class="alert alert-info" role="alert">
+    <i class="fa fa-info-circle" aria-hidden="true"></i> There are no completed tasks to display.
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block javascript %}
+{{ block.super }}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    $('[data-toggle="popover"]').popover();
+});
+</script>
+{% endblock %}
