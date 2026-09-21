@@ -156,6 +156,9 @@ def set_project_approvers_from_starfish(vol_path_data):
         project_users = proj.projectuser_set.all()
 
         for proj_user in project_users:
+            if proj_user.user == proj.pi:
+                # skip the PI as they should always have the manager role
+                continue
             if proj_user.user.username in sf_approvers:
                 if proj_user.status != active_status:
                     proj_user.status = active_status
