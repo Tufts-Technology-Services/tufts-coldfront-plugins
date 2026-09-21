@@ -34,6 +34,12 @@ def storage_status_change_review(request):
                     note=note,
                 )
                 messages.success(request, f'Grace period granted for {record_id}.')
+            elif action == 'note':
+                if note:
+                    client.add_note(record_id, note, user=request.user.username)
+                    messages.success(request, f'Note saved for {record_id}.')
+                else:
+                    messages.error(request, 'Note text is required.')
         except StatusChangeAPIError as e:
             logger.error(f'Error updating status change record {record_id}: {e}')
             messages.error(request, f'Could not update record: {e}')
