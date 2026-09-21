@@ -37,6 +37,7 @@ def update_sf_approver_tags(project_id):
     approvers = set(
         ProjectUser.objects.filter(project=proj, role__name='Manager').values_list('user__username', flat=True)
     )
+    # don't include the project PI in the list of approvers
     approvers = approvers - {proj.pi.username}
 
     alloc_attr = AllocationAttribute.objects.filter(
@@ -192,6 +193,10 @@ def index_new_allocation(allocation_id, scan_id=None, retries=5, wait=5):
                     wait,
                     schedule_type=Schedule.ONCE,
                     next_run=datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(minutes=wait),
+                    q_options={
+                        'task_name': f'add_sf_tags_alloc_activate_{allocation_id}',
+                        'group': 'starfish',
+                    },
                 )
 
             return status
