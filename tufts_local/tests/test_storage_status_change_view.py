@@ -170,6 +170,41 @@ class TestStorageStatusChangeReviewSubmit:
         mock_messages.success.assert_not_called()
         mock_messages.error.assert_not_called()
 
+    @pytest.mark.urls('tufts_local.urls')
+    @patch('tufts_local.views.storage_status_change_view.messages')
+    @patch('tufts_local.views.storage_status_change_view.get_status_change_client')
+    def test_save_note_success_redirects(self, mock_get_client, mock_messages, rf):
+        client = make_client()
+        mock_get_client.return_value = client
+        request = rf.post(
+            '/storage-status-change-review/', {'record_id': '1', 'action': 'note', 'notes': 'checked with PI'}
+        )
+        request.user = make_user(is_superuser=True)
+
+        response = storage_status_change_review(request)
+
+        assert response.status_code == 302
+        client.add_note.assert_called_once_with('1', 'checked with PI', user='rdms_admin')
+        client.acknowledge.assert_not_called()
+        client.grant_grace_period.assert_not_called()
+        mock_messages.success.assert_called_once()
+
+    @pytest.mark.urls('tufts_local.urls')
+    @patch('tufts_local.views.storage_status_change_view.messages')
+    @patch('tufts_local.views.storage_status_change_view.get_status_change_client')
+    def test_save_note_without_text_shows_error(self, mock_get_client, mock_messages, rf):
+        client = make_client()
+        mock_get_client.return_value = client
+        request = rf.post('/storage-status-change-review/', {'record_id': '1', 'action': 'note', 'notes': '   '})
+        request.user = make_user(is_superuser=True)
+
+        response = storage_status_change_review(request)
+
+        assert response.status_code == 302
+        client.add_note.assert_not_called()
+        mock_messages.error.assert_called_once()
+        mock_messages.success.assert_not_called()
+
 
 class TestStorageStatusChangeResetDemoData:
     def test_anonymous_user_redirects_to_login(self, rf):
