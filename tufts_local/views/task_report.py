@@ -9,10 +9,13 @@ from django.views.decorators.http import require_GET
 from django_q.models import OrmQ, Schedule, Task
 
 from tufts_local.forms import TaskFilterForm
+from tufts_local.models import IgnoredTask
 
 logger = logging.getLogger(__name__)
 
 TASKS_PER_PAGE = 50
+# how often the page polls itself for fresh rows; the template reads this too
+REFRESH_SECONDS = 5
 
 
 def _q_options(schedule):
@@ -113,13 +116,59 @@ def _filter_rows(rows, name, group):
     return rows
 
 
-def _group_choices(pending_rows):
+def _ignore_rules():
+    """
+    The admin-maintained ignore list, as (name prefixes, group ids).
+
+    Blank patterns are dropped: a '' prefix would match every task and silently empty
+    the whole report.
+    """
+    names = []
+    groups = []
+    for rule in IgnoredTask.objects.all():
+        pattern = (rule.pattern or '').strip()
+        if not pattern:
+            continue
+        if rule.field == IgnoredTask.GROUP:
+            groups.append(pattern)
+        else:
+            names.append(pattern)
+    return names, groups
+
+
+def _is_ignored(name, group, ignored_names, ignored_groups):
+    name = (name or '').lower()
+    group = (group or '').lower()
+    if group and any(group == pattern.lower() for pattern in ignored_groups):
+        return True
+    return bool(name) and any(name.startswith(pattern.lower()) for pattern in ignored_names)
+
+
+def _exclude_ignored(tasks, ignored_names, ignored_groups):
+    for pattern in ignored_names:
+        tasks = tasks.exclude(name__istartswith=pattern)
+    for pattern in ignored_groups:
+        tasks = tasks.exclude(group__iexact=pattern)
+    return tasks
+
+
+def _wants_partial(request):
+    """
+    True when htmx is asking for just the tables rather than the whole page.
+
+    request.htmx is set by django_htmx's HtmxMiddleware; fall back to the header it
+    reads so the refresh still works if that middleware isn't in the stack.
+    """
+    htmx = getattr(request, 'htmx', None)
+    if htmx is not None:
+        return bool(htmx)
+    return request.headers.get('HX-Request') == 'true'
+
+
+def _group_choices(pending_rows, ignored_names, ignored_groups):
+    tasks = _exclude_ignored(Task.objects.all(), ignored_names, ignored_groups)
     groups = set(
-        Task.objects.exclude(group__isnull=True)
-        .exclude(group='')
-        .values_list('group', flat=True)
-        .distinct()
-        .order_by('group')
+        tasks.exclude(group__isnull=True).exclude(group='').values_list('group', flat=True).distinct().order_by('group')
     )
     groups.update(row['group'] for row in pending_rows if row['group'])
     return sorted(groups)
@@ -133,9 +182,16 @@ def task_report(request):
     View of django-q2 tasks: what is still pending (scheduled or queued) and what has
     already run, with its success/failure status and result. Superuser only.
     """
+    # tasks matching an admin-maintained IgnoredTask rule are dropped everywhere on this page
+    ignored_names, ignored_groups = _ignore_rules()
+    all_pending = [
+        row
+        for row in _scheduled_rows() + _queued_rows()
+        if not _is_ignored(row['name'], row['group'], ignored_names, ignored_groups)
+    ]
+
     # build the group dropdown from every group present, so it doesn't depend on the filters
-    all_pending = _scheduled_rows() + _queued_rows()
-    form = TaskFilterForm(request.GET or None, groups=_group_choices(all_pending))
+    form = TaskFilterForm(request.GET or None, groups=_group_choices(all_pending, ignored_names, ignored_groups))
 
     name = ''
     group = ''
@@ -147,7 +203,7 @@ def task_report(request):
     # queued rows have no scheduled time, so they sort ahead of the soonest scheduled run
     pending_rows.sort(key=lambda row: (row['when'] is not None, row['when']))
 
-    tasks = Task.objects.all()
+    tasks = _exclude_ignored(Task.objects.all(), ignored_names, ignored_groups)
     if name:
         tasks = tasks.filter(name__icontains=name)
     if group:
@@ -164,9 +220,12 @@ def task_report(request):
 
     filter_parameters = urlencode({k: v for k, v in (('name', name), ('group', group)) if v})
 
+    # htmx polls this same view and swaps in just the tables, leaving the filter inputs alone
+    template = '_task_tables.html' if _wants_partial(request) else 'task_report.html'
+
     return TemplateResponse(
         request,
-        'tufts_local/task_report.html',
+        f'tufts_local/{template}',
         {
             'form': form,
             'pending_rows': pending_rows,
@@ -174,5 +233,6 @@ def task_report(request):
             'is_paginated': paginator.num_pages > 1,
             'task_count': paginator.count,
             'filter_parameters': f'{filter_parameters}&' if filter_parameters else '',
+            'refresh_seconds': REFRESH_SECONDS,
         },
     )
