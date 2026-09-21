@@ -71,3 +71,16 @@ class ReportFilterForm(forms.Form):
     project_key = forms.SlugField(max_length=50, required=False, label='Project Key')
     project_title = forms.CharField(max_length=100, required=False, label='Project Title')
     billing_code = forms.CharField(max_length=50, required=False, label='Billing Code')
+
+
+class TaskFilterForm(forms.Form):
+    name = forms.CharField(max_length=100, required=False, label='Task Name')
+    group = forms.ChoiceField(required=False, label='Group')
+
+    def __init__(self, *args, groups=(), **kwargs):
+        super().__init__(*args, **kwargs)
+        # group choices come from the groups actually present in the queue, so they can't be declared statically
+        self.fields['group'].choices = [('', 'All')] + [(g, g) for g in groups]
+
+    def clean_name(self):
+        return self.cleaned_data['name'].strip()

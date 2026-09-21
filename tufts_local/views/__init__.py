@@ -8,6 +8,7 @@ from .storage_status_change_view import (
     storage_status_change_reset_demo_data,
     storage_status_change_review,
 )
+from .task_report import task_report
 from .update_project_owner_view import UpdateProjectOwnerView
 from .views import (
     add_user_to_coldfront,
@@ -29,5 +30,6 @@ __all__ = [
     'storage_allocation_history',
     'storage_status_change_review',
     'storage_status_change_reset_demo_data',
+    'task_report',
     'UpdateProjectOwnerView',
 ]
