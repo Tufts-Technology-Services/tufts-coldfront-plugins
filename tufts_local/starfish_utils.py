@@ -274,9 +274,15 @@ def add_to_starfish_index(vol_path, client_key, scan_id=None, wait=5):
     """
     Add a top level directory to the index by initiating a scan of depth 0.
     This is useful when a new project directory is created and needs to be tagged.
+    args:
+        vol_path (str): The volume path to add to the Starfish index.
+        client_key (str): The key to authenticate with the Starfish client.
+        scan_id (str, optional): The ID of an existing scan. If None, a new scan will be initiated.
+        wait (int, optional): The number of seconds to wait between checking the scan status. Default is 5.
+    return: tuple(scan_id, success) where scan_id is the ID of the initiated scan and success is a boolean indicating whether the directory was successfully added to the index.
     """
     if scan_id is None:
-        entry = get_starfish_data_by_vol_path(vol_path, client_key)
+        entry = get_starfish_data_by_vol_path(vol_path, client_key, cached=False)
         if entry is not None:
             # no need to add the directory to the index
             return None, True
@@ -289,6 +295,10 @@ def add_to_starfish_index(vol_path, client_key, scan_id=None, wait=5):
     if not status['state']['is_running']:
         if status['state']['is_successful']:
             sleep(5)  # wait a bit for the scan to complete
+            # if the directory does not exist, the scan will still be considered successful, so we need to check
+            entry = get_starfish_data_by_vol_path(vol_path, client_key, cached=False)
+            if entry is None:
+                return None, False
             return scan_id, True
         else:
             raise RuntimeError(f'Scan {scan_id} failed with error: {status["reason"]}')
