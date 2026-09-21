@@ -10,6 +10,7 @@ from django_q.models import OrmQ, Schedule, Task
 from django_q.signing import SignedPackage
 from django_q.tasks import schedule as create_schedule
 
+from tufts_local.models import IgnoredTask
 from tufts_local.views import task_report
 from tufts_local.views.task_report import _q_options
 
@@ -47,8 +48,10 @@ def rf():
     return RequestFactory()
 
 
-def get_report(rf, query=''):
-    request = rf.get(f'/task-report/{query}')
+def get_report(rf, query='', htmx=False):
+    # htmx sets the HX-Request header; django_htmx's middleware turns that into request.htmx
+    headers = {'HTTP_HX_REQUEST': 'true'} if htmx else {}
+    request = rf.get(f'/task-report/{query}', **headers)
     request.user = make_user(is_superuser=True)
     add_session(request)
     return task_report(request)
@@ -294,6 +297,218 @@ class TestQueuedTasks:
         response = get_report(rf)
 
         assert [row['kind'] for row in response.context_data['pending_rows']] == ['Queued', 'Scheduled']
+
+
+@pytest.mark.django_db
+@pytest.mark.urls('tufts_local.tests.urls')
+class TestAutoRefresh:
+    def test_full_page_polls_itself_with_htmx(self, rf):
+        make_task('a' * 32, 'indexing')
+
+        response = get_report(rf)
+        response.render()
+
+        assert b'id="task-tables"' in response.content
+        assert b'indexing' in response.content
+        assert b'hx-trigger="every 5s [shouldAutoRefresh()]"' in response.content
+        assert b'hx-swap="innerHTML"' in response.content
+
+    def test_htmx_request_returns_only_the_tables(self, rf):
+        make_task('a' * 32, 'indexing')
+
+        response = get_report(rf, htmx=True)
+        response.render()
+
+        assert response.status_code == 200
+        assert response.template_name == 'tufts_local/_task_tables.html'
+        assert b'indexing' in response.content
+        # no page chrome: nothing to swap into, no filter form, no surrounding document
+        assert b'id="task-tables"' not in response.content
+        assert b'<form' not in response.content
+        assert b'</html>' not in response.content
+
+    def test_request_htmx_attribute_is_honoured(self, rf):
+        # what django_htmx's HtmxMiddleware leaves on the request
+        make_task('a' * 32, 'indexing')
+        request = rf.get('/task-report/')
+        request.user = make_user(is_superuser=True)
+        request.htmx = True
+        add_session(request)
+
+        response = task_report(request)
+
+        assert response.template_name == 'tufts_local/_task_tables.html'
+
+    def test_plain_request_still_gets_the_full_page(self, rf):
+        response = get_report(rf)
+
+        assert response.template_name == 'tufts_local/task_report.html'
+
+    def test_poll_keeps_the_active_filters(self, rf):
+        make_task('a' * 32, 'indexing', group='starfish')
+        make_task('b' * 32, 'eligibility', group='ncq')
+
+        response = get_report(rf, '?group=ncq', htmx=True)
+        response.render()
+
+        assert b'eligibility' in response.content
+        assert b'indexing' not in response.content
+
+    def test_poll_keeps_the_current_page(self, rf):
+        for i in range(55):
+            make_task(f'{i:032d}', f'task_{i}', minutes_ago=i)
+
+        response = get_report(rf, '?page=2', htmx=True)
+
+        assert response.context_data['page_obj'].number == 2
+
+    def test_poll_url_carries_filters_and_page(self, rf):
+        for i in range(55):
+            make_task(f'{i:032d}', f'task_{i}', group='starfish', minutes_ago=i)
+
+        response = get_report(rf, '?group=starfish&page=2')
+        response.render()
+
+        assert b'hx-get="/task-report/?group=starfish&amp;page=2"' in response.content
+
+    def test_refresh_interval_is_published_to_the_template(self, rf):
+        response = get_report(rf)
+        response.render()
+
+        assert response.context_data['refresh_seconds'] == 5
+        assert b'every 5s' in response.content
+
+
+@pytest.mark.django_db
+@pytest.mark.urls('tufts_local.tests.urls')
+class TestIgnoredTasks:
+    def ignore_name(self, pattern):
+        return IgnoredTask.objects.create(field=IgnoredTask.NAME, pattern=pattern)
+
+    def ignore_group(self, pattern):
+        return IgnoredTask.objects.create(field=IgnoredTask.GROUP, pattern=pattern)
+
+    def test_name_rule_matches_on_prefix(self, rf):
+        make_task('a' * 32, 'add_sf_tags_alloc_activate_1')
+        make_task('b' * 32, 'add_sf_tags_alloc_activate_2')
+        make_task('c' * 32, 'refresh_ncq_eligibility')
+        self.ignore_name('add_sf_tags')
+
+        response = get_report(rf)
+
+        assert [t.name for t in response.context_data['page_obj']] == ['refresh_ncq_eligibility']
+
+    def test_name_rule_does_not_match_mid_string(self, rf):
+        make_task('a' * 32, 'retry_add_sf_tags_alloc_activate_1')
+        self.ignore_name('add_sf_tags')
+
+        response = get_report(rf)
+
+        assert [t.name for t in response.context_data['page_obj']] == ['retry_add_sf_tags_alloc_activate_1']
+
+    def test_group_rule_matches_in_full(self, rf):
+        make_task('a' * 32, 'indexing', group='starfish')
+        make_task('b' * 32, 'eligibility', group='ncq')
+        self.ignore_group('starfish')
+
+        response = get_report(rf)
+
+        assert [t.name for t in response.context_data['page_obj']] == ['eligibility']
+
+    def test_group_rule_does_not_match_on_prefix(self, rf):
+        make_task('a' * 32, 'indexing', group='starfish')
+        self.ignore_group('star')
+
+        response = get_report(rf)
+
+        assert [t.name for t in response.context_data['page_obj']] == ['indexing']
+
+    def test_matching_ignores_case(self, rf):
+        make_task('a' * 32, 'Add_SF_Tags_1', group='Starfish')
+        make_task('b' * 32, 'eligibility', group='ncq')
+        self.ignore_name('add_sf')
+
+        assert [t.name for t in get_report(rf).context_data['page_obj']] == ['eligibility']
+
+        IgnoredTask.objects.all().delete()
+        self.ignore_group('STARFISH')
+
+        assert [t.name for t in get_report(rf).context_data['page_obj']] == ['eligibility']
+
+    def test_tasks_without_a_group_survive_a_group_rule(self, rf):
+        make_task('a' * 32, 'ungrouped', group=None)
+        make_task('b' * 32, 'indexing', group='starfish')
+        self.ignore_group('starfish')
+
+        response = get_report(rf)
+
+        assert [t.name for t in response.context_data['page_obj']] == ['ungrouped']
+
+    def test_blank_pattern_does_not_hide_everything(self, rf):
+        make_task('a' * 32, 'indexing')
+        IgnoredTask.objects.create(field=IgnoredTask.NAME, pattern='   ')
+
+        response = get_report(rf)
+
+        assert [t.name for t in response.context_data['page_obj']] == ['indexing']
+
+    def test_pending_rows_are_ignored_too(self, rf):
+        create_schedule(
+            'tufts_local.tasks.index_new_allocation',
+            7,
+            schedule_type=Schedule.ONCE,
+            next_run=timezone.now() + datetime.timedelta(minutes=5),
+            q_options={'task_name': 'add_sf_tags_alloc_activate_7', 'group': 'starfish'},
+        )
+        self.ignore_name('add_sf_tags')
+
+        response = get_report(rf)
+
+        assert response.context_data['pending_rows'] == []
+
+    def test_ignored_group_drops_out_of_the_dropdown(self, rf):
+        make_task('a' * 32, 'indexing', group='starfish')
+        make_task('b' * 32, 'eligibility', group='ncq')
+        self.ignore_group('starfish')
+
+        response = get_report(rf)
+
+        assert response.context_data['form'].fields['group'].choices == [('', 'All'), ('ncq', 'ncq')]
+
+    def test_ignored_tasks_are_hidden_silently(self, rf):
+        make_task('a' * 32, 'add_sf_tags_alloc_activate_1')
+        self.ignore_name('add_sf_tags')
+
+        response = get_report(rf)
+        response.render()
+
+        assert b'add_sf_tags_alloc_activate_1' not in response.content
+        # no notice, no count, no toggle: the rows are simply gone (aria-hidden is base.html's)
+        assert b'ignor' not in response.content.lower()
+        assert b'suppress' not in response.content.lower()
+
+    def test_count_reflects_the_ignore_list(self, rf):
+        make_task('a' * 32, 'add_sf_tags_alloc_activate_1')
+        make_task('b' * 32, 'refresh_ncq_eligibility')
+        self.ignore_name('add_sf_tags')
+
+        response = get_report(rf)
+
+        assert response.context_data['task_count'] == 1
+
+
+class TestIgnoredTaskModel:
+    def test_str_names_the_field_and_pattern(self):
+        rule = IgnoredTask(field=IgnoredTask.GROUP, pattern='starfish')
+
+        assert str(rule) == 'Group id (exact): starfish'
+
+    def test_clean_strips_the_pattern(self):
+        rule = IgnoredTask(field=IgnoredTask.NAME, pattern='  add_sf_tags  ')
+
+        rule.clean()
+
+        assert rule.pattern == 'add_sf_tags'
 
 
 class TestQOptions:

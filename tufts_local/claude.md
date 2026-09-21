@@ -4,7 +4,11 @@ of resources include storage allocations and compute time on high-performance cl
 
 ## Conventions
 
-- **No custom Django models.** This app has zero models of its own. Custom data is
+- **Almost no custom Django models.** `models.py` holds exactly one model, `IgnoredTask`
+  (the ignore list for the django-q task report, maintained by admins through
+  `admin.py`) — a deliberate, documented exception for plugin-local operational config
+  that maps to no coldfront entity. Don't grow it casually: everything below still
+  applies by default, and a second model needs the same kind of justification. Custom data is
   attached to coldfront core models via its EAV-style attribute system:
   `AllocationAttribute`/`AllocationAttributeType` (e.g. `sf_vol_path`, `Storage Quota (TB)`)
   and `ProjectAttribute`/`ProjectAttributeType` (e.g. `Project Key`, `Group`). Values are
@@ -23,6 +27,22 @@ of resources include storage allocations and compute time on high-performance cl
   adjacent buttons. FontAwesome (`fa`/`fas`/`far`) for icons. Bootstrap popovers
   (`data-toggle="popover"`, initialized in `{% block javascript %}`) for supplementary
   detail that shouldn't clutter a table cell.
+- **htmx**: coldfront core provides htmx, and it is available to this app — use it for
+  live-updating or partially-updating pages instead of hand-rolled jQuery `$.get` +
+  `setInterval`. Nothing in this checkout shows it (no `hx-*` in the templates here, none
+  in the pinned `coldfront` in `.venv`, and `django_htmx` isn't installed there), so its
+  absence locally is not evidence against it. Pattern, worked example in
+  `views/task_report.py` + `templates/tufts_local/task_report.html`: put the refreshing
+  region in its own `_*.html` partial, include it inside a wrapper div carrying
+  `hx-get`/`hx-trigger`/`hx-swap`, and have the view return the partial instead of the full
+  page for htmx requests. Detect those with `_wants_partial()` — `request.htmx` when
+  `django_htmx.middleware.HtmxMiddleware` has set it, falling back to the raw `HX-Request`
+  header; don't `import django_htmx` in view code, since it isn't importable in the test
+  venv. Polling supports trigger filters after the poll declaration
+  (`hx-trigger="every 5s [shouldAutoRefresh()]"`) — use one to pause on `document.hidden`
+  rather than polling a tab nobody is looking at. Bootstrap widgets initialized in JS
+  (popovers, tooltips) don't survive a swap: re-initialize them in an `htmx:afterSwap`
+  listener filtered on the target's id.
 - **Views**: split across `views/*.py` by concern, re-exported through `views/__init__.py`.
   Superuser-gated admin views use `@user_passes_test(lambda u: u.is_superuser)` (FBVs) or
   `UserPassesTestMixin`/`test_func` (CBVs). Report-style pages
