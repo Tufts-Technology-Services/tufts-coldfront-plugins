@@ -22,20 +22,39 @@ TASKS_PER_PAGE = 50
 REFRESH_SECONDS = 5
 
 
+def _parse_kwargs(raw):
+    """
+    Parse a Schedule.kwargs string, or return None if neither syntax applies.
+
+    Mirrors django_q.scheduler, which accepts two spellings in that TextField: a dict
+    repr ("{'q_options': {...}}", what schedule() writes) and bare keyword arguments
+    ("timeout=600", what the admin form and hand-made schedules use). Only supporting
+    the first meant every schedule written the second way logged a parse warning.
+    """
+    try:
+        return ast.literal_eval(raw)
+    except (ValueError, SyntaxError):
+        pass
+    try:
+        keywords = ast.parse(f'f({raw})').body[0].value.keywords
+        return {kw.arg: ast.literal_eval(kw.value) for kw in keywords}
+    except (ValueError, SyntaxError, AttributeError, IndexError):
+        return None
+
+
 def _q_options(schedule):
     """
     Return the q_options dict a schedule was created with.
 
     django_q's Schedule model has no name/group columns of its own: anything passed as
-    q_options to schedule() is stored as the repr of {'q_options': {...}} in the kwargs
-    TextField, and parsed back out with ast.literal_eval when the scheduler runs it.
+    q_options to schedule() is stored inside the kwargs TextField, and parsed back out
+    when the scheduler runs it.
     """
     if not schedule.kwargs:
         return {}
-    try:
-        kwargs = ast.literal_eval(schedule.kwargs)
-    except (ValueError, SyntaxError):
-        logger.warning(f'Could not parse kwargs for schedule {schedule.id}: {schedule.kwargs}')
+    kwargs = _parse_kwargs(schedule.kwargs)
+    if kwargs is None:
+        logger.debug(f'Could not parse kwargs for schedule {schedule.id}: {schedule.kwargs}')
         return {}
     options = kwargs.get('q_options', {}) if isinstance(kwargs, dict) else {}
     return options if isinstance(options, dict) else {}
