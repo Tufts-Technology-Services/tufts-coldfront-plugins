@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: (C) 2026 Tufts Technology Services (TTS)
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 """
 tufts_local/views/__init__.py eagerly imports every sibling view module, which
 transitively pulls in private Tufts packages (coldfront_utils, coldfront_billing,

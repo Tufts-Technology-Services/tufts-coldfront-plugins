@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: (C) 2026 Tufts Technology Services (TTS)
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 """
 The one exception to this app's no-custom-models rule (see claude.md): an ignore list for
 the django-q task report. It is plugin-local operational config that maps to no coldfront

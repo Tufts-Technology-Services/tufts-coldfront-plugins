@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: (C) 2026 Tufts Technology Services (TTS)
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 """
 Combined urlconf for tests that need to fully render a tufts_local template: the
 common/base.html navbar reverses coldfront core url names, while tufts_local's own

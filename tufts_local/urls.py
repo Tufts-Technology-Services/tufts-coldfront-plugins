@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: (C) 2026 Tufts Technology Services (TTS)
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 from django.urls import path
 
 from tufts_local import views
