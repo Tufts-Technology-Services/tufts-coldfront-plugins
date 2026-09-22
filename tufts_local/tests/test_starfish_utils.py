@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: (C) 2026 Tufts Technology Services (TTS)
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 from unittest.mock import MagicMock, patch
 
 from tufts_local.starfish_utils import set_project_approvers_from_starfish
