@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import datetime
+import logging
 from unittest.mock import MagicMock
 
 import pytest
@@ -529,3 +530,27 @@ class TestQOptions:
         schedule = Schedule(kwargs="{'q_options': {'task_name': 'x', 'group': 'starfish'}}")
 
         assert _q_options(schedule) == {'task_name': 'x', 'group': 'starfish'}
+
+    def test_keyword_syntax_kwargs_are_not_a_parse_failure(self, caplog):
+        """django_q also accepts bare keyword arguments in Schedule.kwargs; a schedule
+        written that way has no q_options, but it isn't malformed and logs nothing."""
+        schedule = Schedule(id=14, kwargs='timeout=600')
+
+        with caplog.at_level(logging.DEBUG, logger='tufts_local.views.task_report'):
+            assert _q_options(schedule) == {}
+
+        assert caplog.records == []
+
+    def test_parses_q_options_from_keyword_syntax(self):
+        schedule = Schedule(kwargs="q_options={'task_name': 'x', 'group': 'starfish'}, timeout=600")
+
+        assert _q_options(schedule) == {'task_name': 'x', 'group': 'starfish'}
+
+    def test_malformed_kwargs_log_at_debug_not_warning(self, caplog):
+        """Unparseable kwargs are someone else's schedule to fix, not an error in this
+        report, so they must not surface at warning level on every refresh."""
+        with caplog.at_level(logging.DEBUG, logger='tufts_local.views.task_report'):
+            assert _q_options(Schedule(id=14, kwargs='timeout=')) == {}
+
+        assert 'Could not parse kwargs for schedule 14' in caplog.text
+        assert [record.levelno for record in caplog.records] == [logging.DEBUG]
