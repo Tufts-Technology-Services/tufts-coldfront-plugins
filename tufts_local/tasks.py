@@ -5,7 +5,6 @@
 import datetime
 import logging
 
-from coldfront_billing.models import NoCostQuota, NoCostQuotaAllotment
 from django.contrib.auth.models import Group, User
 from django_q.tasks import Schedule, schedule
 
@@ -96,6 +95,13 @@ def _set_sf_owner_tag(allocation):
 
 
 def refresh_ncq_eligibility():
+    # imported here, not at module scope: coldfront_billing is an optional companion app, and a
+    # top-level import makes tufts_local unimportable wherever it isn't installed
+    from coldfront_billing.models import (  # pylint: disable=import-outside-toplevel
+        NoCostQuota,
+        NoCostQuotaAllotment,
+    )
+
     ncq_logger = setup_custom_logger('ncq', 'ncq.log')
     eligibility_data = get_ncq_eligibility()
     tier1_group_name = 'faculty_pi_eligible_tier1'

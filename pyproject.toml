@@ -7,7 +7,7 @@ authors = [
 ]
 readme = "README.md"
 requires-python = ">=3.12"
-license = "GPL-3.0-or-later"
+license = "GPL-3.0-only"
 license-files = ["LICENSE"]
 keywords = ["high-performance-computing", "resource-allocation"]
 classifiers = [
@@ -31,6 +31,7 @@ dev = [
     "pytest-django",
     "pytest-cov>=7.1.0",
     "pytest-xdist>=3.8.0",
+    "coldfront-utils",
 ]
 
 [build-system]
@@ -48,6 +49,9 @@ name = "testpypi"
 url = "https://test.pypi.org/simple/"
 publish-url = "https://test.pypi.org/legacy/"
 explicit = true
+
+[tool.uv.sources]
+coldfront-utils = { git = "https://github.com/Tufts-Technology-Services/coldfront-utils", rev = "493355ce5b0b8227ea6fe5a36104bc2d04c65676" }
 
 [tool.ruff]
 line-length = 120

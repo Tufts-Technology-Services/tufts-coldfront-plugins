@@ -7,3 +7,6 @@ from django.apps import AppConfig
 
 class LocalConfig(AppConfig):
     name = 'tufts_local'
+
+    def ready(self):
+        from . import signals  # noqa: F401
