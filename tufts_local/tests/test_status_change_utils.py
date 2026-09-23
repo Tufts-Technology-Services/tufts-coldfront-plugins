@@ -217,6 +217,36 @@ class TestAPIClientWrites:
 
 
 class TestFetchAllPendingReviews:
+    def test_defaults_to_unreviewed_records_only(self):
+        client = MagicMock()
+        client.get_pending_reviews.return_value = []
+
+        fetch_all_pending_reviews(client)
+
+        assert client.get_pending_reviews.call_args.kwargs['include_acknowledged'] is False
+
+    def test_passes_include_acknowledged_through(self):
+        client = MagicMock()
+        client.get_pending_reviews.return_value = []
+
+        fetch_all_pending_reviews(client, include_acknowledged=True)
+
+        assert client.get_pending_reviews.call_args.kwargs['include_acknowledged'] is True
+
+    def test_acknowledged_records_are_excluded_by_default(self, client):
+        client.acknowledge(*JDOE, reviewer='rdms_admin')
+
+        usernames = {r['username'] for r in fetch_all_pending_reviews(client)}
+
+        assert JDOE[0] not in usernames
+
+    def test_acknowledged_records_come_back_when_asked_for(self, client):
+        client.acknowledge(*JDOE, reviewer='rdms_admin')
+
+        usernames = {r['username'] for r in fetch_all_pending_reviews(client, include_acknowledged=True)}
+
+        assert JDOE[0] in usernames
+
     def test_walks_every_page(self):
         client = MagicMock()
         client.get_pending_reviews.side_effect = [[{'username': 'a'}], [{'username': 'b'}], []]

@@ -6,7 +6,18 @@ Storage User Status Changes
 {% endblock %}
 
 {% block content %}
-<h2>Storage User Status Changes Pending Review</h2>
+<div class="d-flex justify-content-between align-items-center">
+  <h2>Storage User Status Changes{% if not show_acknowledged %} Pending Review{% endif %}</h2>
+  {% if show_acknowledged %}
+  <a href="{% url 'storage-status-change-review' %}" class="btn btn-outline-secondary btn-sm">
+    <i class="fa fa-filter" aria-hidden="true"></i> Hide acknowledged
+  </a>
+  {% else %}
+  <a href="{% url 'storage-status-change-review' %}?show_acknowledged=1" class="btn btn-outline-secondary btn-sm">
+    <i class="fa fa-history" aria-hidden="true"></i> Show acknowledged
+  </a>
+  {% endif %}
+</div>
 <p>
   Users whose NCQ eligibility or project active status has changed. Select No Action to confirm
   no further action is needed, or grant a grace period to temporarily extend NCQ eligibility.
@@ -24,6 +35,7 @@ Storage User Status Changes
           <th scope="col">Shares NCQ</th>
           <th scope="col">Changes</th>
           <th scope="col" style="min-width: 16rem;">Notes</th>
+          {% if show_acknowledged %}<th scope="col">Review</th>{% endif %}
           <th scope="col">Actions</th>
         </tr>
       </thead>
@@ -71,6 +83,16 @@ Storage User Status Changes
               <span class="text-muted">&mdash;</span>
             {% endif %}
           </td>
+          {% if show_acknowledged %}
+          <td class="text-nowrap">
+            {% if r.reviewed_by_rdms == 'Yes' %}
+              <span class="badge badge-success">Acknowledged</span>
+              {% if r.review_date %}<div class="small text-muted">{{ r.review_date }}</div>{% endif %}
+            {% else %}
+              <span class="badge badge-warning">Pending</span>
+            {% endif %}
+          </td>
+          {% endif %}
           <td class="text-nowrap">
             <button type="button" class="btn btn-primary btn-sm" data-toggle="modal" data-target="#review-{{ forloop.counter }}">Review</button>
           </td>
@@ -89,6 +111,7 @@ Storage User Status Changes
           {# (username, date) is the record's key: the remote table has no surrogate id #}
           <input type="hidden" name="username" value="{{ r.username }}">
           <input type="hidden" name="record_date" value="{{ r.date }}">
+          {% if show_acknowledged %}<input type="hidden" name="show_acknowledged" value="1">{% endif %}
           <div class="modal-header">
             <h5 class="modal-title" id="review-label-{{ forloop.counter }}">Review Status Change &mdash; {{ r.username }}</h5>
             <button type="button" class="close" data-dismiss="modal" aria-label="Close">
@@ -132,7 +155,8 @@ Storage User Status Changes
 
   {% else %}
   <div class="alert alert-info" role="alert">
-    <i class="fa fa-info-circle" aria-hidden="true"></i> There are no status changes pending review.
+    <i class="fa fa-info-circle" aria-hidden="true"></i>
+    {% if show_acknowledged %}There are no status changes to display.{% else %}There are no status changes pending review.{% endif %}
   </div>
   {% endif %}
 </div>
