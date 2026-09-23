@@ -2,11 +2,21 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-import copy
 import logging
-from datetime import datetime
+
+import requests
+
+from coldfront.config.settings import ENV
 
 logger = logging.getLogger(__name__)
+
+# the service rejects a rows above 500 (see ROWS_PARAM in its secure router)
+MAX_ROWS = 500
+REQUEST_TIMEOUT = 30
+
+# the values active_status_old/new can take. The remote column is a bare CHAR(1) with no
+# constraint and the service documents no enum, so this list is the only record of it.
+ACTIVE_STATUS_VALUES = ('A', 'P', 'F')
 
 
 class StatusChangeAPIError(Exception):
@@ -15,161 +25,134 @@ class StatusChangeAPIError(Exception):
 
 class StatusChangeAPIClient:
     """
-    Client for the remote storage_user_status_change data source.
+    Client for the remote storage_user_status_change data source (rt-analytics-api).
 
-    TODO: back this with real HTTP calls once the remote API is available, e.g.
-      requests.get(f'{self.base_url}/status-changes/', headers=self._auth_headers, timeout=10)
+    Records are keyed by (user, record_date): the remote table has a composite primary key
+    and no surrogate id, so every method that touches a single record takes both. Record
+    fields are passed through from the service unchanged, so what the templates read is what
+    the API documents -- note that its boolean-ish columns hold the strings 'Yes' and 'No',
+    not JSON booleans.
     """
 
     def __init__(self, base_url=None, token=None):
-        self.base_url = base_url
+        self.base_url = (base_url or '').rstrip('/')
         self.token = token
 
-    def get_pending_reviews(self):
-        raise NotImplementedError
+    def _path(self, *parts):
+        return '/'.join(['storage-owner-status-change', *(str(part) for part in parts)])
 
-    def acknowledge(self, record_id, reviewer, note=None):
-        raise NotImplementedError
+    def _request(self, method, path, **kwargs):
+        """
+        Issue one request, turning transport and HTTP errors into StatusChangeAPIError.
 
-    def grant_grace_period(self, record_id, reviewer, expiration_date, note=None):
-        raise NotImplementedError
+        Returns None on 404: the service answers that way both for a record that doesn't
+        exist and for a query that matched nothing, so the caller decides which it meant.
+        """
+        if not self.base_url:
+            raise StatusChangeAPIError('RT_ANALYTICS_BASE_URL is not set; cannot reach the status-change service.')
+        try:
+            response = requests.request(
+                method,
+                f'{self.base_url}/{path}',
+                headers={'X-API-Key': self.token or ''},
+                timeout=REQUEST_TIMEOUT,
+                **kwargs,
+            )
+        except requests.RequestException as e:
+            raise StatusChangeAPIError(f'Could not reach the status-change service: {e}') from e
+        if response.status_code == 404:
+            return None
+        if not response.ok:
+            raise StatusChangeAPIError(f'Status-change service returned {response.status_code}: {response.text[:200]}')
+        try:
+            return response.json()
+        except ValueError as e:
+            raise StatusChangeAPIError(f'Status-change service returned a non-JSON response: {e}') from e
 
-    def add_note(self, record_id, note, user):
-        raise NotImplementedError
+    def get_pending_reviews(self, include_acknowledged=False, start=0, rows=50):
+        """
+        One page of status changes awaiting RDMS review, newest first.
+
+        Each record carries that user's notes under 'notes', newest first -- the service
+        attaches them, so there is no extra call per record. fetch_all_pending_reviews()
+        walks every page.
+        """
+        params = {'start': start, 'rows': min(rows, MAX_ROWS)}
+        if not include_acknowledged:
+            params['reviewed_by_rdms'] = 'No'
+        page = self._request('GET', self._path(), params=params)
+        # the service 404s instead of returning an empty page, both when nothing at all is
+        # pending and when start has run off the end of the results
+        if page is None:
+            return []
+        return page.get('results', [])
+
+    def _update(self, user, record_date, reviewer, **fields):
+        """
+        PATCH one record. Fields left as None are omitted rather than sent as null.
+
+        The service rejects a body holding nothing but author_utln, so at least one of
+        reviewed_by_rdms, ncq_expiration_date or note has to survive that filtering.
+        """
+        payload = {'author_utln': reviewer}
+        payload.update({key: value for key, value in fields.items() if value is not None})
+        result = self._request('PATCH', self._path(user, record_date), json=payload)
+        if result is None:
+            raise StatusChangeAPIError(f"No status change record found for '{user}' on {record_date}.")
+        return result
+
+    def acknowledge(self, user, record_date, reviewer, note=None):
+        """Mark a change reviewed. The service stamps review_date and adds a 'Reviewed' note."""
+        self._update(user, record_date, reviewer, reviewed_by_rdms='Yes', note=note)
+        logger.info(f"Status change for '{user}' on {record_date} acknowledged by '{reviewer}'.")
+
+    def grant_grace_period(self, user, record_date, reviewer, expiration_date, note=None):
+        """
+        Extend NCQ eligibility to expiration_date (ISO 8601).
+
+        Sending ncq_expiration_date also marks the record reviewed and adds a
+        'Grace period granted until <date>' note, both service-side.
+        """
+        if not expiration_date:
+            raise StatusChangeAPIError('An expiration date is required to grant a grace period.')
+        self._update(user, record_date, reviewer, ncq_expiration_date=expiration_date, note=note)
+        logger.info(f"Grace period until {expiration_date} granted for '{user}' by '{reviewer}'.")
+
+    def add_note(self, user, record_date, note, reviewer):
+        """
+        Attach a note to a user, leaving the review status alone.
+
+        Notes hang off the username rather than off one change, but a PATCH on a change is
+        the only way to write one, so the date is still needed to address the request.
+        """
+        if not note:
+            raise StatusChangeAPIError('Note text is required.')
+        self._update(user, record_date, reviewer, note=note)
 
 
-class DummyStatusChangeAPIClient(StatusChangeAPIClient):
+def fetch_all_pending_reviews(client):
     """
-    In-memory stand-in for the real remote API, used until the storage_user_status_change
-    service is available. Mirrors the interface StatusChangeAPIClient will expose so it can
-    be swapped out later without changing callers.
+    Every pending review, walking the client's pagination.
+
+    The queue is normally short, but it is a queue: showing only its first page would hide
+    work rather than defer it.
     """
-
-    _SEED_RECORDS = [
-        {
-            'id': 1,
-            'date': '2026-09-10',
-            'utln': 'jdoe01',
-            'current_project_owner': True,
-            'current_project_approver': False,
-            'share_ncq': True,
-            'old_ncq_eligibility': 'Yes',
-            'new_ncq_eligibility': 'No',
-            'old_active_status': 'Active',
-            'new_active_status': 'Active',
-            'old_title': 'Research Assistant Professor',
-            'new_title': 'Emeritus',
-            'old_primary_affiliation': 'faculty',
-            'new_primary_affiliation': 'affiliate',
-            'reviewed_by_rdms': False,
-            'reviewed_by': None,
-            'review_date': None,
-            'ncq_expiration_date': None,
-            'notes': [
-                {'timestamp': '2026-09-10T09:15:00', 'note': 'Flagged by nightly AD sync job.', 'user': 'system'},
-            ],
-        },
-        {
-            'id': 2,
-            'date': '2026-09-12',
-            'utln': 'asmith02',
-            'current_project_owner': False,
-            'current_project_approver': True,
-            'share_ncq': True,
-            'old_ncq_eligibility': 'Yes',
-            'new_ncq_eligibility': 'No',
-            'old_active_status': 'Active',
-            'new_active_status': 'Inactive',
-            'old_title': 'Postdoctoral Scholar',
-            'new_title': 'Postdoctoral Scholar',
-            'old_primary_affiliation': 'staff',
-            'new_primary_affiliation': 'staff',
-            'reviewed_by_rdms': False,
-            'reviewed_by': None,
-            'review_date': None,
-            'ncq_expiration_date': None,
-            'notes': [],
-        },
-        {
-            'id': 3,
-            'date': '2026-09-14',
-            'utln': 'kwong03',
-            'current_project_owner': True,
-            'current_project_approver': True,
-            'share_ncq': False,
-            'old_ncq_eligibility': 'No',
-            'new_ncq_eligibility': 'No',
-            'old_active_status': 'Active',
-            'new_active_status': 'Inactive',
-            'old_title': 'Graduate Student',
-            'new_title': 'Alumni',
-            'old_primary_affiliation': 'student',
-            'new_primary_affiliation': 'alumni',
-            'reviewed_by_rdms': False,
-            'reviewed_by': None,
-            'review_date': None,
-            'ncq_expiration_date': None,
-            'notes': [
-                {
-                    'timestamp': '2026-09-14T11:02:00',
-                    'note': 'PI requested extension pending grant renewal.',
-                    'user': 'jsmith',
-                },
-                {
-                    'timestamp': '2026-09-15T08:30:00',
-                    'note': 'Grant renewal confirmed by RA office.',
-                    'user': 'jsmith',
-                },
-            ],
-        },
-    ]
-
-    _records = copy.deepcopy(_SEED_RECORDS)
-
-    @classmethod
-    def reset(cls):
-        """Restore the in-memory dataset to its original seed state."""
-        cls._records = copy.deepcopy(cls._SEED_RECORDS)
-        logger.info('Dummy status change dataset reset to seed data.')
-
-    def get_pending_reviews(self):
-        return [record for record in self._records if not record['reviewed_by_rdms']]
-
-    def _get_record(self, record_id):
-        record = next((r for r in self._records if str(r['id']) == str(record_id)), None)
-        if record is None:
-            raise StatusChangeAPIError(f"No status change record found with id '{record_id}'.")
-        return record
-
-    def acknowledge(self, record_id, reviewer, note=None):
-        record = self._get_record(record_id)
-        record['reviewed_by_rdms'] = True
-        record['reviewed_by'] = reviewer
-        record['review_date'] = datetime.now().isoformat()
-        logger.info(f"Status change record {record_id} acknowledged by '{reviewer}'.")
-        if note:
-            self.add_note(record_id, note, user=reviewer)
-
-    def grant_grace_period(self, record_id, reviewer, expiration_date, note=None):
-        record = self._get_record(record_id)
-        record['reviewed_by_rdms'] = True
-        record['reviewed_by'] = reviewer
-        record['review_date'] = datetime.now().isoformat()
-        record['ncq_expiration_date'] = expiration_date
-        logger.info(
-            f"Grace period until {expiration_date} granted for status change record {record_id} by '{reviewer}'."
-        )
-        if note:
-            self.add_note(record_id, note, user=reviewer)
-
-    def add_note(self, record_id, note, user):
-        record = self._get_record(record_id)
-        record.setdefault('notes', []).append({'timestamp': datetime.now().isoformat(), 'note': note, 'user': user})
+    records = []
+    while True:
+        page = client.get_pending_reviews(start=len(records), rows=MAX_ROWS)
+        if not page:
+            return records
+        records.extend(page)
 
 
 def get_status_change_client():
     """
     Returns the client used to interact with the remote storage_user_status_change data source.
-    Currently always returns the dummy in-memory client since the remote API is not yet available.
+
+    There is deliberately no in-process alternative: the in-memory stand-in used by the tests
+    lives in tufts_local.tests.fakes, where application code can't reach for it.
     """
-    return DummyStatusChangeAPIClient()
+    return StatusChangeAPIClient(
+        base_url=ENV.str('RT_ANALYTICS_BASE_URL', default=''),
+        token=ENV.str('RT_ANALYTICS_API_KEY', default=''),
+    )

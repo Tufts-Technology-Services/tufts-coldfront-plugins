@@ -6,15 +6,7 @@ Storage User Status Changes
 {% endblock %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-center">
-  <h2>Storage User Status Changes Pending Review</h2>
-  <form method="post" action="{% url 'storage-status-change-reset' %}">
-    {% csrf_token %}
-    <button type="submit" class="btn btn-outline-secondary btn-sm confirm-reset">
-      <i class="fa fa-undo" aria-hidden="true"></i> Reset Demo Data
-    </button>
-  </form>
-</div>
+<h2>Storage User Status Changes Pending Review</h2>
 <p>
   Users whose NCQ eligibility or project active status has changed. Select No Action to confirm
   no further action is needed, or grant a grace period to temporarily extend NCQ eligibility.
@@ -39,38 +31,39 @@ Storage User Status Changes
         {% for r in records %}
         <tr>
           <td class="text-nowrap">{{ r.date }}</td>
-          <td class="text-nowrap">{{ r.utln }}</td>
+          <td class="text-nowrap">{{ r.username }}</td>
           <td class="text-nowrap">
-            {% if r.current_project_owner %}<span class="badge badge-secondary mr-1">Owner</span>{% endif %}
-            {% if r.current_project_approver %}<span class="badge badge-secondary">Approver</span>{% endif %}
-            {% if not r.current_project_owner and not r.current_project_approver %}<span class="text-muted">&mdash;</span>{% endif %}
+            {% if r.current_project_owner == 'Yes' %}<span class="badge badge-secondary mr-1">Owner</span>{% endif %}
+            {% if r.current_project_approver == 'Yes' %}<span class="badge badge-secondary">Approver</span>{% endif %}
+            {% if r.current_project_owner != 'Yes' and r.current_project_approver != 'Yes' %}<span class="text-muted">&mdash;</span>{% endif %}
           </td>
-          <td>{{ r.share_ncq|yesno:"Yes,No" }}</td>
+          <td>{{ r.current_ncq_sharer|default:"&mdash;" }}</td>
           <td>
-            {% if r.old_ncq_eligibility != r.new_ncq_eligibility %}
+            {% if r.ncq_eligible_old != r.ncq_eligible_new %}
               <span class="badge badge-warning d-block mb-1">NCQ Eligibility</span>
             {% endif %}
-            {% if r.old_active_status != r.new_active_status %}
+            {% if r.active_status_old != r.active_status_new %}
               <span class="badge badge-warning d-block mb-1">Active Status</span>
             {% endif %}
-            {% if r.old_title != r.new_title %}
+            {% if r.title_old != r.title_new %}
               <span class="badge badge-warning d-block mb-1">Title</span>
             {% endif %}
-            {% if r.old_primary_affiliation != r.new_primary_affiliation %}
+            {% if r.primary_affiliation_old != r.primary_affiliation_new %}
               <span class="badge badge-warning d-block mb-1">Primary Affiliation</span>
             {% endif %}
-            {% if r.old_ncq_eligibility == r.new_ncq_eligibility and r.old_active_status == r.new_active_status and r.old_title == r.new_title and r.old_primary_affiliation == r.new_primary_affiliation %}
+            {% if r.ncq_eligible_old == r.ncq_eligible_new and r.active_status_old == r.active_status_new and r.title_old == r.title_new and r.primary_affiliation_old == r.primary_affiliation_new %}
               <span class="text-muted">No changes</span>
             {% endif %}
           </td>
           <td>
             {% if r.notes %}
-              {% with latest=r.notes|last %}
-              <span class="small">{{ latest.user }}: {{ latest.note|truncatechars:40 }}</span>
+              {# the service returns notes newest first #}
+              {% with latest=r.notes|first %}
+              <span class="small">{{ latest.author_utln }}: {{ latest.note|truncatechars:40 }}</span>
               {% endwith %}
               {% if r.notes|length > 1 %}
               <a href="#" tabindex="0" class="note-history" data-toggle="popover" data-trigger="focus" data-html="true"
-                 data-content="{% for n in r.notes %}<div class='small'><strong>{{ n.timestamp }}</strong> ({{ n.user }}): {{ n.note }}</div>{% endfor %}">
+                 data-content="{% for n in r.notes %}<div class='small'><strong>{{ n.note_timestamp }}</strong> ({{ n.author_utln }}): {{ n.note }}</div>{% endfor %}">
                 <i class="fa fa-history" aria-hidden="true"></i>
               </a>
               {% endif %}
@@ -79,7 +72,7 @@ Storage User Status Changes
             {% endif %}
           </td>
           <td class="text-nowrap">
-            <button type="button" class="btn btn-primary btn-sm" data-toggle="modal" data-target="#review-{{ r.id }}">Review</button>
+            <button type="button" class="btn btn-primary btn-sm" data-toggle="modal" data-target="#review-{{ forloop.counter }}">Review</button>
           </td>
         </tr>
         {% endfor %}
@@ -88,14 +81,16 @@ Storage User Status Changes
   </div>
 
   {% for r in records %}
-  <div class="modal fade" id="review-{{ r.id }}" tabindex="-1" role="dialog" aria-labelledby="review-label-{{ r.id }}" aria-hidden="true">
+  <div class="modal fade" id="review-{{ forloop.counter }}" tabindex="-1" role="dialog" aria-labelledby="review-label-{{ forloop.counter }}" aria-hidden="true">
     <div class="modal-dialog" role="document">
       <div class="modal-content">
         <form method="post">
           {% csrf_token %}
-          <input type="hidden" name="record_id" value="{{ r.id }}">
+          {# (username, date) is the record's key: the remote table has no surrogate id #}
+          <input type="hidden" name="username" value="{{ r.username }}">
+          <input type="hidden" name="record_date" value="{{ r.date }}">
           <div class="modal-header">
-            <h5 class="modal-title" id="review-label-{{ r.id }}">Review Status Change &mdash; {{ r.utln }}</h5>
+            <h5 class="modal-title" id="review-label-{{ forloop.counter }}">Review Status Change &mdash; {{ r.username }}</h5>
             <button type="button" class="close" data-dismiss="modal" aria-label="Close">
               <span aria-hidden="true">&times;</span>
             </button>
@@ -103,15 +98,15 @@ Storage User Status Changes
           <div class="modal-body">
             {% include "tufts_local/_storage_status_change_summary.html" %}
             <div class="form-group mt-3">
-              <label for="exp-{{ r.id }}">NCQ Expiration Date <span class="text-muted small">(required to set a grace period)</span></label>
-              <input type="date" class="form-control" name="ncq_expiration_date" id="exp-{{ r.id }}" required>
+              <label for="exp-{{ forloop.counter }}">NCQ Expiration Date <span class="text-muted small">(required to set a grace period)</span></label>
+              <input type="date" class="form-control" name="ncq_expiration_date" id="exp-{{ forloop.counter }}" required>
             </div>
             <div class="form-group">
               <label>Recent Notes</label>
               {% if r.notes %}
                 <ul class="list-group list-group-flush mb-0">
-                  {% for n in r.notes|slice:"-3:" %}
-                  <li class="list-group-item p-2 small"><strong>{{ n.timestamp }}</strong> ({{ n.user }}): {{ n.note }}</li>
+                  {% for n in r.notes|slice:":3" %}
+                  <li class="list-group-item p-2 small"><strong>{{ n.note_timestamp }}</strong> ({{ n.author_utln }}): {{ n.note }}</li>
                   {% endfor %}
                 </ul>
               {% else %}
@@ -119,8 +114,8 @@ Storage User Status Changes
               {% endif %}
             </div>
             <div class="form-group mb-0">
-              <label for="review-notes-{{ r.id }}">Add Note</label>
-              <textarea class="form-control" id="review-notes-{{ r.id }}" name="notes" rows="3"></textarea>
+              <label for="review-notes-{{ forloop.counter }}">Add Note</label>
+              <textarea class="form-control" id="review-notes-{{ forloop.counter }}" name="notes" rows="3"></textarea>
             </div>
           </div>
           <div class="modal-footer">
@@ -148,9 +143,6 @@ Storage User Status Changes
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     $('[data-toggle="popover"]').popover();
-});
-$(document).on('click', '.confirm-reset', function(){
-    return confirm('Reset all demo data back to its original seed state? This will discard any acknowledgements, grace periods, and notes added so far.');
 });
 </script>
 {% endblock %}
