@@ -130,16 +130,16 @@ class StatusChangeAPIClient:
         self._update(user, record_date, reviewer, note=note)
 
 
-def fetch_all_pending_reviews(client):
+def fetch_all_pending_reviews(client, include_acknowledged=False):
     """
     Every pending review, walking the client's pagination.
 
     The queue is normally short, but it is a queue: showing only its first page would hide
-    work rather than defer it.
+    work rather than defer it. Pass include_acknowledged to get reviewed records too.
     """
     records = []
     while True:
-        page = client.get_pending_reviews(start=len(records), rows=MAX_ROWS)
+        page = client.get_pending_reviews(include_acknowledged=include_acknowledged, start=len(records), rows=MAX_ROWS)
         if not page:
             return records
         records.extend(page)

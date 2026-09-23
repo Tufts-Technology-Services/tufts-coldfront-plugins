@@ -40,6 +40,14 @@ def rf():
     return RequestFactory()
 
 
+@pytest.fixture
+def dummy_client():
+    """A real in-memory client, so the view's pagination and filtering run for real."""
+    DummyStatusChangeAPIClient.reset()
+    yield DummyStatusChangeAPIClient()
+    DummyStatusChangeAPIClient.reset()
+
+
 class TestStorageStatusChangeReviewAccess:
     def test_anonymous_user_redirects_to_login(self, rf):
         request = rf.get('/storage-status-change-review/')
@@ -261,3 +269,147 @@ class TestStorageStatusChangeReviewSubmit:
         client.add_note.assert_not_called()
         mock_messages.error.assert_called_once()
         mock_messages.success.assert_not_called()
+
+
+class TestShowAcknowledgedToggle:
+    @pytest.mark.django_db
+    @pytest.mark.urls('tufts_local.tests.urls')
+    @patch('tufts_local.views.storage_status_change_view.get_status_change_client')
+    def test_defaults_to_unreviewed_records_only(self, mock_get_client, rf):
+        """The page is a work queue, so it opens on what is still outstanding."""
+        client = make_client()
+        mock_get_client.return_value = client
+        request = rf.get('/storage-status-change-review/')
+        request.user = make_user(is_superuser=True)
+        add_session(request)
+
+        response = storage_status_change_review(request)
+
+        assert response.context_data['show_acknowledged'] is False
+        assert client.get_pending_reviews.call_args.kwargs['include_acknowledged'] is False
+
+    @pytest.mark.django_db
+    @pytest.mark.urls('tufts_local.tests.urls')
+    @patch('tufts_local.views.storage_status_change_view.get_status_change_client')
+    def test_param_asks_the_client_for_reviewed_records_too(self, mock_get_client, rf):
+        client = make_client()
+        mock_get_client.return_value = client
+        request = rf.get('/storage-status-change-review/', {'show_acknowledged': '1'})
+        request.user = make_user(is_superuser=True)
+        add_session(request)
+
+        response = storage_status_change_review(request)
+
+        assert response.context_data['show_acknowledged'] is True
+        assert client.get_pending_reviews.call_args.kwargs['include_acknowledged'] is True
+
+    @pytest.mark.django_db
+    @pytest.mark.urls('tufts_local.tests.urls')
+    @pytest.mark.parametrize('value', ['0', 'false', 'off', '', 'maybe'])
+    @patch('tufts_local.views.storage_status_change_view.get_status_change_client')
+    def test_only_a_truthy_value_turns_it_on(self, mock_get_client, rf, value):
+        """Anything but an explicit yes falls back to the safe default rather than
+        being read as 'the param is present, so show everything'."""
+        mock_get_client.return_value = make_client()
+        request = rf.get('/storage-status-change-review/', {'show_acknowledged': value})
+        request.user = make_user(is_superuser=True)
+        add_session(request)
+
+        assert storage_status_change_review(request).context_data['show_acknowledged'] is False
+
+    @pytest.mark.django_db
+    @pytest.mark.urls('tufts_local.tests.urls')
+    @patch('tufts_local.views.storage_status_change_view.get_status_change_client')
+    def test_acknowledged_record_is_hidden_then_shown(self, mock_get_client, rf, dummy_client):
+        mock_get_client.return_value = dummy_client
+        dummy_client.acknowledge('jdoe01', '2026-09-10', reviewer='rdms_admin')
+
+        def usernames(query):
+            request = rf.get('/storage-status-change-review/', query)
+            request.user = make_user(is_superuser=True)
+            add_session(request)
+            return {r['username'] for r in storage_status_change_review(request).context_data['records']}
+
+        assert 'jdoe01' not in usernames({})
+        assert 'jdoe01' in usernames({'show_acknowledged': '1'})
+
+    @pytest.mark.django_db
+    @pytest.mark.urls('tufts_local.tests.urls')
+    @patch('tufts_local.views.storage_status_change_view.get_status_change_client')
+    def test_default_view_offers_the_toggle_and_omits_the_review_column(self, mock_get_client, rf, dummy_client):
+        mock_get_client.return_value = dummy_client
+        request = rf.get('/storage-status-change-review/')
+        request.user = make_user(is_superuser=True)
+        add_session(request)
+
+        response = storage_status_change_review(request)
+        response.render()
+        content = response.content.decode()
+
+        assert 'show_acknowledged=1' in content
+        assert 'Show acknowledged' in content
+        assert 'Hide acknowledged' not in content
+        # the column would say Pending on every row here, so it stays out of the way
+        assert '<th scope="col">Review</th>' not in content
+
+    @pytest.mark.django_db
+    @pytest.mark.urls('tufts_local.tests.urls')
+    @patch('tufts_local.views.storage_status_change_view.get_status_change_client')
+    def test_showing_acknowledged_badges_the_reviewed_rows(self, mock_get_client, rf, dummy_client):
+        mock_get_client.return_value = dummy_client
+        dummy_client.acknowledge('jdoe01', '2026-09-10', reviewer='rdms_admin')
+        request = rf.get('/storage-status-change-review/', {'show_acknowledged': '1'})
+        request.user = make_user(is_superuser=True)
+        add_session(request)
+
+        response = storage_status_change_review(request)
+        response.render()
+        content = response.content.decode()
+
+        assert 'Hide acknowledged' in content
+        assert 'Show acknowledged' not in content
+        assert '<th scope="col">Review</th>' in content
+        # one acknowledged record among the three, the rest still pending
+        assert content.count('>Acknowledged</span>') == 1
+        assert content.count('>Pending</span>') == 2
+        # the toggle rides along on each row's form so acting on one doesn't reset the view
+        assert content.count('<input type="hidden" name="show_acknowledged" value="1">') == 3
+
+    @pytest.mark.urls('tufts_local.urls')
+    @patch('tufts_local.views.storage_status_change_view.messages')
+    @patch('tufts_local.views.storage_status_change_view.get_status_change_client')
+    def test_post_keeps_the_toggle_on_the_redirect(self, mock_get_client, mock_messages, rf):
+        """Acknowledging while showing everything must not bounce the reviewer back to the
+        pending-only view, where the row they just acted on has disappeared."""
+        mock_get_client.return_value = make_client()
+        request = rf.post(
+            '/storage-status-change-review/',
+            {
+                'username': 'jdoe01',
+                'record_date': '2026-09-10',
+                'action': 'acknowledge',
+                'show_acknowledged': '1',
+            },
+        )
+        request.user = make_user(is_superuser=True)
+
+        response = storage_status_change_review(request)
+
+        assert response.status_code == 302
+        assert response.url.endswith('?show_acknowledged=1')
+
+    @pytest.mark.urls('tufts_local.urls')
+    @patch('tufts_local.views.storage_status_change_view.messages')
+    @patch('tufts_local.views.storage_status_change_view.get_status_change_client')
+    def test_post_without_the_toggle_redirects_to_the_default_view(self, mock_get_client, mock_messages, rf):
+        mock_get_client.return_value = make_client()
+        request = rf.post(
+            '/storage-status-change-review/',
+            {'username': 'jdoe01', 'record_date': '2026-09-10', 'action': 'acknowledge'},
+        )
+        request.user = make_user(is_superuser=True)
+
+        response = storage_status_change_review(request)
+
+        assert response.status_code == 302
+        assert 'show_acknowledged' not in response.url
