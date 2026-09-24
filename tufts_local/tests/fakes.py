@@ -29,6 +29,8 @@ class DummyStatusChangeAPIClient(StatusChangeAPIClient):
         {
             'date': '2026-09-10',
             'username': 'jdoe01',
+            'full_name': 'Jane Q Doe',
+            'email': 'jane.doe@tufts.edu',
             'current_project_owner': 'Yes',
             'current_project_approver': 'No',
             'current_ncq_sharer': 'Yes',
@@ -56,6 +58,8 @@ class DummyStatusChangeAPIClient(StatusChangeAPIClient):
         {
             'date': '2026-09-12',
             'username': 'asmith02',
+            'full_name': 'Alex Smith',
+            'email': 'alex.smith@tufts.edu',
             'current_project_owner': 'No',
             'current_project_approver': 'Yes',
             'current_ncq_sharer': 'Yes',
@@ -75,6 +79,8 @@ class DummyStatusChangeAPIClient(StatusChangeAPIClient):
         {
             'date': '2026-09-14',
             'username': 'kwong03',
+            'full_name': 'Kelly Wong',
+            'email': 'kelly.wong@tufts.edu',
             'current_project_owner': 'Yes',
             'current_project_approver': 'Yes',
             'current_ncq_sharer': 'No',

@@ -30,7 +30,7 @@ Storage User Status Changes
       <thead>
         <tr>
           <th scope="col">Date</th>
-          <th scope="col">UTLN</th>
+          <th scope="col">Name</th>
           <th scope="col">Role</th>
           <th scope="col">Shares NCQ</th>
           <th scope="col">Changes</th>
@@ -43,7 +43,14 @@ Storage User Status Changes
         {% for r in records %}
         <tr>
           <td class="text-nowrap">{{ r.date }}</td>
-          <td class="text-nowrap">{{ r.username }}</td>
+          <td class="text-nowrap">
+            {# UTLN and email are in the popover to keep the row narrow; fall back to the UTLN
+               as the label, since the service leaves full_name null when no identity row matches #}
+            <span tabindex="0" class="user-detail" data-toggle="popover" data-trigger="hover focus" data-html="true"
+                  data-content="<div class='small'>UTLN: {{ r.username }}</div>{% if r.email %}<div class='small'>{{ r.email }}</div>{% endif %}">
+              {{ r.full_name|default:r.username }}
+            </span>
+          </td>
           <td class="text-nowrap">
             {% if r.current_project_owner == 'Yes' %}<span class="badge badge-secondary mr-1">Owner</span>{% endif %}
             {% if r.current_project_approver == 'Yes' %}<span class="badge badge-secondary">Approver</span>{% endif %}
@@ -113,7 +120,7 @@ Storage User Status Changes
           <input type="hidden" name="record_date" value="{{ r.date }}">
           {% if show_acknowledged %}<input type="hidden" name="show_acknowledged" value="1">{% endif %}
           <div class="modal-header">
-            <h5 class="modal-title" id="review-label-{{ forloop.counter }}">Review Status Change &mdash; {{ r.username }}</h5>
+            <h5 class="modal-title" id="review-label-{{ forloop.counter }}">Review Status Change &mdash; {{ r.full_name|default:r.username }}</h5>
             <button type="button" class="close" data-dismiss="modal" aria-label="Close">
               <span aria-hidden="true">&times;</span>
             </button>

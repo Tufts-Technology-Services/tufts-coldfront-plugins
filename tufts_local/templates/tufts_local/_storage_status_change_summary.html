@@ -1,6 +1,10 @@
 <dl class="row small mb-0">
+  <dt class="col-sm-5">Name</dt>
+  <dd class="col-sm-7">{{ r.full_name|default:"&mdash;" }}</dd>
   <dt class="col-sm-5">UTLN</dt>
   <dd class="col-sm-7">{{ r.username }}</dd>
+  <dt class="col-sm-5">Email</dt>
+  <dd class="col-sm-7">{{ r.email|default:"&mdash;" }}</dd>
   <dt class="col-sm-5">Date</dt>
   <dd class="col-sm-7">{{ r.date }}</dd>
   <dt class="col-sm-5">Role</dt>

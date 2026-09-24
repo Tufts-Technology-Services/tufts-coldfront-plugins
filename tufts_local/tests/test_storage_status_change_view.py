@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
+import re
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -413,3 +414,73 @@ class TestShowAcknowledgedToggle:
 
         assert response.status_code == 302
         assert 'show_acknowledged' not in response.url
+
+
+class TestIdentityColumn:
+    @staticmethod
+    def name_labels(content):
+        """The visible text of each Name cell, i.e. what identifies the row on screen.
+
+        Matched precisely rather than with `in content` because the UTLN also appears in
+        the popover, the hidden inputs and the modal -- so a substring check would pass
+        even with an empty Name cell.
+        """
+        cells = re.findall(r'class="user-detail".*?data-content="[^"]*">(.*?)</span>', content, re.DOTALL)
+        return [cell.strip() for cell in cells]
+
+    def render(self, rf, records):
+        with patch('tufts_local.views.storage_status_change_view.get_status_change_client') as mock_get_client:
+            mock_get_client.return_value = make_client(records=records)
+            request = rf.get('/storage-status-change-review/')
+            request.user = make_user(is_superuser=True)
+            add_session(request)
+            response = storage_status_change_review(request)
+            response.render()
+        return response.content.decode()
+
+    @pytest.mark.django_db
+    @pytest.mark.urls('tufts_local.tests.urls')
+    def test_table_shows_the_name_and_drops_the_utln_column(self, rf):
+        content = self.render(rf, DummyStatusChangeAPIClient._SEED_RECORDS)
+
+        assert '<th scope="col">Name</th>' in content
+        assert '<th scope="col">UTLN</th>' not in content
+        assert self.name_labels(content) == ['Jane Q Doe', 'Alex Smith', 'Kelly Wong']
+
+    @pytest.mark.django_db
+    @pytest.mark.urls('tufts_local.tests.urls')
+    def test_utln_and_email_move_into_the_popover(self, rf):
+        content = self.render(rf, DummyStatusChangeAPIClient._SEED_RECORDS)
+
+        assert 'UTLN: jdoe01' in content
+        assert 'jane.doe@tufts.edu' in content
+        # reachable by keyboard as well as by mouse
+        assert 'data-trigger="hover focus"' in content
+        assert 'tabindex="0" class="user-detail"' in content
+
+    @pytest.mark.django_db
+    @pytest.mark.urls('tufts_local.tests.urls')
+    def test_falls_back_to_the_utln_when_the_identity_lookup_missed(self, rf):
+        """The service sets full_name and email to null when pr_fis has no matching row.
+        With the UTLN column gone, a blank name cell would leave the row unidentifiable."""
+        record = {**DummyStatusChangeAPIClient._SEED_RECORDS[0], 'full_name': None, 'email': None}
+
+        content = self.render(rf, [record])
+
+        assert 'Jane Q Doe' not in content
+        assert 'UTLN: jdoe01' in content
+        # the label falls back to the UTLN rather than leaving the cell empty
+        assert self.name_labels(content) == ['jdoe01']
+        # ...and the popover carries no blank email line
+        assert 'tufts.edu' not in content
+
+    @pytest.mark.django_db
+    @pytest.mark.urls('tufts_local.tests.urls')
+    def test_modal_carries_both_the_name_and_the_utln(self, rf):
+        content = self.render(rf, [DummyStatusChangeAPIClient._SEED_RECORDS[0]])
+
+        summary = content.split('modal-body')[1]
+        assert '<dt class="col-sm-5">Name</dt>' in summary
+        assert '<dt class="col-sm-5">UTLN</dt>' in summary
+        assert 'Jane Q Doe' in summary
+        assert 'jdoe01' in summary
