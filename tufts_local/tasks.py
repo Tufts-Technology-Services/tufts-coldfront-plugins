@@ -173,7 +173,7 @@ def index_new_allocation(allocation_id, scan_id=None, retries=5, wait=5):
 
         vol_path = vol_path_attr.first().value
         logger.info(f'Indexing allocation with vol_path {vol_path} in Starfish.')
-        scan_id, status = add_to_starfish_index(vol_path, scan_id, 'starfish')
+        scan_id, status = add_to_starfish_index(vol_path, 'starfish', scan_id)
         if status is True:
             # do new allocation starfish actions
             logger.info(f'Successfully indexed allocation with vol_path {vol_path} in Starfish.')
