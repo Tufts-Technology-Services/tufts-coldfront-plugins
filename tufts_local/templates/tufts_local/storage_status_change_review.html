@@ -44,8 +44,10 @@ Storage User Status Changes
         <tr>
           <td class="text-nowrap">{{ r.date }}</td>
           <td class="text-nowrap">
-            {# UTLN and email are in the popover to keep the row narrow; fall back to the UTLN
-               as the label, since the service leaves full_name null when no identity row matches #}
+            {% comment %}
+            UTLN and email are in the popover to keep the row narrow; fall back to the UTLN as the
+            label, since the service leaves full_name null when no identity row matches.
+            {% endcomment %}
             <span tabindex="0" class="user-detail" data-toggle="popover" data-trigger="hover focus" data-html="true"
                   data-content="<div class='small'>UTLN: {{ r.username }}</div>{% if r.email %}<div class='small'>{{ r.email }}</div>{% endif %}">
               {{ r.full_name|default:r.username }}
