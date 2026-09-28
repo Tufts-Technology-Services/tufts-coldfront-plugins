@@ -8,6 +8,7 @@ from django.urls import reverse_lazy
 from django.views.generic import FormView
 
 from tufts_local.forms import UpdateProjectOwnerForm
+from tufts_local.tasks import set_sf_owner_tag, update_sf_approver_tags
 from tufts_local.utils import UserNotFoundError, update_project_owner
 
 
@@ -25,6 +26,12 @@ class UpdateProjectOwnerView(LoginRequiredMixin, UserPassesTestMixin, FormView):
         new_owner = form.cleaned_data['new_owner']
         try:
             project = update_project_owner(project_key, new_owner)
+            allocations = project.allocation_set.filter(status__name='Active')
+            for allocation in allocations:
+                set_sf_owner_tag(allocation.id)
+
+            update_sf_approver_tags(project.id)
+
         except UserNotFoundError as e:
             form.add_error('new_owner', str(e))
             return self.form_invalid(form)
