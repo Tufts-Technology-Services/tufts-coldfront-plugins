@@ -7,6 +7,7 @@ import logging
 from unittest.mock import MagicMock
 
 import pytest
+from django.contrib.auth import get_user_model
 from django.contrib.auth.models import AnonymousUser
 from django.contrib.sessions.middleware import SessionMiddleware
 from django.test import RequestFactory
@@ -15,15 +16,17 @@ from django_q.models import OrmQ, Schedule, Task
 from django_q.signing import SignedPackage
 from django_q.tasks import schedule as create_schedule
 
-from tufts_local.models import IgnoredTask
+from tufts_local.models import IgnoredTask, TaskAcknowledgement
 from tufts_local.views import task_report
 from tufts_local.views.task_report import _q_options
 
 
-def make_user(is_superuser=False):
+def make_user(is_superuser=False, is_staff=False):
     user = MagicMock(name='user')
     user.is_authenticated = True
     user.is_superuser = is_superuser
+    # spelled out because a MagicMock would otherwise answer every permission check truthily
+    user.is_staff = is_staff
     user.username = 'rdms_admin'
     return user
 
@@ -72,14 +75,29 @@ class TestTaskReportAccess:
         assert response.status_code == 302
         assert 'login' in response.url
 
-    def test_non_superuser_redirects_to_login(self, rf):
+    def test_ordinary_user_redirects_to_login(self, rf):
         request = rf.get('/task-report/')
-        request.user = make_user(is_superuser=False)
+        request.user = make_user()
 
         response = task_report(request)
 
         assert response.status_code == 302
         assert 'login' in response.url
+
+    @pytest.mark.django_db
+    @pytest.mark.urls('tufts_local.tests.urls')
+    def test_staff_may_see_the_report(self, rf):
+        """Staff acknowledge failures, so they need the page the Ack button lives on."""
+        make_task('a' * 32, 'indexing')
+        request = rf.get('/task-report/')
+        request.user = make_user(is_staff=True)
+        add_session(request)
+
+        response = task_report(request)
+        response.render()
+
+        assert response.status_code == 200
+        assert b'indexing' in response.content
 
     def test_post_not_allowed(self, rf):
         request = rf.post('/task-report/')
@@ -554,3 +572,69 @@ class TestQOptions:
 
         assert 'Could not parse kwargs for schedule 14' in caplog.text
         assert [record.levelno for record in caplog.records] == [logging.DEBUG]
+
+
+@pytest.mark.django_db
+@pytest.mark.urls('tufts_local.tests.urls')
+class TestAckColumn:
+    def test_a_failure_offers_the_button(self, rf):
+        make_task('a' * 32, 'boom', success=False)
+
+        response = get_report(rf)
+        response.render()
+
+        assert b'>Ack</button>' in response.content
+        assert b'hx-post="/task-acknowledge/' + b'a' * 32 + b'/"' in response.content
+
+    def test_an_acknowledged_failure_shows_who_and_when(self, rf):
+        task = make_task('a' * 32, 'boom', success=False)
+        user = get_user_model().objects.create(username='someone')
+        TaskAcknowledgement.objects.create(task=task, acknowledged_by=user)
+
+        response = get_report(rf)
+        response.render()
+
+        assert b'Acknowledged' in response.content
+        assert b'Acknowledged by someone' in response.content
+        assert b'>Undo</button>' in response.content
+        assert b'>Ack</button>' not in response.content
+
+    def test_a_success_offers_nothing(self, rf):
+        """Acknowledging is for failures; there is nothing to sign off on a task that worked."""
+        make_task('a' * 32, 'fine', success=True)
+
+        response = get_report(rf)
+        response.render()
+
+        assert b'>Ack</button>' not in response.content
+        assert b'Acknowledged' not in response.content
+
+    def test_the_button_carries_csrf_for_htmx(self, rf):
+        """coldfront's base.html wires up nothing for htmx, so without this attribute every
+        hx-post is rejected as a CSRF failure."""
+        make_task('a' * 32, 'boom', success=False)
+
+        response = get_report(rf)
+        response.render()
+
+        assert b'hx-headers=' in response.content
+        assert b'X-CSRFToken' in response.content
+
+    def test_the_button_remembers_the_filter_and_page(self, rf):
+        make_task('a' * 32, 'boom', group='starfish', success=False)
+
+        response = get_report(rf, '?group=starfish')
+        response.render()
+
+        assert response.context_data['return_to'] == 'group=starfish&page=1'
+        assert b'value="group=starfish&amp;page=1"' in response.content
+
+    def test_the_acknowledgement_comes_back_with_the_row(self, rf):
+        """Every row asks whether it has been acknowledged. Without select_related that is
+        one extra query per row -- 50 a page, every five seconds."""
+        make_task('a' * 32, 'boom', success=False)
+
+        response = get_report(rf)
+
+        task = response.context_data['page_obj'].object_list[0]
+        assert 'acknowledgement' in task._state.fields_cache

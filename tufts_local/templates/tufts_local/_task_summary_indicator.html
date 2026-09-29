@@ -1,0 +1,32 @@
+{% comment %}
+The background-task status indicator: counts only, never a task name, argument or result.
+
+Returned on its own by views/task_summary.task_summary_indicator, which is what the page
+holding the corner polls with htmx, so this fragment carries no wrapper of its own -- the
+element being swapped into belongs to that page.
+{% endcomment %}
+{% comment %}
+Everyone who can reach this endpoint can open the summary page -- both are gated on
+_may_view -- so the badge is always a link to it.
+{% endcomment %}
+<a href="{% url 'task-summary' %}" class="text-reset text-decoration-none">
+  <span class="text-nowrap"
+        title="Background tasks as of {{ generated_at|date:'H:i' }}: {{ failed_recent }} failed and {{ succeeded_recent }} succeeded in the last 2 hours, {{ failed_earlier }} failed in the 22 hours before that, {{ failed_older }} failed earlier still. {{ scheduled }} scheduled.">
+    <i class="fa fa-tasks" aria-hidden="true"></i>
+    {% comment %}
+    Three states, worst first: something failed in the last two hours, something failed
+    before that and is still unanswered, or nothing failed at all. The amber branch says
+    "earlier" out loud, so a red 2 and an amber 2 aren't the same claim in two colours.
+    {% endcomment %}
+    {% if failed_recent %}
+    <span class="badge badge-danger">{{ failed_recent }} failed</span>
+    {% elif failed_before %}
+    <span class="badge badge-warning">{{ failed_before }} failed earlier</span>
+    {% else %}
+    <span class="badge badge-success">{{ succeeded_recent }} ok</span>
+    {% endif %}
+    {% if scheduled %}
+    <span class="badge badge-info">{{ scheduled }} scheduled</span>
+    {% endif %}
+  </span>
+</a>

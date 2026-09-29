@@ -175,6 +175,16 @@ def _exclude_ignored(tasks, ignored_names, ignored_groups):
     return tasks
 
 
+def _may_view(user):
+    """
+    Who the task pages are for: superusers and staff alike.
+
+    Defined once, here, because task_summary and the acknowledgement views all share it
+    and they link to each other -- a link its audience can't follow is worse than none.
+    """
+    return user.is_superuser or user.is_staff
+
+
 def _wants_partial(request):
     """
     True when htmx is asking for just the tables rather than the whole page.
@@ -199,11 +209,11 @@ def _group_choices(pending_rows, ignored_names, ignored_groups):
 
 @login_required
 @require_GET
-@user_passes_test(lambda u: u.is_superuser)
+@user_passes_test(_may_view)
 def task_report(request):
     """
     View of django-q2 tasks: what is still pending (scheduled or queued) and what has
-    already run, with its success/failure status and result. Superuser only.
+    already run, with its success/failure status and result.
     """
     # tasks matching an admin-maintained IgnoredTask rule are dropped everywhere on this page
     ignored_names, ignored_groups = _ignore_rules()
@@ -231,7 +241,9 @@ def task_report(request):
         tasks = tasks.filter(name__icontains=name)
     if group:
         tasks = tasks.filter(group=group)
-    tasks = tasks.order_by('-stopped')
+    # every row asks whether it has been acknowledged; without this that is 50 extra
+    # queries a page, every five seconds
+    tasks = tasks.select_related('acknowledgement').order_by('-stopped')
 
     paginator = Paginator(tasks, TASKS_PER_PAGE)
     try:
@@ -256,6 +268,11 @@ def task_report(request):
             'is_paginated': paginator.num_pages > 1,
             'task_count': paginator.count,
             'filter_parameters': f'{filter_parameters}&' if filter_parameters else '',
+            # where an Ack button should send someone back to, for the case where htmx
+            # isn't there to swap the cell in place
+            'return_to': f'{filter_parameters}&page={page_obj.number}'
+            if filter_parameters
+            else f'page={page_obj.number}',
             'refresh_seconds': REFRESH_SECONDS,
         },
     )

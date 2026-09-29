@@ -33,8 +33,15 @@ Background Task Report
     </span>
   </div>
 
-  {# the poll keeps the filters and page the user is looking at; htmx gets the tables alone back #}
+  {% comment %}
+  The poll keeps the filters and page the user is looking at; htmx gets the tables alone
+  back. hx-headers sits here rather than on each Ack button: it inherits to descendants,
+  and this div survives the innerHTML swap, so one attribute covers every button the
+  table will ever contain. coldfront's base.html wires up nothing for htmx, so without
+  it every hx-post would be rejected as a CSRF failure.
+  {% endcomment %}
   <div id="task-tables"
+       hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
        hx-get="{% url 'task-report' %}?{{ filter_parameters }}page={{ page_obj.number }}"
        hx-trigger="every {{ refresh_seconds }}s [shouldAutoRefresh()]"
        hx-swap="innerHTML">
@@ -63,8 +70,14 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 document.body.addEventListener('htmx:afterSwap', function(event) {
-    if (event.target.id === 'task-tables') {
-        $('#task-tables [data-toggle="popover"]').popover();
+    var tables = document.getElementById('task-tables');
+    // two kinds of swap land here: the whole table on a poll, and a single Ack cell on a
+    // click. Both bring in markup with popovers that jQuery hasn't initialized yet.
+    if (!tables || !tables.contains(event.target)) {
+        return;
+    }
+    $('#task-tables [data-toggle="popover"]').popover();
+    if (event.target === tables) {
         document.getElementById('last-updated').textContent = new Date().toLocaleTimeString();
     }
 });
