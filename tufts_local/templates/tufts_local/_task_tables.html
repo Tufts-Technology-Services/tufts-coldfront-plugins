@@ -77,6 +77,7 @@ views/task_report.py), so the filter inputs above it are never clobbered mid-typ
         <th scope="col">Duration</th>
         <th scope="col">Attempts</th>
         <th scope="col" style="min-width: 16rem;">Result</th>
+        <th scope="col">Ack</th>
       </tr>
     </thead>
     <tbody>
@@ -104,6 +105,7 @@ views/task_report.py), so the filter inputs above it are never clobbered mid-typ
             <i class="fa fa-search-plus" aria-hidden="true"></i>
           </a>
         </td>
+        {% include "tufts_local/_task_ack_cell.html" %}
       </tr>
       {% endfor %}
     </tbody>

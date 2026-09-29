@@ -1,0 +1,23 @@
+{% comment %}
+One cell of a whole-record table. Kept in its own partial because the completed and the
+scheduled tables render their cells identically over two different models, and because
+every field of both is shown: the set of columns is read off the model, not written out.
+{% endcomment %}
+<td class="text-nowrap">
+  {% if cell.name == 'success' %}
+    {% if cell.flag %}
+    <span class="badge badge-success">Success</span>
+    {% else %}
+    <span class="badge badge-danger">Failed</span>
+    {% endif %}
+  {% elif cell.full %}
+    <span class="small">{{ cell.text|truncatechars:max_cell_chars }}</span>
+    {# the whole value, which is usually a result, a traceback or a pickled argument list #}
+    <a href="#" tabindex="0" class="cell-detail" data-toggle="popover" data-trigger="focus" data-html="true"
+       data-content="<pre class='small mb-0'>{{ cell.full }}</pre>">
+      <i class="fa fa-search-plus" aria-hidden="true"></i>
+    </a>
+  {% else %}
+    {{ cell.text|default:"—" }}
+  {% endif %}
+</td>

@@ -9,7 +9,9 @@ from .reports import (
     sf_report,
 )
 from .storage_status_change_view import storage_status_change_review
+from .task_acknowledgement import acknowledge_task, unacknowledge_task
 from .task_report import task_report
+from .task_summary import task_summary, task_summary_indicator
 from .update_project_owner_view import UpdateProjectOwnerView
 from .views import (
     add_user_to_coldfront,
@@ -20,6 +22,8 @@ from .views import (
 )
 
 __all__ = [
+    'acknowledge_task',
+    'unacknowledge_task',
     'AdminProjectCreateView',
     'project_update_user_role',
     'project_get_email_notification',
@@ -31,5 +35,7 @@ __all__ = [
     'storage_allocation_history',
     'storage_status_change_review',
     'task_report',
+    'task_summary',
+    'task_summary_indicator',
     'UpdateProjectOwnerView',
 ]

@@ -67,4 +67,25 @@ urlpatterns = [
         views.task_report,
         name='task-report',
     ),
+    path(
+        # django-q task ids are 32-character strings, not integers
+        'task-acknowledge/<str:task_id>/',
+        views.acknowledge_task,
+        name='task-acknowledge',
+    ),
+    path(
+        'task-unacknowledge/<str:task_id>/',
+        views.unacknowledge_task,
+        name='task-unacknowledge',
+    ),
+    path(
+        'task-summary/',
+        views.task_summary,
+        name='task-summary',
+    ),
+    path(
+        'task-summary-indicator/',
+        views.task_summary_indicator,
+        name='task-summary-indicator',
+    ),
 ]

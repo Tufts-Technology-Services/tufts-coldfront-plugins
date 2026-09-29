@@ -1,0 +1,137 @@
+{% extends "common/base.html" %}
+
+{% block title %}
+Background Task Summary
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center">
+  <h2>Background Task Summary</h2>
+  {% comment %}
+  The same indicator meant for the corner of every page, wired the way that corner should
+  wire it: an empty element that htmx fills from the indicator endpoint and refreshes.
+  {% endcomment %}
+  <span id="task-summary-indicator"
+        hx-get="{% url 'task-summary-indicator' %}"
+        hx-trigger="load, every {{ indicator_refresh_seconds }}s"
+        hx-swap="innerHTML"></span>
+</div>
+<p>
+  How the django-q cluster's work has turned out, counted by outcome. Anything that finished
+  more than two hours ago is a count only; everything more recent, and everything still
+  scheduled to run, is listed in full. Generated {{ generated_at|date:"Y-m-d H:i:s" }}.
+</p>
+
+<div class="col-lg-12 mt-2">
+  <h3>Counts by status</h3>
+  <hr>
+  <div class="table-responsive">
+    <table class="table table-sm">
+      <thead>
+        <tr>
+          <th scope="col">Period</th>
+          <th scope="col">Status</th>
+          <th scope="col">Tasks</th>
+          <th scope="col">Period total</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for segment in segments %}
+          {% for count in segment.counts %}
+          <tr>
+            {% comment %}
+            The period and its total belong to the whole segment, so they are written once
+            against its first status row and the cells below them are spanned into.
+            {% endcomment %}
+            {% if forloop.first %}
+            <td class="text-nowrap" rowspan="{{ segment.counts|length }}">
+              {{ segment.label }}
+              <div class="text-muted small">
+                {% if segment.since %}{{ segment.since|date:"Y-m-d H:i" }} &ndash; {% else %}before {% endif %}
+                {{ segment.until|date:"Y-m-d H:i" }}
+              </div>
+            </td>
+            {% endif %}
+            <td class="text-nowrap">
+              {% if count.status == 'Success' %}
+              <span class="badge badge-success">Success</span>
+              {% else %}
+              <span class="badge badge-danger">Failed</span>
+              {% endif %}
+            </td>
+            <td>{{ count.count }}</td>
+            {% if forloop.first %}
+            <td rowspan="{{ segment.counts|length }}">{{ segment.total }}</td>
+            {% endif %}
+          </tr>
+          {% endfor %}
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <h3 class="mt-4">
+    Finished in the last 2 hours <span class="badge badge-secondary">{{ recent_count }}</span>
+  </h3>
+  <hr>
+  {% if recent_rows %}
+  <div class="table-responsive">
+    <table class="table table-sm">
+      <thead>
+        <tr>
+          {% for name, heading in recent_columns %}<th scope="col" class="text-nowrap">{{ heading }}</th>{% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in recent_rows %}
+        <tr>
+          {% for cell in row %}{% include "tufts_local/_task_summary_cell.html" %}{% endfor %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="alert alert-info" role="alert">
+    <i class="fa fa-info-circle" aria-hidden="true"></i>
+    No tasks have finished since {{ recent_since|date:"Y-m-d H:i" }}.
+  </div>
+  {% endif %}
+
+  <h3 class="mt-4">
+    Scheduled <span class="badge badge-secondary">{{ schedule_count }}</span>
+  </h3>
+  <hr>
+  {% if schedule_rows %}
+  <div class="table-responsive">
+    <table class="table table-sm">
+      <thead>
+        <tr>
+          {% for name, heading in schedule_columns %}<th scope="col" class="text-nowrap">{{ heading }}</th>{% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in schedule_rows %}
+        <tr>
+          {% for cell in row %}{% include "tufts_local/_task_summary_cell.html" %}{% endfor %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="alert alert-info" role="alert">
+    <i class="fa fa-info-circle" aria-hidden="true"></i> There are no scheduled tasks to display.
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block javascript %}
+{{ block.super }}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    $('[data-toggle="popover"]').popover();
+});
+</script>
+{% endblock %}

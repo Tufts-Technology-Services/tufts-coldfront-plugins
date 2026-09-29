@@ -1,0 +1,36 @@
+{% comment %}
+The Ack column of one completed-task row.
+
+The whole <td>, because the acknowledge and undo views return this same partial with
+hx-swap="outerHTML" to replace the cell in place -- so what a click produces and what the
+five-second poll produces are the same markup.
+
+Each control is a real form: htmx picks up the hx-post and swaps the cell, and where htmx
+never loaded the plain POST still works and the view redirects back to the report. A dead
+button would be worse than the stale table that is all the page loses without htmx.
+{% endcomment %}
+<td class="text-nowrap">
+  {% if task.success %}
+  <span class="text-muted">&mdash;</span>
+  {% elif task.acknowledgement %}
+  <span class="badge badge-secondary" tabindex="0" data-toggle="popover" data-trigger="hover focus" data-html="true"
+        data-content="<div class='small'>Acknowledged by {{ task.acknowledgement.acknowledged_by|default:"a deleted user" }}<br>{{ task.acknowledgement.acknowledged_at|date:"Y-m-d H:i" }}{% if task.acknowledgement.reason %}<br>{{ task.acknowledgement.reason }}{% endif %}</div>">
+    <i class="fa fa-check" aria-hidden="true"></i> Acknowledged
+  </span>
+  <form method="post" action="{% url 'task-unacknowledge' task.id %}" class="d-inline">
+    {% csrf_token %}
+    <input type="hidden" name="return_to" value="{{ return_to }}">
+    <button type="submit" class="btn btn-link btn-sm p-0 align-baseline"
+            hx-post="{% url 'task-unacknowledge' task.id %}" hx-target="closest td" hx-swap="outerHTML"
+            title="Undo this acknowledgement">Undo</button>
+  </form>
+  {% else %}
+  <form method="post" action="{% url 'task-acknowledge' task.id %}" class="d-inline">
+    {% csrf_token %}
+    <input type="hidden" name="return_to" value="{{ return_to }}">
+    <button type="submit" class="btn btn-warning btn-sm"
+            hx-post="{% url 'task-acknowledge' task.id %}" hx-target="closest td" hx-swap="outerHTML"
+            title="Mark this failure as seen, so it stops lighting the status indicator">Ack</button>
+  </form>
+  {% endif %}
+</td>
