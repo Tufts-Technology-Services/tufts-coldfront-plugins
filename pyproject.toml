@@ -6,13 +6,14 @@ authors = [
 	{ name = "Chris Barnett", email = "christopher.barnett@tufts.edu" }
 ]
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.10"
 license = "GPL-3.0-only"
 license-files = ["LICENSE"]
 keywords = ["high-performance-computing", "resource-allocation"]
 classifiers = [
     'Programming Language :: Python :: 3',
-    'Framework :: Django :: 6.0',
+    'Framework :: Django :: 4.2',
+    'Framework :: Django :: 5.2',
     'Topic :: Scientific/Engineering',
     'Topic :: System :: Systems Administration',
     'Topic :: Internet :: WWW/HTTP :: WSGI :: Application',
@@ -20,7 +21,12 @@ classifiers = [
 dependencies = [
     "coldfront>=1.1.7,<2",
     "pyinfra>=3.10.0,<=3.11.0",
-    "djangosaml2"
+    "djangosaml2",
+    "coldfront-utils @ git+https://github.com/Tufts-Technology-Services/coldfront-utils",
+    "coldfront-storage-plugin @ git+https://github.com/Tufts-Technology-Services/coldfront-storage-plugin",
+    # app: coldfront_billing. Private repo under the TuftsRT org: ssh remote.
+    "coldfront-billing@git+ssh://git@github.com/TuftsRT/coldfront-billing-plugin.git",
+    "starfish-api-client @ git+https://github.com/Tufts-Technology-Services/starfish-api-client",
 ]
 
 [dependency-groups]
@@ -31,7 +37,6 @@ dev = [
     "pytest-django",
     "pytest-cov>=7.1.0",
     "pytest-xdist>=3.8.0",
-    "coldfront-utils",
 ]
 
 [build-system]
@@ -50,13 +55,10 @@ url = "https://test.pypi.org/simple/"
 publish-url = "https://test.pypi.org/legacy/"
 explicit = true
 
-[tool.uv.sources]
-coldfront-utils = { git = "https://github.com/Tufts-Technology-Services/coldfront-utils", rev = "493355ce5b0b8227ea6fe5a36104bc2d04c65676" }
-
 [tool.ruff]
 line-length = 120
 indent-width = 4
-target-version = "py312"
+target-version = "py310"
 
 [tool.ruff.lint]
 select = ["E4", "E7", "E9", "F", "I", "Q", "S308"]
