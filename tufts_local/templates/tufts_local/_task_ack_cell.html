@@ -13,10 +13,19 @@ button would be worse than the stale table that is all the page loses without ht
   {% if task.success %}
   <span class="text-muted">&mdash;</span>
   {% elif task.acknowledgement %}
-  <span class="badge badge-secondary" tabindex="0" data-toggle="popover" data-trigger="hover focus" data-html="true"
-        data-content="<div class='small'>Acknowledged by {{ task.acknowledgement.acknowledged_by|default:"a deleted user" }}<br>{{ task.acknowledgement.acknowledged_at|date:"Y-m-d H:i" }}{% if task.acknowledgement.reason %}<br>{{ task.acknowledgement.reason }}{% endif %}</div>">
+  {% comment %}
+  A modal, not a popover: this cell is swapped in on a click and on every poll, and nothing
+  would ever instantiate a popover on it. See _task_detail_modal.html.
+  {% endcomment %}
+  <button type="button" class="badge bg-secondary border-0"
+          data-bs-toggle="modal" data-bs-target="#task-detail-modal"
+          data-detail-title="Acknowledgement"
+          data-detail="Acknowledged by {{ task.acknowledgement.acknowledged_by|default:"a deleted user" }}
+{{ task.acknowledgement.acknowledged_at|date:"Y-m-d H:i" }}{% if task.acknowledgement.reason %}
+
+{{ task.acknowledgement.reason }}{% endif %}">
     <i class="fa fa-check" aria-hidden="true"></i> Acknowledged
-  </span>
+  </button>
   <form method="post" action="{% url 'task-unacknowledge' task.id %}" class="d-inline">
     {% csrf_token %}
     <input type="hidden" name="return_to" value="{{ return_to }}">

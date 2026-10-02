@@ -4,6 +4,7 @@
 
 import datetime
 import logging
+from html.parser import HTMLParser
 from unittest.mock import MagicMock
 
 import pytest
@@ -123,7 +124,7 @@ class TestCompletedTasks:
         assert b'add_sf_tags_alloc_activate_2' in response.content
         assert b'TimeoutError' in response.content
 
-    def test_result_is_escaped_in_the_detail_popover(self, rf):
+    def test_result_is_escaped_in_the_detail_modal(self, rf):
         # tracebacks carry quotes and angle brackets, which would otherwise break out of the attribute
         make_task('a' * 32, 'risky', result='<script>alert("x")</script>')
 
@@ -574,6 +575,102 @@ class TestQOptions:
         assert [record.levelno for record in caplog.records] == [logging.DEBUG]
 
 
+def _nested_in_task_tables(content, element_id):
+    """Is the element with this id a descendant of #task-tables in the rendered page?
+
+    Counts div depth from the opening of #task-tables, which is enough here: the region is
+    a div and so is everything that nests inside it.
+    """
+
+    class Finder(HTMLParser):
+        def __init__(self):
+            super().__init__()
+            self.depth = None
+            self.found = False
+
+        def handle_starttag(self, tag, attrs):
+            attributes = dict(attrs)
+            if self.depth is None:
+                if attributes.get('id') == 'task-tables':
+                    self.depth = 1
+                return
+            if attributes.get('id') == element_id:
+                self.found = True
+            if tag == 'div':
+                self.depth += 1
+
+        def handle_endtag(self, tag):
+            if self.depth is not None and tag == 'div':
+                self.depth -= 1
+                if self.depth == 0:
+                    self.depth = None
+
+    finder = Finder()
+    finder.feed(content.decode())
+    assert finder.depth is None, 'never found the end of #task-tables; the check would be vacuous'
+    return finder.found
+
+
+@pytest.mark.django_db
+@pytest.mark.urls('tufts_local.tests.urls')
+class TestDetailModal:
+    """The tables here are swapped in by htmx, and nothing instantiates a popover on
+    swapped-in content: coldfront creates them once on DOMContentLoaded, and a page script
+    can't make its own, since the bundle exposes no Bootstrap API. Bootstrap's modal click
+    handler is delegated on document, so a modal keeps working on rows that arrive later.
+    These tests hold the report to that, because the symptom of getting it wrong is a
+    control that renders perfectly and does nothing when clicked."""
+
+    def test_the_page_carries_one_modal_for_every_row(self, rf):
+        make_task('a' * 32, 'one')
+        make_task('b' * 32, 'two')
+
+        response = get_report(rf)
+        response.render()
+
+        assert response.content.count(b'id="task-detail-modal"') == 1
+        assert response.content.count(b'data-bs-target="#task-detail-modal"') == 2
+
+    def test_the_modal_sits_outside_the_swapped_region(self, rf):
+        """hx-swap="innerHTML" replaces everything inside #task-tables, so a modal nested
+        in there is gone the moment the first poll lands, and every trigger on the page
+        then opens nothing at all -- silently, and only after a few seconds have passed.
+
+        Nesting has to be checked structurally: the modal is absent from the swapped
+        partial and present in the page whether it is nested or not, so neither one on its
+        own can tell the two arrangements apart.
+        """
+        make_task('a' * 32, 'boom')
+
+        response = get_report(rf)
+        response.render()
+
+        assert b'id="task-detail-modal"' in response.content
+        assert not _nested_in_task_tables(response.content, 'task-detail-modal')
+
+    def test_the_trigger_carries_the_whole_detail(self, rf):
+        make_task('a' * 32, 'risky', result='TimeoutError: not indexed')
+
+        response = get_report(rf)
+        response.render()
+
+        assert b'data-detail-title="risky"' in response.content
+        detail = response.content.split(b'data-detail="', 1)[1].split(b'">', 1)[0]
+        assert b'Args' in detail and b'Kwargs' in detail and b'Result' in detail
+        assert b'TimeoutError: not indexed' in detail
+
+    def test_the_detail_survives_a_swap(self, rf):
+        """The partial htmx swaps in has to carry its own trigger, or the detail is
+        reachable on the first page load and never again."""
+        make_task('a' * 32, 'boom')
+
+        response = get_report(rf, htmx=True)
+        response.render()
+
+        assert response.template_name == 'tufts_local/_task_tables.html'
+        assert b'data-bs-target="#task-detail-modal"' in response.content
+
+
 @pytest.mark.django_db
 @pytest.mark.urls('tufts_local.tests.urls')
 class TestAckColumn:
@@ -610,15 +707,19 @@ class TestAckColumn:
         assert b'Acknowledged' not in response.content
 
     def test_the_button_carries_csrf_for_htmx(self, rf):
-        """coldfront's base.html wires up nothing for htmx, so without this attribute every
-        hx-post is rejected as a CSRF failure."""
+        """Every hx-post in the table is rejected as a CSRF failure without this header.
+
+        coldfront 1.1.9 supplies it on <body> in common/base.html, so the page no longer
+        sets it itself -- which is worth a test rather than an assumption, since losing it
+        would break the Ack button and nothing else.
+        """
         make_task('a' * 32, 'boom', success=False)
 
         response = get_report(rf)
         response.render()
 
         assert b'hx-headers=' in response.content
-        assert b'X-CSRFToken' in response.content
+        assert b'x-csrftoken' in response.content.lower()
 
     def test_the_button_remembers_the_filter_and_page(self, rf):
         make_task('a' * 32, 'boom', group='starfish', success=False)

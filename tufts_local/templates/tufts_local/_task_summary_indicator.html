@@ -19,14 +19,14 @@ _may_view -- so the badge is always a link to it.
     "earlier" out loud, so a red 2 and an amber 2 aren't the same claim in two colours.
     {% endcomment %}
     {% if failed_recent %}
-    <span class="badge badge-danger">{{ failed_recent }} failed</span>
+    <span class="badge bg-danger">{{ failed_recent }} failed</span>
     {% elif failed_before %}
-    <span class="badge badge-warning">{{ failed_before }} failed earlier</span>
+    <span class="badge bg-warning">{{ failed_before }} failed earlier</span>
     {% else %}
-    <span class="badge badge-success">{{ succeeded_recent }} ok</span>
+    <span class="badge bg-success">{{ succeeded_recent }} ok</span>
     {% endif %}
     {% if scheduled %}
-    <span class="badge badge-info">{{ scheduled }} scheduled</span>
+    <span class="badge bg-info">{{ scheduled }} scheduled</span>
     {% endif %}
   </span>
 </a>
