@@ -21,7 +21,7 @@ _may_view -- so the badge is always a link to it.
     {% if failed_recent %}
     <span class="badge bg-danger">{{ failed_recent }} failed</span>
     {% elif failed_before %}
-    <span class="badge bg-warning">{{ failed_before }} failed earlier</span>
+    <span class="badge text-bg-warning">{{ failed_before }} failed earlier</span>
     {% else %}
     <span class="badge bg-success">{{ succeeded_recent }} ok</span>
     {% endif %}

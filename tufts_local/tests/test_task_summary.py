@@ -520,7 +520,7 @@ class TestIndicator:
         response = get_indicator(rf)
         response.render()
 
-        assert b'bg-warning' in response.content
+        assert b'text-bg-warning' in response.content
         assert b'1 failed earlier' in response.content
         assert b'bg-danger' not in response.content
 
@@ -629,7 +629,7 @@ class TestAcknowledgedFailures:
     def test_an_amber_badge_goes_green(self, rf):
         task = make_task('a' * 32, 'old_boom', success=False, minutes_ago=30 * 60)
 
-        assert b'bg-warning' in self.rendered(rf)
+        assert b'text-bg-warning' in self.rendered(rf)
 
         self.acknowledge(task)
 

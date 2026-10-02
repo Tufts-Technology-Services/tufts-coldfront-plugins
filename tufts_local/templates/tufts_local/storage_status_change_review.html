@@ -61,16 +61,16 @@ Storage User Status Changes
           <td>{{ r.current_ncq_sharer|default:"&mdash;" }}</td>
           <td>
             {% if r.ncq_eligible_old != r.ncq_eligible_new %}
-              <span class="badge bg-warning d-block mb-1">NCQ Eligibility</span>
+              <span class="badge text-bg-warning d-block mb-1">NCQ Eligibility</span>
             {% endif %}
             {% if r.active_status_old != r.active_status_new %}
-              <span class="badge bg-warning d-block mb-1">Active Status</span>
+              <span class="badge text-bg-warning d-block mb-1">Active Status</span>
             {% endif %}
             {% if r.title_old != r.title_new %}
-              <span class="badge bg-warning d-block mb-1">Title</span>
+              <span class="badge text-bg-warning d-block mb-1">Title</span>
             {% endif %}
             {% if r.primary_affiliation_old != r.primary_affiliation_new %}
-              <span class="badge bg-warning d-block mb-1">Primary Affiliation</span>
+              <span class="badge text-bg-warning d-block mb-1">Primary Affiliation</span>
             {% endif %}
             {% if r.ncq_eligible_old == r.ncq_eligible_new and r.active_status_old == r.active_status_new and r.title_old == r.title_new and r.primary_affiliation_old == r.primary_affiliation_new %}
               <span class="text-muted">No changes</span>
@@ -98,7 +98,7 @@ Storage User Status Changes
               <span class="badge bg-success">Acknowledged</span>
               {% if r.review_date %}<div class="small text-muted">{{ r.review_date }}</div>{% endif %}
             {% else %}
-              <span class="badge bg-warning">Pending</span>
+              <span class="badge text-bg-warning">Pending</span>
             {% endif %}
           </td>
           {% endif %}

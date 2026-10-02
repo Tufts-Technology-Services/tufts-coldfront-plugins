@@ -17,7 +17,7 @@
   <dt class="col-sm-5">NCQ Eligibility</dt>
   <dd class="col-sm-7">
     {% if r.ncq_eligible_old != r.ncq_eligible_new %}
-      <span class="badge bg-warning">{{ r.ncq_eligible_old }} &rarr; {{ r.ncq_eligible_new }}</span>
+      <span class="badge text-bg-warning">{{ r.ncq_eligible_old }} &rarr; {{ r.ncq_eligible_new }}</span>
     {% else %}
       {{ r.ncq_eligible_new }}
     {% endif %}
@@ -25,7 +25,7 @@
   <dt class="col-sm-5">Active Status</dt>
   <dd class="col-sm-7">
     {% if r.active_status_old != r.active_status_new %}
-      <span class="badge bg-warning">{{ r.active_status_old }} &rarr; {{ r.active_status_new }}</span>
+      <span class="badge text-bg-warning">{{ r.active_status_old }} &rarr; {{ r.active_status_new }}</span>
     {% else %}
       {{ r.active_status_new }}
     {% endif %}
@@ -33,7 +33,7 @@
   <dt class="col-sm-5">Title</dt>
   <dd class="col-sm-7">
     {% if r.title_old != r.title_new %}
-      <span class="badge bg-warning">{{ r.title_old }} &rarr; {{ r.title_new }}</span>
+      <span class="badge text-bg-warning">{{ r.title_old }} &rarr; {{ r.title_new }}</span>
     {% else %}
       {{ r.title_new }}
     {% endif %}
@@ -41,7 +41,7 @@
   <dt class="col-sm-5">Primary Affiliation</dt>
   <dd class="col-sm-7">
     {% if r.primary_affiliation_old != r.primary_affiliation_new %}
-      <span class="badge bg-warning">{{ r.primary_affiliation_old }} &rarr; {{ r.primary_affiliation_new }}</span>
+      <span class="badge text-bg-warning">{{ r.primary_affiliation_old }} &rarr; {{ r.primary_affiliation_new }}</span>
     {% else %}
       {{ r.primary_affiliation_new }}
     {% endif %}
