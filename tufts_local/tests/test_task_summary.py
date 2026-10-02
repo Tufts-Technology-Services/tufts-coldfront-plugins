@@ -544,6 +544,29 @@ class TestIndicator:
         assert b'2 failed earlier' in response.content
         assert payload(get_indicator(rf, '?format=json'))['failed_before'] == 2
 
+    def test_the_scheduled_count_gets_its_own_badge(self, rf):
+        """It sits beside the failure badge rather than replacing it: what is queued to run
+        and what has already broken are separate questions."""
+        make_schedule()
+        make_task('a' * 32, 'boom', success=False, minutes_ago=1)
+
+        response = get_indicator(rf)
+        response.render()
+
+        assert b'1 scheduled' in response.content
+        # text-bg-* rather than bg-*: the latter leaves white text on pale blue
+        assert b'badge text-bg-info' in response.content
+        assert b'bg-danger' in response.content
+
+    def test_no_scheduled_badge_when_nothing_is_scheduled(self, rf):
+        """The title still counts them -- "0 scheduled" is a fact worth stating on hover --
+        so this looks for the badge rather than the word."""
+        response = get_indicator(rf)
+        response.render()
+
+        assert b'bg-info' not in response.content
+        assert b'>0 scheduled</span>' not in response.content
+
     def test_fragment_names_no_tasks(self, rf):
         make_task('a' * 32, 'secret_task_name', result='secret result')
 
