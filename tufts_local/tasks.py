@@ -2,15 +2,20 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
+import csv
 import datetime
+import io
 import logging
 
 from django.contrib.auth.models import Group, User
+from django.core.mail import EmailMessage
 from django_q.tasks import Schedule, schedule
+from storage.truenas import get_truenas_client
 
 from coldfront.core.allocation.models import Allocation, AllocationAttribute
 from coldfront.core.project.models import Project, ProjectUser
 from coldfront.core.resource.models import Resource
+from coldfront.core.utils.common import import_from_settings
 
 from tufts_local.analytics_utils import get_ncq_eligibility
 from tufts_local.starfish_utils import (
@@ -24,6 +29,13 @@ from tufts_local.starfish_utils import (
 from tufts_local.utils import create_user, setup_custom_logger
 
 logger = logging.getLogger(__name__)
+
+# TrueNAS reports dataset mountpoints under the pool it serves them from; the report is
+# read against paths as clients see them, so the pool prefix comes back off.
+TRUENAS_MOUNT_PREFIX = '/mnt/tank'
+
+# the fields truenas_utils' get_all_datasets() returns for every dataset
+TIER2_REPORT_COLUMNS = ('mountpoint', 'used', 'quota', 'snapshot_size')
 
 
 def update_project_approvers_from_tags():
@@ -216,3 +228,66 @@ def index_new_allocation(allocation_id, scan_id=None, retries=5, wait=5):
     except Exception as e:
         logger.error(f'Error indexing allocation {allocation_id} in Starfish: {str(e)}')
         raise e
+
+
+def update_tier2_quota_info(client_config_id):
+    """Mail the data engineer a CSV of the quotas TrueNAS reports for its datasets.
+
+    Datasets with no quota set are left out: TrueNAS reports those with a null refquota,
+    and a row claiming a quota of 0 would read as "allotted nothing" rather than
+    "nothing allotted".
+
+    Returns a one-line summary rather than the report itself, since the return value is
+    what django-q stores as the task result and shows on the task report page.
+    """
+    client = get_truenas_client(client_config_id)
+    datasets = [dataset for dataset in client.get_all_datasets() if dataset.get('quota') is not None]
+    report_date = datetime.date.today().isoformat()
+
+    # the known fields are named so the header is the same shape even on a day TrueNAS
+    # reports nothing, and anything added upstream is appended rather than dropped
+    reported = dict.fromkeys(key for dataset in datasets for key in dataset)
+    columns = [*TIER2_REPORT_COLUMNS, *(key for key in reported if key not in TIER2_REPORT_COLUMNS), 'report_date']
+
+    with io.StringIO(newline='') as buffer:
+        writer = csv.DictWriter(buffer, fieldnames=columns, restval='', lineterminator='\n')
+        writer.writeheader()
+        for dataset in datasets:
+            writer.writerow(
+                {
+                    **dataset,
+                    'mountpoint': dataset['mountpoint'].replace(TRUENAS_MOUNT_PREFIX, ''),
+                    'quota': int(dataset['quota']),
+                    'report_date': report_date,
+                }
+            )
+        report = buffer.getvalue()
+
+    return _mail_tier2_quota_report(report, report_date, len(datasets))
+
+
+def _mail_tier2_quota_report(report, report_date, dataset_count):
+    """Send the report to DATA_ENGINEER_EMAIL as a CSV attachment."""
+    # its own switch rather than coldfront's EMAIL_ENABLED: scheduled reports to staff and
+    # transactional mail to users are worth turning on and off independently
+    if not import_from_settings('REPORTING_EMAIL_ENABLED', False):
+        logger.warning(
+            f'REPORTING_EMAIL_ENABLED is off: built the tier 2 quota report for {report_date} but sent nothing.'
+        )
+        return {'message': f'{dataset_count} datasets; not sent, reporting email is disabled'}
+
+    # no default: a deployment that hasn't named a recipient should raise an error
+    recipient = import_from_settings('DATA_ENGINEER_EMAIL')
+    subject_prefix = import_from_settings('EMAIL_SUBJECT_PREFIX', '')
+    message = EmailMessage(
+        subject=f'{subject_prefix} Tier 2 quota report {report_date}'.strip(),
+        body=f'Quotas TrueNAS reported for {dataset_count} datasets on {report_date}, attached as CSV.',
+        # EmailMessage falls back to DEFAULT_FROM_EMAIL when this is empty, which is what
+        # coldfront leaves EMAIL_SENDER as until a deployment sets it
+        from_email=import_from_settings('EMAIL_SENDER', ''),
+        to=[recipient],
+    )
+    message.attach(f'tier2_quota_report_{report_date}.csv', report, 'text/csv')
+    message.send(fail_silently=False)
+    logger.info(f'Sent the tier 2 quota report for {report_date} to {recipient}.')
+    return {'message': f'{dataset_count} datasets sent to {recipient}'}

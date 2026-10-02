@@ -75,3 +75,4 @@ _stub_module(
 
 _stub_module('storage')
 _stub_module('storage.utils', get_client_config=lambda *a, **k: {})
+_stub_module('storage.truenas', get_truenas_client=lambda *a, **k: None)
