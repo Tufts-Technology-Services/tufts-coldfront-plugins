@@ -49,6 +49,14 @@ packages = ["tufts_local"]
 [tool.hatch.metadata]
 allow-direct-references = true
 
+[tool.uv]
+# coldfront/core/publication/views.py imports bibtexparser.bibdatabase, which 2.x removed.
+# coldfront depends on bibtexparser only through doi2bib, which declares no upper bound, so
+# a plain resolve picks 2.x and every page 500s on the root URLconf. A constraint rather
+# than a dependency: it steers this project's lock without going into published metadata,
+# where it could collide with the other plugins installed beside this one.
+constraint-dependencies = ["bibtexparser<2"]
+
 [[tool.uv.index]]
 name = "testpypi"
 url = "https://test.pypi.org/simple/"
