@@ -14,19 +14,19 @@ Background Task Report
 </p>
 
 <div class="col-lg-12 mt-2">
-  <form method="get" class="form-inline mb-3">
-    <div class="mr-2">{{ form.name|as_crispy_field }}</div>
-    <div class="mr-2">{{ form.group|as_crispy_field }}</div>
-    <button type="submit" class="btn btn-primary mr-1">
+  <form method="get" class="d-sm-flex align-items-center mb-3">
+    <div class="me-2">{{ form.name|as_crispy_field }}</div>
+    <div class="me-2">{{ form.group|as_crispy_field }}</div>
+    <button type="submit" class="btn btn-primary me-1">
       <i class="fa fa-filter" aria-hidden="true"></i> Filter
     </button>
     <a href="{% url 'task-report' %}" class="btn btn-secondary">Reset</a>
   </form>
 
   <div class="d-flex justify-content-between align-items-center mb-2">
-    <div class="custom-control custom-checkbox">
-      <input type="checkbox" class="custom-control-input" id="auto-refresh" checked>
-      <label class="custom-control-label" for="auto-refresh">Auto-refresh every {{ refresh_seconds }} seconds</label>
+    <div class="form-check">
+      <input type="checkbox" class="form-check-input" id="auto-refresh" checked>
+      <label class="form-check-label" for="auto-refresh">Auto-refresh every {{ refresh_seconds }} seconds</label>
     </div>
     <span class="text-muted small">
       <i class="fa fa-refresh" aria-hidden="true"></i> Updated <span id="last-updated">just now</span>
@@ -35,19 +35,21 @@ Background Task Report
 
   {% comment %}
   The poll keeps the filters and page the user is looking at; htmx gets the tables alone
-  back. hx-headers sits here rather than on each Ack button: it inherits to descendants,
-  and this div survives the innerHTML swap, so one attribute covers every button the
-  table will ever contain. coldfront's base.html wires up nothing for htmx, so without
-  it every hx-post would be rejected as a CSRF failure.
+  back. No hx-headers here: coldfront 1.1.9's common/base.html carries
+  hx-headers='{"x-csrftoken": "..."}' on <body>, which every hx-post in the table inherits.
   {% endcomment %}
   <div id="task-tables"
-       hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
        hx-get="{% url 'task-report' %}?{{ filter_parameters }}page={{ page_obj.number }}"
        hx-trigger="every {{ refresh_seconds }}s [shouldAutoRefresh()]"
        hx-swap="innerHTML">
     {% include "tufts_local/_task_tables.html" %}
   </div>
 </div>
+{% comment %}
+Outside #task-tables on purpose: the poll replaces that div's contents, and a modal that
+was open at the time would go with it.
+{% endcomment %}
+{% include "tufts_local/_task_detail_modal.html" %}
 {% endblock %}
 
 {% block javascript %}
@@ -61,23 +63,23 @@ function shouldAutoRefresh() {
     if (document.hidden) {
         return false;
     }
-    // don't yank a popover out from under someone who is reading it
-    return !document.querySelector('#task-tables .popover');
+    // don't pull the table out from under someone reading a row's detail
+    return !document.querySelector('#task-detail-modal.show');
 }
 
-document.addEventListener('DOMContentLoaded', function() {
-    $('#task-tables [data-toggle="popover"]').popover();
+{% comment %}
+The detail modal is shared by every row, so it is filled from whichever button opened it.
+Bootstrap's own click handler is delegated on document, which is why this keeps working on
+rows the poll swapped in; see _task_detail_modal.html for why they can't be popovers.
+{% endcomment %}
+document.getElementById('task-detail-modal').addEventListener('show.bs.modal', function(event) {
+    var button = event.relatedTarget;
+    document.getElementById('task-detail-label').textContent = button.dataset.detailTitle || '';
+    document.getElementById('task-detail-body').textContent = button.dataset.detail || '';
 });
 
 document.body.addEventListener('htmx:afterSwap', function(event) {
-    var tables = document.getElementById('task-tables');
-    // two kinds of swap land here: the whole table on a poll, and a single Ack cell on a
-    // click. Both bring in markup with popovers that jQuery hasn't initialized yet.
-    if (!tables || !tables.contains(event.target)) {
-        return;
-    }
-    $('#task-tables [data-toggle="popover"]').popover();
-    if (event.target === tables) {
+    if (event.target === document.getElementById('task-tables')) {
         document.getElementById('last-updated').textContent = new Date().toLocaleTimeString();
     }
 });

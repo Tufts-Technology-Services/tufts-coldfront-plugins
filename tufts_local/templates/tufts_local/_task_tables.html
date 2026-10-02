@@ -24,9 +24,9 @@ views/task_report.py), so the filter inputs above it are never clobbered mid-typ
       <tr>
         <td class="text-nowrap">
           {% if row.kind == 'Scheduled' %}
-          <span class="badge badge-info">Scheduled</span>
+          <span class="badge text-bg-info">Scheduled</span>
           {% else %}
-          <span class="badge badge-secondary">Queued</span>
+          <span class="badge bg-secondary">Queued</span>
           {% endif %}
         </td>
         <td class="text-nowrap">{{ row.name|default:"—" }}</td>
@@ -40,9 +40,9 @@ views/task_report.py), so the filter inputs above it are never clobbered mid-typ
         <td class="text-nowrap">
           {% if row.last_run %}
             {% if row.last_run.success %}
-            <span class="badge badge-success">Success</span>
+            <span class="badge bg-success">Success</span>
             {% else %}
-            <span class="badge badge-danger">Failed</span>
+            <span class="badge bg-danger">Failed</span>
             {% endif %}
             <span class="text-muted small">{{ row.last_run.stopped|date:"Y-m-d H:i" }}</span>
           {% else %}
@@ -61,7 +61,7 @@ views/task_report.py), so the filter inputs above it are never clobbered mid-typ
 </div>
 {% endif %}
 
-<h3 class="mt-4">Completed <span class="badge badge-secondary">{{ task_count }}</span></h3>
+<h3 class="mt-4">Completed <span class="badge bg-secondary">{{ task_count }}</span></h3>
 <hr>
 {% if page_obj.object_list %}
 <div class="table-responsive">
@@ -85,9 +85,9 @@ views/task_report.py), so the filter inputs above it are never clobbered mid-typ
       <tr>
         <td class="text-nowrap">
           {% if task.success %}
-          <span class="badge badge-success">Success</span>
+          <span class="badge bg-success">Success</span>
           {% else %}
-          <span class="badge badge-danger">Failed</span>
+          <span class="badge bg-danger">Failed</span>
           {% endif %}
         </td>
         <td class="text-nowrap">{{ task.name|default:"—" }}</td>
@@ -99,11 +99,25 @@ views/task_report.py), so the filter inputs above it are never clobbered mid-typ
         <td>{{ task.attempt_count }}</td>
         <td>
           <span class="small">{{ task.result|default_if_none:""|truncatechars:60 }}</span>
-          <a href="#" tabindex="0" class="task-detail" data-toggle="popover" data-trigger="focus" data-html="true"
-             data-title="{{ task.name }}"
-             data-content="<div class='small'><strong>Args</strong><pre>{{ task.args|default_if_none:"" }}</pre><strong>Kwargs</strong><pre>{{ task.kwargs|default_if_none:"" }}</pre><strong>Result</strong><pre>{{ task.result|default_if_none:"" }}</pre></div>">
+          {% comment %}
+          A modal, not a popover: these rows are swapped in by htmx and nothing would ever
+          instantiate a popover on them. See _task_detail_modal.html. The newlines inside
+          data-detail are deliberate -- the modal writes the value into a <pre>.
+          {% endcomment %}
+          <button type="button" class="btn btn-link btn-sm p-0 align-baseline task-detail"
+                  data-bs-toggle="modal" data-bs-target="#task-detail-modal"
+                  aria-label="Show the full arguments and result for {{ task.name }}"
+                  data-detail-title="{{ task.name }}"
+                  data-detail="Args
+{{ task.args|default_if_none:"—" }}
+
+Kwargs
+{{ task.kwargs|default_if_none:"—" }}
+
+Result
+{{ task.result|default_if_none:"—" }}">
             <i class="fa fa-search-plus" aria-hidden="true"></i>
-          </a>
+          </button>
         </td>
         {% include "tufts_local/_task_ack_cell.html" %}
       </tr>
@@ -112,7 +126,7 @@ views/task_report.py), so the filter inputs above it are never clobbered mid-typ
   </table>
 </div>
 {% if is_paginated %} Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
-  <ul class="pagination float-right mr-3">
+  <ul class="pagination float-end me-3">
     {% if page_obj.has_previous %}
       <li class="page-item"><a class="page-link" href="?{{ filter_parameters }}page={{ page_obj.previous_page_number }}">Previous</a></li>
     {% else %}

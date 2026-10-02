@@ -54,9 +54,9 @@ Background Task Summary
             {% endif %}
             <td class="text-nowrap">
               {% if count.status == 'Success' %}
-              <span class="badge badge-success">Success</span>
+              <span class="badge bg-success">Success</span>
               {% else %}
-              <span class="badge badge-danger">Failed</span>
+              <span class="badge bg-danger">Failed</span>
               {% endif %}
             </td>
             <td>{{ count.count }}</td>
@@ -71,7 +71,7 @@ Background Task Summary
   </div>
 
   <h3 class="mt-4">
-    Finished in the last 2 hours <span class="badge badge-secondary">{{ recent_count }}</span>
+    Finished in the last 2 hours <span class="badge bg-secondary">{{ recent_count }}</span>
   </h3>
   <hr>
   {% if recent_rows %}
@@ -99,7 +99,7 @@ Background Task Summary
   {% endif %}
 
   <h3 class="mt-4">
-    Scheduled <span class="badge badge-secondary">{{ schedule_count }}</span>
+    Scheduled <span class="badge bg-secondary">{{ schedule_count }}</span>
   </h3>
   <hr>
   {% if schedule_rows %}
@@ -127,11 +127,3 @@ Background Task Summary
 </div>
 {% endblock %}
 
-{% block javascript %}
-{{ block.super }}
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    $('[data-toggle="popover"]').popover();
-});
-</script>
-{% endblock %}

@@ -6,15 +6,20 @@ every field of both is shown: the set of columns is read off the model, not writ
 <td class="text-nowrap">
   {% if cell.name == 'success' %}
     {% if cell.flag %}
-    <span class="badge badge-success">Success</span>
+    <span class="badge bg-success">Success</span>
     {% else %}
-    <span class="badge badge-danger">Failed</span>
+    <span class="badge bg-danger">Failed</span>
     {% endif %}
   {% elif cell.full %}
     <span class="small">{{ cell.text|truncatechars:max_cell_chars }}</span>
-    {# the whole value, which is usually a result, a traceback or a pickled argument list #}
-    <a href="#" tabindex="0" class="cell-detail" data-toggle="popover" data-trigger="focus" data-html="true"
-       data-content="<pre class='small mb-0'>{{ cell.full }}</pre>">
+    {% comment %}
+    The whole value, which is usually a result, a traceback or a pickled argument list.
+    A popover is still right here: this table is rendered once with the page, so
+    coldfront's initPopovers() picks it up on DOMContentLoaded. The task report's tables
+    are the ones htmx swaps, and they use a modal instead -- see _task_detail_modal.html.
+    {% endcomment %}
+    <a href="#" tabindex="0" class="cell-detail" data-bs-toggle="popover" data-bs-trigger="focus" data-bs-html="true"
+       data-bs-content="<pre class='small mb-0'>{{ cell.full }}</pre>">
       <i class="fa fa-search-plus" aria-hidden="true"></i>
     </a>
   {% else %}

@@ -425,7 +425,7 @@ class TestIdentityColumn:
         the popover, the hidden inputs and the modal -- so a substring check would pass
         even with an empty Name cell.
         """
-        cells = re.findall(r'class="user-detail".*?data-content="[^"]*">(.*?)</span>', content, re.DOTALL)
+        cells = re.findall(r'class="user-detail".*?data-bs-content="[^"]*">(.*?)</span>', content, re.DOTALL)
         return [cell.strip() for cell in cells]
 
     def render(self, rf, records):
@@ -455,7 +455,7 @@ class TestIdentityColumn:
         assert 'UTLN: jdoe01' in content
         assert 'jane.doe@tufts.edu' in content
         # reachable by keyboard as well as by mouse
-        assert 'data-trigger="hover focus"' in content
+        assert 'data-bs-trigger="hover focus"' in content
         assert 'tabindex="0" class="user-detail"' in content
 
     @pytest.mark.django_db

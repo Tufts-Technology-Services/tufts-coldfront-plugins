@@ -1,0 +1,31 @@
+{% comment %}
+One modal for the whole report, filled from whichever button opened it.
+
+Why a modal rather than the popovers this page used to use: coldfront 1.1.9 creates
+popovers once, on DOMContentLoaded (static/src/bs.ts initPopovers), and its htmx:afterSettle
+hook re-runs initDataTable alone -- so a popover in content swapped in later never gets an
+instance. The tables here re-poll themselves every few seconds and the Ack cells are
+replaced on click, which is exactly that case. A page script cannot make one either: the
+bundle exports nothing, sets no window.bootstrap, and never registers Bootstrap's jQuery
+plugins, because it exposes window.jQuery further down the same module than the point where
+Bootstrap looked for it. Bootstrap's modal click handler, by contrast, is delegated on
+document, so it picks up buttons that arrive long after load with no help from us.
+{% endcomment %}
+<div class="modal fade" id="task-detail-modal" tabindex="-1" aria-labelledby="task-detail-label" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="task-detail-label"></h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        {% comment %}
+        Filled with textContent, never innerHTML: the text is whatever a task returned or
+        raised, so it is not ours to trust as markup. <pre> keeps the line breaks that a
+        traceback or a pickled argument list depends on.
+        {% endcomment %}
+        <pre class="small mb-0 text-wrap" id="task-detail-body"></pre>
+      </div>
+    </div>
+  </div>
+</div>

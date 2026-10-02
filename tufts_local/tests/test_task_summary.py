@@ -355,10 +355,12 @@ class TestRendering:
         response = get_summary(rf)
         response.render()
 
-        assert b'data-toggle="popover"' in response.content
-        # truncated in the cell, complete in the popover
-        assert b'x' * 500 in response.content
-        assert b'x' * 61 not in response.content.split(b'data-content=')[0]
+        assert b'data-bs-toggle="popover"' in response.content
+        # truncated in the cell, complete in the popover. A popover is still the right
+        # control here: this table is rendered with the page, so coldfront's initPopovers()
+        # reaches it -- unlike the task report's, which htmx swaps and which uses a modal.
+        assert b'<span class="small">' + b'x' * 59 + '…'.encode() in response.content
+        assert b"<pre class='small mb-0'>" + b'x' * 500 in response.content
 
     def test_empty_states(self, rf):
         response = get_summary(rf)
@@ -496,7 +498,7 @@ class TestIndicator:
         response.render()
 
         assert response.template_name == 'tufts_local/_task_summary_indicator.html'
-        assert b'badge-danger' in response.content
+        assert b'bg-danger' in response.content
         assert b'1 failed' in response.content
 
     def test_fragment_is_green_when_nothing_failed(self, rf):
@@ -505,9 +507,9 @@ class TestIndicator:
         response = get_indicator(rf)
         response.render()
 
-        assert b'badge-success' in response.content
-        assert b'badge-danger' not in response.content
-        assert b'badge-warning' not in response.content
+        assert b'bg-success' in response.content
+        assert b'bg-danger' not in response.content
+        assert b'bg-warning' not in response.content
 
     @pytest.mark.parametrize('minutes_ago', (5 * 60, 30 * 60), ids=('earlier_today', 'older'))
     def test_fragment_is_amber_for_older_failures(self, rf, minutes_ago):
@@ -518,9 +520,9 @@ class TestIndicator:
         response = get_indicator(rf)
         response.render()
 
-        assert b'badge-warning' in response.content
+        assert b'text-bg-warning' in response.content
         assert b'1 failed earlier' in response.content
-        assert b'badge-danger' not in response.content
+        assert b'bg-danger' not in response.content
 
     def test_recent_failures_outrank_older_ones(self, rf):
         make_task('a' * 32, 'boom', success=False, minutes_ago=1)
@@ -529,8 +531,8 @@ class TestIndicator:
         response = get_indicator(rf)
         response.render()
 
-        assert b'badge-danger' in response.content
-        assert b'badge-warning' not in response.content
+        assert b'bg-danger' in response.content
+        assert b'bg-warning' not in response.content
 
     def test_older_failures_are_added_up_across_both_windows(self, rf):
         make_task('a' * 32, 'boom', success=False, minutes_ago=5 * 60)
@@ -541,6 +543,29 @@ class TestIndicator:
 
         assert b'2 failed earlier' in response.content
         assert payload(get_indicator(rf, '?format=json'))['failed_before'] == 2
+
+    def test_the_scheduled_count_gets_its_own_badge(self, rf):
+        """It sits beside the failure badge rather than replacing it: what is queued to run
+        and what has already broken are separate questions."""
+        make_schedule()
+        make_task('a' * 32, 'boom', success=False, minutes_ago=1)
+
+        response = get_indicator(rf)
+        response.render()
+
+        assert b'1 scheduled' in response.content
+        # text-bg-* rather than bg-*: the latter leaves white text on pale blue
+        assert b'badge text-bg-info' in response.content
+        assert b'bg-danger' in response.content
+
+    def test_no_scheduled_badge_when_nothing_is_scheduled(self, rf):
+        """The title still counts them -- "0 scheduled" is a fact worth stating on hover --
+        so this looks for the badge rather than the word."""
+        response = get_indicator(rf)
+        response.render()
+
+        assert b'bg-info' not in response.content
+        assert b'>0 scheduled</span>' not in response.content
 
     def test_fragment_names_no_tasks(self, rf):
         make_task('a' * 32, 'secret_task_name', result='secret result')
@@ -618,20 +643,20 @@ class TestAcknowledgedFailures:
         task = make_task('a' * 32, 'boom', success=False, minutes_ago=1)
         make_task('b' * 32, 'fine', minutes_ago=1)
 
-        assert b'badge-danger' in self.rendered(rf)
+        assert b'bg-danger' in self.rendered(rf)
 
         self.acknowledge(task)
 
-        assert b'badge-success' in self.rendered(rf)
+        assert b'bg-success' in self.rendered(rf)
 
     def test_an_amber_badge_goes_green(self, rf):
         task = make_task('a' * 32, 'old_boom', success=False, minutes_ago=30 * 60)
 
-        assert b'badge-warning' in self.rendered(rf)
+        assert b'text-bg-warning' in self.rendered(rf)
 
         self.acknowledge(task)
 
-        assert b'badge-warning' not in self.rendered(rf)
+        assert b'bg-warning' not in self.rendered(rf)
 
     def test_the_json_counts_drop_it_too(self, rf):
         recent = make_task('a' * 32, 'boom', success=False, minutes_ago=1)
