@@ -17,7 +17,7 @@ Background Task Summary
         hx-swap="innerHTML"></span>
 </div>
 <p>
-  How the django-q cluster's work has turned out, counted by outcome. Anything that finished
+  Coldfront background task summary. Anything that finished
   more than two hours ago is a count only; everything more recent, and everything still
   scheduled to run, is listed in full. Generated {{ generated_at|date:"Y-m-d H:i:s" }}.
 </p>
@@ -53,10 +53,18 @@ Background Task Summary
             </td>
             {% endif %}
             <td class="text-nowrap">
+              {% comment %}
+              The label is whatever the view counted, never a word written here: the status
+              list grew a third entry (Acknowledged) once already, and a hard-coded else
+              branch labelled it "Failed" -- the page then contradicted its own numbers.
+              Only the colour is chosen here, and an unrecognised status gets a neutral one.
+              {% endcomment %}
               {% if count.status == 'Success' %}
-              <span class="badge bg-success">Success</span>
+              <span class="badge bg-success">{{ count.status }}</span>
+              {% elif count.status == 'Failed' %}
+              <span class="badge bg-danger">{{ count.status }}</span>
               {% else %}
-              <span class="badge bg-danger">Failed</span>
+              <span class="badge bg-secondary">{{ count.status }}</span>
               {% endif %}
             </td>
             <td>{{ count.count }}</td>

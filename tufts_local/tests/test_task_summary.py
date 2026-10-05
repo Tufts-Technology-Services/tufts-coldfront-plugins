@@ -16,7 +16,7 @@ from django_q.tasks import schedule as create_schedule
 
 from tufts_local.models import IgnoredTask, TaskAcknowledgement
 from tufts_local.views import task_summary, task_summary_indicator
-from tufts_local.views.task_summary import _cell
+from tufts_local.views.task_summary import STATUS_LABELS, _cell
 
 
 def make_user(is_superuser=False, is_staff=False):
@@ -339,6 +339,20 @@ class TestRendering:
         assert b'add_sf_tags_alloc_activate_7' in response.content
         # the older task is a count only, so its name is nowhere on the page
         assert b'earlier' not in response.content
+
+    def test_every_status_row_is_labelled_with_the_status_it_counts(self, rf):
+        """The labels were hard-coded Success-or-else-Failed, written when there were two
+        statuses. Once Acknowledged was added to the view, its row rendered a red "Failed"
+        badge beside a number that was not the failure count -- two "Failed" rows per period.
+        The other tests here all read context_data, which was right the whole time."""
+        make_task('a' * 32, 'boom', success=False, minutes_ago=5 * 60)
+
+        response = get_summary(rf)
+        response.render()
+
+        periods = len(response.context_data['segments'])
+        for _name, label in STATUS_LABELS:
+            assert response.content.count(f'>{label}</span>'.encode()) == periods
 
     def test_result_is_escaped(self, rf):
         make_task('a' * 32, 'risky', result='<script>alert("x")</script>')
