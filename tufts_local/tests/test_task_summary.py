@@ -610,12 +610,14 @@ class TestIndicator:
 @pytest.mark.django_db
 @pytest.mark.urls('tufts_local.tests.urls')
 class TestIndicatorWiring:
-    def test_the_page_polls_the_indicator(self, rf):
+    def test_the_page_does_not_carry_its_own_indicator(self, rf):
+        """The navbar polls the indicator on every page, this one included, so a copy in
+        the header would put the same badge on screen twice. That wiring lives in
+        coldfront-branding; all this repo owes it is the endpoint."""
         response = get_summary(rf)
         response.render()
 
-        assert b'hx-get="/task-summary-indicator/"' in response.content
-        assert b'hx-trigger="load, every 30s"' in response.content
+        assert b'/task-summary-indicator/' not in response.content
 
 
 class TestCell:

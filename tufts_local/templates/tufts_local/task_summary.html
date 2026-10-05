@@ -5,17 +5,8 @@ Background Task Summary
 {% endblock %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-center">
-  <h2>Background Task Summary</h2>
-  {% comment %}
-  The same indicator meant for the corner of every page, wired the way that corner should
-  wire it: an empty element that htmx fills from the indicator endpoint and refreshes.
-  {% endcomment %}
-  <span id="task-summary-indicator"
-        hx-get="{% url 'task-summary-indicator' %}"
-        hx-trigger="load, every {{ indicator_refresh_seconds }}s"
-        hx-swap="innerHTML"></span>
-</div>
+
+<h2>Background Task Summary</h2>
 <p>
   Coldfront background task summary. Anything that finished
   more than two hours ago is a count only; everything more recent, and everything still

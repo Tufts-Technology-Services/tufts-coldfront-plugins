@@ -24,9 +24,6 @@ AGGREGATE_WINDOW = datetime.timedelta(hours=24)
 # longer cell values are cut short in the table and offered in full in a popover
 MAX_CELL_CHARS = 60
 
-# how often the indicator refreshes itself; it is a corner badge, not a live console
-INDICATOR_REFRESH_SECONDS = 30
-
 # The three outcomes a finished task can be in, as (aggregate name, label). django-q
 # records only a boolean, so 'Acknowledged' is this app's own third state: a failure
 # someone has looked at and signed off (see models.TaskAcknowledgement). Counting it
@@ -252,7 +249,6 @@ def task_summary(request):
             # the templates truncate to the same width the popover threshold uses, so a
             # cell never offers "see the rest" when there is no rest to see
             'max_cell_chars': MAX_CELL_CHARS,
-            'indicator_refresh_seconds': INDICATOR_REFRESH_SECONDS,
         },
     )
 
@@ -262,17 +258,15 @@ def task_summary(request):
 @user_passes_test(_may_view)
 def task_summary_indicator(request):
     """
-    The summary reduced to counts, for the status indicator in the page corner.
+    The summary reduced to counts, for the status indicator in the navbar.
 
-    Returns an HTML fragment to swap into that corner, or the same numbers as JSON with
-    ?format=json. Wire it up with htmx from whichever template owns the corner:
+    Returns an HTML fragment to swap in, or the same numbers as JSON with ?format=json.
+    The only caller is outside this repo: coldfront-branding's common/authorized_navbar.html
+    polls it with htmx, staff-gated to match _may_view, so the badge rides along on every
+    page. Nothing here renders it -- a template that wants its own copy would be a second
+    badge saying the same thing.
 
-        <span id="task-indicator"
-              hx-get="{% url 'task-summary-indicator' %}"
-              hx-trigger="load, every 30s"
-              hx-swap="innerHTML"></span>
-
-    Counts only, which is all a corner badge has room for; the detail is a click away on
+    Counts only, which is all a navbar badge has room for; the detail is a click away on
     the summary page itself. Acknowledged failures don't count towards failed_recent or
     failed_before, so signing one off on the task report puts the badge back to green.
     """
