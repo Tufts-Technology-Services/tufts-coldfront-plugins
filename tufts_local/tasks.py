@@ -230,7 +230,7 @@ def index_new_allocation(allocation_id, scan_id=None, retries=5, wait=5):
         raise e
 
 
-def update_tier2_quota_info(client_config_id):
+def send_tier2_quota_info(client_config_id):
     """Mail the data engineer a CSV of the quotas TrueNAS reports for its datasets.
 
     Datasets with no quota set are left out: TrueNAS reports those with a null refquota,
