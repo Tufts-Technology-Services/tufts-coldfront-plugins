@@ -2,9 +2,6 @@ version = 1
 revision = 3
 requires-python = ">=3.10"
 
-[manifest]
-constraints = [{ name = "bibtexparser", specifier = "<2" }]
-
 [[package]]
 name = "annotated-types"
 version = "0.8.0"
@@ -107,12 +104,15 @@ wheels = [
 
 [[package]]
 name = "bibtexparser"
-version = "1.4.4"
+version = "2.1.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "pyparsing" },
+    { name = "pylatexenc" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/44/1c/577d3ce406e88f370e80a6ebf76ae52a2866521e0b585e8ec612759894f1/bibtexparser-1.4.4.tar.gz", hash = "sha256:093b6c824f7a71d3a748867c4057b71f77c55b8dbc07efc993b781771520d8fb", size = 55594, upload-time = "2026-01-29T18:58:01.366Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/40/bb/38f8b2ee3e3da9161fb4a845fb04b4ccb0b8d5a5f5e25aaea39154073532/bibtexparser-2.1.0.tar.gz", hash = "sha256:9f48851eef4693cb7ef6897f7628966c5d0ef49b6403b13a862679a4c313d176", size = 88630, upload-time = "2026-10-02T16:11:35.234Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/86/df/b0898588ad7c1a1c1cb50dcf1afbac1b656ad1ce5373c895b49138b00894/bibtexparser-2.1.0-py3-none-any.whl", hash = "sha256:3b4b1de50ce45ee9091ccca72e1efc8732ab3ef615b70bcecc537c17cd84753e", size = 50128, upload-time = "2026-10-02T16:11:34.111Z" },
+]
 
 [[package]]
 name = "certifi"
@@ -416,9 +416,10 @@ wheels = [
 
 [[package]]
 name = "coldfront"
-version = "1.1.9"
+version = "1.1.10"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
+    { name = "bibtexparser" },
     { name = "crispy-bootstrap5" },
     { name = "django" },
     { name = "django-crispy-forms" },
@@ -440,9 +441,9 @@ dependencies = [
     { name = "python-dateutil" },
     { name = "redis" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/d7/e2/86ee22d72eef33301f77b802b9e1fa6427ce5b6908203bf389c23751a496/coldfront-1.1.9.tar.gz", hash = "sha256:f66be9c56de7cc6462a0d71334b4acfd5fb88d4fc33bbec167c00ae6358ce7c5", size = 21342652, upload-time = "2026-07-24T15:16:13.358Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/38/79/ea77b90bd1b95f19321c3a306b114d29fd0ffd9fe93567ac5a8fefa315ca/coldfront-1.1.10.tar.gz", hash = "sha256:77831a1192da3a5c7f57bce0b33243e63a25a48f8ee3342a0dc172990cdaff36", size = 21361371, upload-time = "2026-10-04T03:33:30.223Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/3c/f6/153a18c67abf841a33fdd1e973da32ad2860cedccb497c39a785c1522ff0/coldfront-1.1.9-py3-none-any.whl", hash = "sha256:6dac5f4e99c8f54c6a148f1dd62b374249f03da6cae3d5f82904b8dff58727c3", size = 1150246, upload-time = "2026-07-24T15:16:10.659Z" },
+    { url = "https://files.pythonhosted.org/packages/3b/f5/b18a751a3ee7efae296f9f6fdbba842cb001fd830a905d78652bf2be57ab/coldfront-1.1.10-py3-none-any.whl", hash = "sha256:a6912f49b5832398d4dec1c88e80a2308583390f829d8d435ba0eafa029f5cd2", size = 1150638, upload-time = "2026-10-04T03:33:27.244Z" },
 ]
 
 [[package]]
@@ -1549,6 +1550,15 @@ wheels = [
 ]
 
 [[package]]
+name = "pylatexenc"
+version = "2.11"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/52/45/ddb0fb04acf95fe9cf9c369814dbdd08651bd2c9ee455f142651e06f4488/pylatexenc-2.11.tar.gz", hash = "sha256:305a072a99ce736246049c9da05841b9d718c0f7ea8888f5f596cf15cb621053", size = 165743, upload-time = "2026-07-25T17:26:31.534Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/e7/06/3d67bd912ef337aa4856b466121d03f304aa1bb4d804f9298b6227cd227e/pylatexenc-2.11-py2.py3-none-any.whl", hash = "sha256:e78e7391d6c104f1ed150e21cfaa58016cdb50aa54406a2eecb793649ffdfdd0", size = 137533, upload-time = "2026-07-25T17:26:30.141Z" },
+]
+
+[[package]]
 name = "pynacl"
 version = "1.6.2"
 source = { registry = "https://pypi.org/simple" }
@@ -1594,15 +1604,6 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/3f/e8/7325d258199b159eb2c03fe32107533e2832e70e63f4fb88a6aa00023201/pyopenssl-26.4.0.tar.gz", hash = "sha256:28dfcce0162b9211413e26dfbfdf1d24317fbeba18fc93c12400a1856b2a0bc7", size = 182046, upload-time = "2026-08-01T19:50:50.512Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/51/ad/2cf6d3fa2fae5c79e1ed9960c0d42badd0f94d81dd12b50604cdc839e648/pyopenssl-26.4.0-py3-none-any.whl", hash = "sha256:f0eb0cb2d581d3ad2b9c489468485e7f2ab6727d08401bcf9d824c3caddf3c1c", size = 56026, upload-time = "2026-08-01T19:50:48.94Z" },
-]
-
-[[package]]
-name = "pyparsing"
-version = "3.3.3"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/e4/11/b213bebff182584360cb8d17c72c1677fec5c5c228de439e63bcf8ab1c8f/pyparsing-3.3.3.tar.gz", hash = "sha256:928ae7e20211f3b6f3915a72f06a0cfd29ab9d24279dd6346b6b1a7146397d36", size = 1050487, upload-time = "2026-09-20T20:59:05.609Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/38/bb/d215ee7c73b61497b28a5503f9f53523f294fcc936762b7caf90e0c1c2b5/pyparsing-3.3.3-py3-none-any.whl", hash = "sha256:ece8c00a69cf01b45d0b1dedabb469c90d8caf996d4fda40f147627a122849a4", size = 126420, upload-time = "2026-09-20T20:59:04.025Z" },
 ]
 
 [[package]]
