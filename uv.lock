@@ -2,9 +2,6 @@ version = 1
 revision = 3
 requires-python = ">=3.10"
 
-[manifest]
-constraints = [{ name = "bibtexparser", specifier = "<2" }]
-
 [[package]]
 name = "annotated-types"
 version = "0.8.0"
