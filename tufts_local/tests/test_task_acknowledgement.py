@@ -14,6 +14,7 @@ from django.db import IntegrityError, transaction
 from django.http import Http404
 from django.test import RequestFactory
 from django.utils import timezone
+from django_htmx.middleware import HtmxDetails
 from django_q.models import Task
 
 from tufts_local.models import TaskAcknowledgement
@@ -59,6 +60,8 @@ def rf():
 def post(rf, view, task_id=TASK_ID, user=None, htmx=False, **data):
     headers = {'HTTP_HX_REQUEST': 'true'} if htmx else {}
     request = rf.post(f'/task-acknowledge/{task_id}/', data, **headers)
+    # what django_htmx's HtmxMiddleware sets
+    request.htmx = HtmxDetails(request)
     request.user = user if user is not None else make_mock_user(is_superuser=True)
     SessionMiddleware(lambda r: None).process_request(request)
     request.session.save()

@@ -185,19 +185,6 @@ def _may_view(user):
     return user.is_superuser or user.is_staff
 
 
-def _wants_partial(request):
-    """
-    True when htmx is asking for just the tables rather than the whole page.
-
-    request.htmx is set by django_htmx's HtmxMiddleware; fall back to the header it
-    reads so the refresh still works if that middleware isn't in the stack.
-    """
-    htmx = getattr(request, 'htmx', None)
-    if htmx is not None:
-        return bool(htmx)
-    return request.headers.get('HX-Request') == 'true'
-
-
 def _group_choices(pending_rows, ignored_names, ignored_groups):
     tasks = _exclude_ignored(Task.objects.all(), ignored_names, ignored_groups)
     groups = set(
@@ -256,7 +243,7 @@ def task_report(request):
     filter_parameters = urlencode({k: v for k, v in (('name', name), ('group', group)) if v})
 
     # htmx polls this same view and swaps in just the tables, leaving the filter inputs alone
-    template = '_task_tables.html' if _wants_partial(request) else 'task_report.html'
+    template = '_task_tables.html' if request.htmx else 'task_report.html'
 
     return TemplateResponse(
         request,

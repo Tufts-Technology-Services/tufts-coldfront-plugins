@@ -13,6 +13,7 @@ from django.contrib.auth.models import AnonymousUser
 from django.contrib.sessions.middleware import SessionMiddleware
 from django.test import RequestFactory
 from django.utils import timezone
+from django_htmx.middleware import HtmxDetails
 from django_q.models import OrmQ, Schedule, Task
 from django_q.signing import SignedPackage
 from django_q.tasks import schedule as create_schedule
@@ -61,6 +62,7 @@ def get_report(rf, query='', htmx=False):
     # htmx sets the HX-Request header; django_htmx's middleware turns that into request.htmx
     headers = {'HTTP_HX_REQUEST': 'true'} if htmx else {}
     request = rf.get(f'/task-report/{query}', **headers)
+    request.htmx = HtmxDetails(request)
     request.user = make_user(is_superuser=True)
     add_session(request)
     return task_report(request)
@@ -91,6 +93,7 @@ class TestTaskReportAccess:
         """Staff acknowledge failures, so they need the page the Ack button lives on."""
         make_task('a' * 32, 'indexing')
         request = rf.get('/task-report/')
+        request.htmx = HtmxDetails(request)
         request.user = make_user(is_staff=True)
         add_session(request)
 
