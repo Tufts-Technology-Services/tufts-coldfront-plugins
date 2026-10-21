@@ -117,4 +117,5 @@ def storage_allocation_history(request, allocation_id):
         history, usage_history = utils.get_storage_allocation_history(allocation_id)
         return JsonResponse(utils.history_chart_format(history, usage_history), status=200)
     except Exception as e:
-        return JsonResponse({'message': f'error occurred: {str(e)}'}, status=500)
+        logger.error(f'Error occurred while fetching storage allocation history: {str(e)}')
+        return JsonResponse({'message': 'error occurred'}, status=500)

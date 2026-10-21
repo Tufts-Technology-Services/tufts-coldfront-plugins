@@ -13,7 +13,7 @@ from django.views.decorators.http import require_POST
 from django_q.models import Task
 
 from tufts_local.models import TaskAcknowledgement
-from tufts_local.views.task_report import _may_view, _wants_partial
+from tufts_local.views.task_report import _may_view
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +33,7 @@ def _ack_response(request, task):
     # hand the filter/page back to the cell being swapped in, so the next click from it
     # still knows where the reader was
     return_to = request.POST.get(RETURN_TO_PARAM, '')
-    if _wants_partial(request):
+    if request.htmx:
         return TemplateResponse(request, 'tufts_local/_task_ack_cell.html', {'task': task, 'return_to': return_to})
 
     query = request.POST.get(RETURN_TO_PARAM, '').lstrip('?')
