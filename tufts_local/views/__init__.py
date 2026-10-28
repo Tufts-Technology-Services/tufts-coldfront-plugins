@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 from .alerts import alert_indicator, alert_list
+from .history import project_history, project_history_search
 from .login_as_user import login_as_user_view
 from .project_create_view import AdminProjectCreateView
 from .reports import (
@@ -25,6 +26,8 @@ from .views import (
 __all__ = [
     'alert_indicator',
     'alert_list',
+    'project_history',
+    'project_history_search',
     'acknowledge_task',
     'acknowledge_tasks_in_bulk',
     'unacknowledge_task',

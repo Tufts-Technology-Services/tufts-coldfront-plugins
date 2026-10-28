@@ -89,6 +89,16 @@ urlpatterns = [
         name='task-summary',
     ),
     path(
+        'history/',
+        views.project_history_search,
+        name='project-history-search',
+    ),
+    path(
+        'history/project/<int:pk>/',
+        views.project_history,
+        name='project-history',
+    ),
+    path(
         'alerts/',
         views.alert_list,
         name='alert-list',
