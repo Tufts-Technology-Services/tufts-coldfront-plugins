@@ -7,8 +7,10 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from django.contrib.auth.models import AnonymousUser
+from django.http import Http404
 from django.test import RequestFactory
 
+from tufts_local.utils import UserNotFoundError
 from tufts_local.views import views
 
 
@@ -260,15 +262,30 @@ class TestAddUserToColdfront:
         mock_utils.create_user.assert_called_once_with('jdoe')
 
     @patch('tufts_local.views.views.utils')
-    def test_error_from_user_creation(self, mock_utils, rf):
-        mock_utils.create_user.side_effect = Exception('boom')
+    def test_unexpected_error_is_logged_not_shown(self, mock_utils, rf, caplog):
+        mock_utils.create_user.side_effect = Exception('LDAP bind failed for svc_account')
         request = rf.post('/add-user-to-coldfront/', data={'username': 'jdoe'}, content_type='application/json')
         request.user = make_user(is_superuser=True)
 
         response = views.add_user_to_coldfront(request)
 
         assert response.status_code == 500
-        assert json.loads(response.content) == {'message': 'error occurred: boom'}
+        assert json.loads(response.content) == {'message': 'error occurred'}
+        assert 'svc_account' in caplog.text
+        assert caplog.records[-1].exc_info is not None
+
+    @pytest.mark.parametrize('message', ['No user found for jdoe', 'Multiple users found for jdoe'])
+    @patch('tufts_local.views.views.utils')
+    def test_a_user_that_cannot_be_found_says_why(self, mock_utils, rf, message):
+        """These are for the admin to act on, so they are shown, unlike unexpected errors."""
+        mock_utils.create_user.side_effect = UserNotFoundError(message)
+        request = rf.post('/add-user-to-coldfront/', data={'username': 'jdoe'}, content_type='application/json')
+        request.user = make_user(is_superuser=True)
+
+        response = views.add_user_to_coldfront(request)
+
+        assert response.status_code == 404
+        assert json.loads(response.content) == {'message': message}
 
 
 class TestStorageAllocationHistory:
@@ -323,13 +340,29 @@ class TestStorageAllocationHistory:
 
     @patch('tufts_local.views.views.get_object_or_404')
     @patch('tufts_local.views.views.utils')
-    def test_error_returns_500(self, mock_utils, mock_get_object, rf):
+    def test_error_returns_500_without_its_details(self, mock_utils, mock_get_object, rf, caplog):
+        """The details are logged with a traceback, not shown (769a5eb)."""
         mock_utils.user_has_allocation_access.return_value = True
-        mock_get_object.side_effect = Exception('allocation missing')
+        mock_utils.get_storage_allocation_history.side_effect = Exception('connection to vast-api refused')
         request = rf.get('/storage-allocation-history/5/')
         request.user = make_user(is_superuser=False)
 
         response = views.storage_allocation_history(request, allocation_id='5')
 
         assert response.status_code == 500
-        assert json.loads(response.content) == {'message': 'error occurred: allocation missing'}
+        assert json.loads(response.content) == {'message': 'error occurred'}
+        assert 'vast-api' in caplog.text
+        assert caplog.records[-1].exc_info is not None
+
+    @patch('tufts_local.views.views.utils')
+    def test_a_missing_allocation_is_a_404(self, mock_utils, rf):
+        """Before, the Http404 was caught as an unexpected error and answered with a 500."""
+        mock_utils.user_has_allocation_access.return_value = True
+        request = rf.get('/storage-allocation-history/5/')
+        request.user = make_user(is_superuser=False)
+
+        with patch('tufts_local.views.views.get_object_or_404', side_effect=Http404('No Allocation matches')):
+            with pytest.raises(Http404):
+                views.storage_allocation_history(request, allocation_id='5')
+
+        mock_utils.get_storage_allocation_history.assert_not_called()
