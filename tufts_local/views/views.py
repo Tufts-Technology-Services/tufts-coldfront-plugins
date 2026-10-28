@@ -16,7 +16,7 @@ from coldfront.core.project.models import ProjectUser, ProjectUserRoleChoice
 
 from tufts_local import utils
 from tufts_local.tasks import update_sf_approver_tags
-from tufts_local.utils import approver_at_least
+from tufts_local.utils import UserNotFoundError, approver_at_least
 
 logger = logging.getLogger(__name__)
 
@@ -98,10 +98,15 @@ def add_user_to_coldfront(request):
         return JsonResponse({'message': 'username is required'}, status=400)
     try:
         _ = utils.create_user(username)  # Replace with actual user creation logic
-        return JsonResponse({'message': 'user created successfully'}, status=201)
-
-    except Exception as e:
-        return JsonResponse({'message': f'error occurred: {str(e)}'}, status=500)
+    except UserNotFoundError as e:
+        # "No user found for ..." or "Multiple users found for ...": the admin needs to see why
+        return JsonResponse({'message': str(e)}, status=404)
+    except Exception:
+        # anything else is unexpected, such as the directory or the database failing: log it in
+        # full, and keep its details out of the response
+        logger.exception(f'Error adding user {username!r} to ColdFront')
+        return JsonResponse({'message': 'error occurred'}, status=500)
+    return JsonResponse({'message': 'user created successfully'}, status=201)
 
 
 @login_required
@@ -112,10 +117,12 @@ def storage_allocation_history(request, allocation_id):
         return JsonResponse({'message': 'allocation_id is required'}, status=400)
     if not (request.user.is_superuser or utils.user_has_allocation_access(request.user, allocation_id)):
         return JsonResponse({'message': 'not allowed'}, status=403)
+    # outside the try: a missing allocation is a 404, and Http404 would otherwise be caught as an
+    # unexpected error and turned into a 500
+    get_object_or_404(Allocation, id=allocation_id)
     try:
-        get_object_or_404(Allocation, id=allocation_id)  # Ensure the allocation exists
         history, usage_history = utils.get_storage_allocation_history(allocation_id)
         return JsonResponse(utils.history_chart_format(history, usage_history), status=200)
-    except Exception as e:
-        logger.error(f'Error occurred while fetching storage allocation history: {str(e)}')
+    except Exception:
+        logger.exception(f'Error fetching the storage history of allocation {allocation_id}')
         return JsonResponse({'message': 'error occurred'}, status=500)
