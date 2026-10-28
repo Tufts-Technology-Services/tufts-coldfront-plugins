@@ -742,3 +742,46 @@ class TestAckColumn:
 
         task = response.context_data['page_obj'].object_list[0]
         assert 'acknowledgement' in task._state.fields_cache
+
+
+@pytest.mark.django_db
+@pytest.mark.urls('tufts_local.tests.urls')
+class TestAcknowledgeAllShown:
+    def rendered(self, rf, query=''):
+        response = get_report(rf, query)
+        response.render()
+        return response
+
+    def test_offered_with_the_count_of_unacknowledged_failures(self, rf):
+        make_task('a' * 32, 'boom', success=False)
+        make_task('b' * 32, 'boom', success=False)
+        acknowledged = make_task('c' * 32, 'boom', success=False)
+        TaskAcknowledgement.objects.create(task=acknowledged)
+        make_task('d' * 32, 'fine')
+
+        content = self.rendered(rf).content.decode()
+
+        assert 'Acknowledge all shown (2 unacknowledged failures)' in content
+        assert 'action="/task-acknowledge-bulk/?before=' in content
+
+    def test_follows_the_filters(self, rf):
+        make_task('a' * 32, 'index_new_allocation', success=False)
+        make_task('b' * 32, 'refresh_ncq_eligibility', success=False)
+
+        response = self.rendered(rf, '?name=index')
+
+        assert response.context_data['unacknowledged_count'] == 1
+        assert 'name=index' in response.context_data['acknowledge_all_url']
+
+    def test_not_offered_when_nothing_needs_it(self, rf):
+        make_task('a' * 32, 'fine')
+
+        assert 'Acknowledge all shown' not in self.rendered(rf).content.decode()
+
+    def test_the_poll_skips_counting(self, rf):
+        """The form is outside the polled tables, so an htmx refresh has no use for the count."""
+        make_task('a' * 32, 'boom', success=False)
+
+        response = get_report(rf, htmx=True)
+
+        assert response.context_data['unacknowledged_count'] == 0

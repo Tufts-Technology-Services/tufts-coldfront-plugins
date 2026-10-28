@@ -63,9 +63,10 @@ class TaskAcknowledgement(models.Model):
     """
     A record that someone has seen a failed task and dealt with it.
 
-    Acknowledged failures stop counting towards the background-task indicator, so the
-    badge goes back to meaning 'something needs looking at' rather than 'the queue has a
-    history'. Deleting the acknowledgement lights it again.
+    Acknowledged failures stop raising the failed-task alerts (task_failures.py), so the alerts
+    mean 'something needs looking at' rather than 'the queue has a history'. Deleting the
+    acknowledgement brings the failure back. Created one at a time from the task report, or in
+    bulk from an alert or the report's "Acknowledge all shown".
 
     Not to be confused with IgnoredTask, which is a standing pattern rule that hides whole
     classes of task from the report forever. This is one-shot, about one task that has

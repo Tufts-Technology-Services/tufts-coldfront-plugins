@@ -1,0 +1,30 @@
+{% comment %}
+The navbar's alerts indicator: a warning triangle marked with a dot in the worst alert's colour,
+then the number of alerts ("4 alerts"), and how many are critical when any are ("4 alerts ·
+2 critical"). One indicator, whatever the mix: only the worst severity shows. It links to the
+full list. The dot is Bootstrap's positioned-indicator pattern.
+
+Returned on its own by views/alerts.alert_indicator, which the navbar polls with htmx, so this
+fragment carries no wrapper of its own: the element it is swapped into belongs to the navbar. With no alerts it is
+a dimmed triangle without a dot or count, still a link, so the list stays one click away.
+{% endcomment %}
+<a href="{% url 'alert-list' %}" class="text-reset text-decoration-none"
+   title="{% if alerts %}Alerts as of {{ generated_at|date:'H:i' }}: {% for alert in alerts %}{{ alert.title }}{% if not forloop.last %}; {% endif %}{% endfor %}{% else %}No alerts as of {{ generated_at|date:'H:i' }}{% endif %}">
+  <span class="text-nowrap">
+    <span class="position-relative me-2{% if not alerts %} opacity-50{% endif %}">
+      <i class="fas fa-triangle-exclamation" aria-hidden="true"></i>
+      {% if alerts %}
+      {# worst first, so the first alert's severity colours the dot #}
+      <span class="position-absolute top-0 start-100 translate-middle p-1 bg-{{ alerts.0.severity }} border border-light rounded-circle"></span>
+      {% endif %}
+    </span>
+    {% if alerts %}
+    <span class="fw-semibold">{{ alerts|length }} alert{{ alerts|length|pluralize }}</span>
+    {% if critical_count %}
+    <small class="opacity-75">&middot; {{ critical_count }} critical</small>
+    {% endif %}
+    {% else %}
+    <span class="visually-hidden">No alerts</span>
+    {% endif %}
+  </span>
+</a>

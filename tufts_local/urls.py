@@ -74,6 +74,11 @@ urlpatterns = [
         name='task-acknowledge',
     ),
     path(
+        'task-acknowledge-bulk/',
+        views.acknowledge_tasks_in_bulk,
+        name='task-acknowledge-bulk',
+    ),
+    path(
         'task-unacknowledge/<str:task_id>/',
         views.unacknowledge_task,
         name='task-unacknowledge',
@@ -84,8 +89,23 @@ urlpatterns = [
         name='task-summary',
     ),
     path(
-        'task-summary-indicator/',
-        views.task_summary_indicator,
-        name='task-summary-indicator',
+        'history/',
+        views.project_history_search,
+        name='project-history-search',
+    ),
+    path(
+        'history/project/<int:pk>/',
+        views.project_history,
+        name='project-history',
+    ),
+    path(
+        'alerts/',
+        views.alert_list,
+        name='alert-list',
+    ),
+    path(
+        'alert-indicator/',
+        views.alert_indicator,
+        name='alert-indicator',
     ),
 ]

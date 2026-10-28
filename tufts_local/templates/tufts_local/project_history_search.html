@@ -1,0 +1,56 @@
+{% extends "common/base.html" %}
+
+{% block title %}
+Project History
+{% endblock %}
+
+{% block content %}
+<h2>Project History</h2>
+<p>
+  Find a project by its title, its PI's username or its Project Key to see the changes made to it.
+  Projects of every status are included, archived ones too.
+</p>
+
+<div class="col-lg-12 mt-2">
+  <form method="get" class="d-sm-flex align-items-center gap-1 mb-3">
+    <input type="search" name="q" value="{{ query }}" class="form-control w-auto" autofocus
+           placeholder="Title, PI username or Project Key" aria-label="Title, PI username or Project Key">
+    <button type="submit" class="btn btn-primary">
+      <i class="fa fa-search" aria-hidden="true"></i> Search
+    </button>
+  </form>
+
+  {% if query %}
+    {% if too_many %}
+    <div class="alert alert-warning">
+      <i class="fa fa-exclamation-triangle" aria-hidden="true"></i>
+      More than {{ max_results }} projects match "{{ query }}". The first {{ max_results }} are shown; try something narrower.
+    </div>
+    {% endif %}
+    {% if projects %}
+    <div class="table-responsive">
+      <table class="table table-sm">
+        <thead>
+          <tr>
+            <th scope="col">Project</th>
+            <th scope="col">PI</th>
+            <th scope="col">Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for project in projects %}
+          <tr>
+            <td><a href="{% url 'project-history' project.pk %}">{{ project.title }}</a></td>
+            <td class="text-nowrap">{{ project.pi.username }}</td>
+            <td class="text-nowrap">{{ project.status.name }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="alert alert-info"><i class="fa fa-info-circle"></i> There are no projects matching "{{ query }}" to display.</div>
+    {% endif %}
+  {% endif %}
+</div>
+{% endblock %}

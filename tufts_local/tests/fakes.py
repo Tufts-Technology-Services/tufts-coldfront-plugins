@@ -12,6 +12,14 @@ serving invented records to someone who believes they are looking at live data.
 
 import copy
 import datetime
+import uuid
+
+import redis
+from django.utils import timezone
+from django_q import core_signing
+from django_q.conf import Conf
+from django_q.signing import PickleSerializer
+from django_q.status import Status
 
 from tufts_local.status_change_utils import MAX_ROWS, StatusChangeAPIClient, StatusChangeAPIError
 
@@ -171,3 +179,46 @@ class DummyStatusChangeAPIClient(StatusChangeAPIClient):
                 'note': note,
             },
         )
+
+
+class FakeBroker:
+    """
+    Stand-in for django-q's broker, for the queue health check, holding real signed heartbeats.
+
+    add_cluster() signs a heartbeat the way a running cluster's Stat.save() does, so the
+    check under test decodes it with django-q's own Stat.get_all(), signature check included.
+    """
+
+    def __init__(self):
+        self.reachable = True
+        self.queued = 0
+        self.heartbeats = []
+
+    def queue_size(self):
+        # the health check's first command, so the one that finds an unreachable broker
+        if not self.reachable:
+            raise redis.ConnectionError('Error 111 connecting to redis-host:6379. Connection refused.')
+        return self.queued
+
+    def info(self):
+        return 'Redis 7.2.4'
+
+    def get_stats(self, pattern):
+        return list(self.heartbeats)
+
+    def add_cluster(self, host='worker-host-a', workers=4, status=None, started=None, secret_key=None):
+        heartbeat = Status(pid=1000 + len(self.heartbeats), cluster_id=uuid.uuid4())
+        heartbeat.host = host
+        heartbeat.status = Conf.IDLE if status is None else status
+        heartbeat.workers = list(range(2000, 2000 + workers))
+        heartbeat.tob = started or timezone.now() - datetime.timedelta(days=3)
+        # SignedPackage.dumps, but with the key a cluster configured differently would sign with
+        pack = core_signing.dumps(
+            heartbeat,
+            key=secret_key or Conf.SECRET_KEY,
+            salt=Conf.PREFIX,
+            compress=True,
+            serializer=PickleSerializer,
+        )
+        self.heartbeats.append(pack)
+        return heartbeat

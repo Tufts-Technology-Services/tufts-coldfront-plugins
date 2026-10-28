@@ -9,11 +9,13 @@ from urllib.parse import urlencode
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.core.paginator import EmptyPage, PageNotAnInteger, Paginator
 from django.template.response import TemplateResponse
+from django.urls import reverse
+from django.utils import timezone
 from django.views.decorators.http import require_GET
 from django_q.models import OrmQ, Schedule, Task
 
 from tufts_local.forms import TaskFilterForm
-from tufts_local.models import IgnoredTask
+from tufts_local.task_failures import exclude_ignored, failures_between, ignore_rules, is_ignored
 
 logger = logging.getLogger(__name__)
 
@@ -139,42 +141,6 @@ def _filter_rows(rows, name, group):
     return rows
 
 
-def _ignore_rules():
-    """
-    The admin-maintained ignore list, as (name prefixes, group ids).
-
-    Blank patterns are dropped: a '' prefix would match every task and silently empty
-    the whole report.
-    """
-    names = []
-    groups = []
-    for rule in IgnoredTask.objects.all():
-        pattern = (rule.pattern or '').strip()
-        if not pattern:
-            continue
-        if rule.field == IgnoredTask.GROUP:
-            groups.append(pattern)
-        else:
-            names.append(pattern)
-    return names, groups
-
-
-def _is_ignored(name, group, ignored_names, ignored_groups):
-    name = (name or '').lower()
-    group = (group or '').lower()
-    if group and any(group == pattern.lower() for pattern in ignored_groups):
-        return True
-    return bool(name) and any(name.startswith(pattern.lower()) for pattern in ignored_names)
-
-
-def _exclude_ignored(tasks, ignored_names, ignored_groups):
-    for pattern in ignored_names:
-        tasks = tasks.exclude(name__istartswith=pattern)
-    for pattern in ignored_groups:
-        tasks = tasks.exclude(group__iexact=pattern)
-    return tasks
-
-
 def _may_view(user):
     """
     Who the task pages are for: superusers and staff alike.
@@ -186,7 +152,7 @@ def _may_view(user):
 
 
 def _group_choices(pending_rows, ignored_names, ignored_groups):
-    tasks = _exclude_ignored(Task.objects.all(), ignored_names, ignored_groups)
+    tasks = exclude_ignored(Task.objects.all(), ignored_names, ignored_groups)
     groups = set(
         tasks.exclude(group__isnull=True).exclude(group='').values_list('group', flat=True).distinct().order_by('group')
     )
@@ -203,11 +169,11 @@ def task_report(request):
     already run, with its success/failure status and result.
     """
     # tasks matching an admin-maintained IgnoredTask rule are dropped everywhere on this page
-    ignored_names, ignored_groups = _ignore_rules()
+    ignored_names, ignored_groups = ignore_rules()
     all_pending = [
         row
         for row in _scheduled_rows() + _queued_rows()
-        if not _is_ignored(row['name'], row['group'], ignored_names, ignored_groups)
+        if not is_ignored(row['name'], row['group'], ignored_names, ignored_groups)
     ]
 
     # build the group dropdown from every group present, so it doesn't depend on the filters
@@ -223,7 +189,7 @@ def task_report(request):
     # queued rows have no scheduled time, so they sort ahead of the soonest scheduled run
     pending_rows.sort(key=lambda row: (row['when'] is not None, row['when']))
 
-    tasks = _exclude_ignored(Task.objects.all(), ignored_names, ignored_groups)
+    tasks = exclude_ignored(Task.objects.all(), ignored_names, ignored_groups)
     if name:
         tasks = tasks.filter(name__icontains=name)
     if group:
@@ -245,6 +211,16 @@ def task_report(request):
     # htmx polls this same view and swaps in just the tables, leaving the filter inputs alone
     template = '_task_tables.html' if request.htmx else 'task_report.html'
 
+    # "Acknowledge all shown": the unacknowledged failures matching the filters, as of this page
+    # load. It sits outside the polled tables, so `before` keeps it to what was on screen.
+    now = timezone.now()
+    unacknowledged = failures_between(before=now)
+    if name:
+        unacknowledged = unacknowledged.filter(name__icontains=name)
+    if group:
+        unacknowledged = unacknowledged.filter(group=group)
+    window = {'before': now.isoformat(), **{k: v for k, v in (('name', name), ('group', group)) if v}}
+
     return TemplateResponse(
         request,
         f'tufts_local/{template}',
@@ -261,5 +237,8 @@ def task_report(request):
             if filter_parameters
             else f'page={page_obj.number}',
             'refresh_seconds': REFRESH_SECONDS,
+            'unacknowledged_count': 0 if request.htmx else unacknowledged.count(),
+            'acknowledge_all_url': f'{reverse("task-acknowledge-bulk")}?{urlencode(window)}',
+            'return_path': request.get_full_path(),
         },
     )

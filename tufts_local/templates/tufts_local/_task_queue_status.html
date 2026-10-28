@@ -1,0 +1,77 @@
+{% comment %}
+The task queue's health: whether the broker answers and which clusters are working it.
+
+Collapsed while the status is green and open otherwise, decided afresh on every page load --
+a panel that went red stays open however it was left. The summary beside the badge is outside
+the collapsed region, so a closed panel still says how many clusters and workers there are.
+{% endcomment %}
+<style>
+  .queue-status-toggle .fa-chevron-right { transition: transform .15s; }
+  .queue-status-toggle:not(.collapsed) .fa-chevron-right { transform: rotate(90deg); }
+</style>
+<h3>
+  <a class="queue-status-toggle text-reset text-decoration-none{% if queue_health.overall_ok %} collapsed{% endif %}"
+     data-bs-toggle="collapse" href="#task-queue-status" role="button"
+     aria-expanded="{{ queue_health.overall_ok|yesno:'false,true' }}" aria-controls="task-queue-status">
+    <i class="fa fa-chevron-right small" aria-hidden="true"></i> Task queue status
+  </a>
+  <span class="badge text-bg-{{ queue_health.severity }}">{{ queue_health.label }}</span>
+  <small class="text-body-secondary fs-6">{{ queue_health.summary }}</small>
+</h3>
+<hr>
+<div id="task-queue-status" class="collapse{% if not queue_health.overall_ok %} show{% endif %}">
+  <p>
+    Broker
+    {% if queue_health.broker_ok %}
+    <span class="badge text-bg-success">Reachable</span>
+    {{ queue_health.broker_info }}
+    {% else %}
+    <span class="badge text-bg-danger">Unreachable</span>
+    {% endif %}
+  </p>
+
+  {% if not queue_health.broker_ok %}
+  <div class="alert alert-{{ queue_health.severity }}">
+    Could not connect to the task broker: {{ queue_health.broker_error }}
+    Worker status is unknown, and new background tasks cannot be queued.
+  </div>
+  {% elif not queue_health.clusters %}
+  <div class="alert alert-{{ queue_health.severity }}">
+    No task clusters have reported in the last few seconds. Queued tasks will not run until a
+    cluster is started (<code>systemctl status coldfront-qcluster</code>). A cluster on another
+    host also stays hidden if its Q_CLUSTER name or SECRET_KEY differs from this server's.
+  </div>
+  {% else %}
+  {% if queue_health.state == 'degraded' %}
+  <div class="alert alert-{{ queue_health.severity }}">
+    No cluster is taking tasks right now: each is starting up or shutting down.
+  </div>
+  {% endif %}
+  <div class="table-responsive">
+    <table class="table table-sm">
+      <thead>
+        <tr>
+          <th scope="col">Host</th>
+          <th scope="col">Cluster</th>
+          <th scope="col">Status</th>
+          <th scope="col">Workers</th>
+          <th scope="col">Up for</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for cluster in queue_health.clusters %}
+        <tr>
+          <td class="text-nowrap">{{ cluster.host }}</td>
+          <td class="text-nowrap">{{ cluster.cluster_id }}</td>
+          <td class="text-nowrap">
+            <span class="badge text-bg-{{ cluster.severity }}">{{ cluster.status }}</span>
+          </td>
+          <td>{{ cluster.workers }}</td>
+          <td class="text-nowrap">{% if cluster.started %}{{ cluster.started|timesince }}{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+</div>

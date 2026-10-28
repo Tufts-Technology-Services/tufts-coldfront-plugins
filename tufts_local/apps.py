@@ -9,4 +9,5 @@ class LocalConfig(AppConfig):
     name = 'tufts_local'
 
     def ready(self):
-        from . import signals  # noqa: F401
+        # importing registers: queue_health and task_failures their alert sources, checks its system checks
+        from . import checks, queue_health, signals, task_failures  # noqa: F401

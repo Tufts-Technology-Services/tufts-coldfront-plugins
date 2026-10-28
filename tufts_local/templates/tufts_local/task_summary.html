@@ -9,12 +9,14 @@ Background Task Summary
 <h2>Background Task Summary</h2>
 <p>
   Coldfront background task summary. Anything that finished
-  more than two hours ago is a count only; everything more recent, and everything still
+  more than {{ recent_hours }} hour{{ recent_hours|pluralize }} ago is a count only; everything more recent, and everything still
   scheduled to run, is listed in full. Generated {{ generated_at|date:"Y-m-d H:i:s" }}.
 </p>
 
 <div class="col-lg-12 mt-2">
-  <h3>Counts by status</h3>
+  {% include "tufts_local/_task_queue_status.html" %}
+
+  <h3 class="mt-4">Counts by status</h3>
   <hr>
   <div class="table-responsive">
     <table class="table table-sm">
@@ -70,7 +72,7 @@ Background Task Summary
   </div>
 
   <h3 class="mt-4">
-    Finished in the last 2 hours <span class="badge bg-secondary">{{ recent_count }}</span>
+    {{ recent_label }} <span class="badge bg-secondary">{{ recent_count }}</span>
   </h3>
   <hr>
   {% if recent_rows %}

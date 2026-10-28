@@ -15,7 +15,7 @@ from django_q.models import Schedule, Task
 from django_q.tasks import schedule as create_schedule
 
 from tufts_local.models import IgnoredTask, TaskAcknowledgement
-from tufts_local.views import task_summary, task_summary_indicator
+from tufts_local.views import task_summary
 from tufts_local.views.task_summary import STATUS_LABELS, _cell
 
 
@@ -59,6 +59,12 @@ def make_schedule(task_name='add_sf_tags_alloc_activate_7', group='starfish'):
     )
 
 
+@pytest.fixture(autouse=True)
+def two_hour_recent_window(settings):
+    """These tests place tasks either side of a 2-hour boundary; the default is wider (test_default_recent_window)."""
+    settings.TASK_RECENT_WINDOW_HOURS = 2
+
+
 @pytest.fixture
 def rf():
     return RequestFactory()
@@ -69,13 +75,6 @@ def get_summary(rf, query=''):
     request.user = make_user(is_superuser=True)
     add_session(request)
     return task_summary(request)
-
-
-def get_indicator(rf, query='', user=None):
-    request = rf.get(f'/task-summary-indicator/{query}')
-    request.user = user or make_user(is_superuser=True)
-    add_session(request)
-    return task_summary_indicator(request)
 
 
 def payload(response):
@@ -149,10 +148,8 @@ class TestSegments:
 
         response = get_summary(rf)
 
-        _older, older_total = segment(response, 'more than 24 hours')
-        _recent_ish, recent_ish_total = segment(response, '2 to 24 hours')
-        assert older_total == 1
-        assert recent_ish_total == 1
+        _older, older_total = segment(response, 'more than 2 hours')
+        assert older_total == 2
         assert response.context_data['recent_count'] == 1
         # the count and the listing are separate queries, so they are checked to agree
         assert len(response.context_data['recent_rows']) == 1
@@ -165,33 +162,27 @@ class TestSegments:
 
         response = get_summary(rf)
 
-        assert segment(response, '2 to 24 hours') == ({'Success': 2, 'Failed': 1, 'Acknowledged': 0}, 3)
-        assert segment(response, 'more than 24 hours') == ({'Success': 0, 'Failed': 1, 'Acknowledged': 0}, 1)
+        assert segment(response, 'more than 2 hours') == ({'Success': 2, 'Failed': 2, 'Acknowledged': 0}, 4)
 
     def test_both_statuses_are_reported_even_at_zero(self, rf):
         """'Failed 0' is the answer someone scanning this page wants; a missing row isn't."""
         response = get_summary(rf)
 
-        for fragment in ('more than 24 hours', '2 to 24 hours'):
-            counts, total = segment(response, fragment)
-            assert counts == {'Success': 0, 'Failed': 0, 'Acknowledged': 0}
-            assert total == 0
+        assert segment(response, 'more than 2 hours') == ({'Success': 0, 'Failed': 0, 'Acknowledged': 0}, 0)
 
     def test_the_windows_partition_every_task(self, rf):
-        """No task may be counted twice or fall between two windows, so all the boundaries
-        are taken from one clock reading; minutes either side of each is close enough to
-        catch a second reading being used."""
+        """No task may be counted twice or fall between the two windows, so the boundary is
+        taken from one clock reading; minutes either side of it is close enough to catch a
+        second reading being used."""
         for index, minutes_ago in enumerate((1, 119, 121, 23 * 60, 25 * 60)):
             make_task(f'{index:032d}', f'task_{index}', minutes_ago=minutes_ago)
 
         response = get_summary(rf)
 
-        _older, older_total = segment(response, 'more than 24 hours')
-        _mid, mid_total = segment(response, '2 to 24 hours')
-        assert older_total == 1
-        assert mid_total == 2
+        _older, older_total = segment(response, 'more than 2 hours')
+        assert older_total == 3
         assert response.context_data['recent_count'] == 2
-        assert older_total + mid_total + response.context_data['recent_count'] == Task.objects.count()
+        assert older_total + response.context_data['recent_count'] == Task.objects.count()
 
 
 @pytest.mark.django_db
@@ -268,8 +259,7 @@ class TestScheduledTasks:
 
         response = get_summary(rf)
 
-        assert segment(response, 'more than 24 hours') == ({'Success': 0, 'Failed': 0, 'Acknowledged': 0}, 0)
-        assert segment(response, '2 to 24 hours') == ({'Success': 0, 'Failed': 0, 'Acknowledged': 0}, 0)
+        assert segment(response, 'more than 2 hours') == ({'Success': 0, 'Failed': 0, 'Acknowledged': 0}, 0)
         assert response.context_data['recent_rows'] == []
 
     def test_schedule_type_is_shown_as_a_word(self, rf):
@@ -301,7 +291,7 @@ class TestIgnoredTasks:
 
         response = get_summary(rf)
 
-        assert segment(response, '2 to 24 hours') == ({'Success': 1, 'Failed': 0, 'Acknowledged': 0}, 1)
+        assert segment(response, 'more than 2 hours') == ({'Success': 1, 'Failed': 0, 'Acknowledged': 0}, 1)
 
     def test_ignored_tasks_are_left_out_of_the_recent_rows(self, rf):
         make_task('a' * 32, 'indexing', group='starfish')
@@ -400,8 +390,8 @@ class TestJsonEndpoint:
 
         body = payload(get_summary(rf, '?format=json'))
 
-        assert [segment['total'] for segment in body['segments']] == [1, 1, 1]
-        assert body['segments'][1]['counts'] == {'Success': 0, 'Failed': 1, 'Acknowledged': 0}
+        assert [segment['total'] for segment in body['segments']] == [2, 1]
+        assert body['segments'][0]['counts'] == {'Success': 1, 'Failed': 1, 'Acknowledged': 0}
 
     def test_recent_tasks_carry_every_field(self, rf):
         make_task('a' * 32, 'just_now')
@@ -455,169 +445,28 @@ class TestJsonEndpoint:
 
 @pytest.mark.django_db
 @pytest.mark.urls('tufts_local.tests.urls')
-class TestIndicator:
-    def test_staff_may_see_it(self, rf):
-        response = get_indicator(rf, user=make_user(is_staff=True))
+class TestRecentWindow:
+    def test_default_recent_window(self, rf, settings):
+        del settings.TASK_RECENT_WINDOW_HOURS
+        make_task('a' * 32, 'boom', minutes_ago=23 * 60)
+        make_task('b' * 32, 'old', minutes_ago=25 * 60)
 
-        assert response.status_code == 200
-
-    def test_ordinary_users_may_not(self, rf):
-        response = get_indicator(rf, user=make_user())
-
-        assert response.status_code == 302
-        assert 'login' in response.url
-
-    def test_anonymous_users_may_not(self, rf):
-        request = rf.get('/task-summary-indicator/')
-        request.user = AnonymousUser()
-
-        response = task_summary_indicator(request)
-
-        assert response.status_code == 302
-
-    def test_post_not_allowed(self, rf):
-        request = rf.post('/task-summary-indicator/')
-        request.user = make_user(is_superuser=True)
-
-        assert task_summary_indicator(request).status_code == 405
-
-    def test_json_counts(self, rf):
-        make_task('a' * 32, 'boom', success=False, minutes_ago=1)
-        make_task('b' * 32, 'fine', minutes_ago=1)
-        make_task('c' * 32, 'old_boom', success=False, minutes_ago=30 * 60)
-        make_schedule()
-
-        body = payload(get_indicator(rf, '?format=json'))
-
-        assert body['failed_recent'] == 1
-        assert body['segments']['recent']['counts'] == {'Success': 1, 'Failed': 1, 'Acknowledged': 0}
-        assert body['segments']['older']['counts'] == {'Success': 0, 'Failed': 1, 'Acknowledged': 0}
-        assert body['scheduled'] == 1
-
-    def test_json_is_counts_only(self, rf):
-        """The indicator rides along on every page load once it is in the corner, so it
-        stays counts: no task name, no arguments, no results. The detail is one click
-        away on the summary page, which the same people can open."""
-        make_task('a' * 32, 'secret_task_name', result='secret result')
-        make_schedule(task_name='secret_schedule_name')
-
-        body = payload(get_indicator(rf, '?format=json'))
-
-        assert 'secret' not in json.dumps(body)
-
-    def test_fragment_flags_recent_failures(self, rf):
-        make_task('a' * 32, 'boom', success=False, minutes_ago=1)
-
-        response = get_indicator(rf)
-        response.render()
-
-        assert response.template_name == 'tufts_local/_task_summary_indicator.html'
-        assert b'bg-danger' in response.content
-        assert b'1 failed' in response.content
-
-    def test_fragment_is_green_when_nothing_failed(self, rf):
-        make_task('a' * 32, 'fine', minutes_ago=1)
-
-        response = get_indicator(rf)
-        response.render()
-
-        assert b'bg-success' in response.content
-        assert b'bg-danger' not in response.content
-        assert b'bg-warning' not in response.content
-
-    @pytest.mark.parametrize('minutes_ago', (5 * 60, 30 * 60), ids=('earlier_today', 'older'))
-    def test_fragment_is_amber_for_older_failures(self, rf, minutes_ago):
-        """A failure outside the red window is still a failure; leaving the badge green
-        until someone hovers would let an overnight one go unnoticed."""
-        make_task('a' * 32, 'boom', success=False, minutes_ago=minutes_ago)
-
-        response = get_indicator(rf)
-        response.render()
-
-        assert b'text-bg-warning' in response.content
-        assert b'1 failed earlier' in response.content
-        assert b'bg-danger' not in response.content
-
-    def test_recent_failures_outrank_older_ones(self, rf):
-        make_task('a' * 32, 'boom', success=False, minutes_ago=1)
-        make_task('b' * 32, 'old_boom', success=False, minutes_ago=30 * 60)
-
-        response = get_indicator(rf)
-        response.render()
-
-        assert b'bg-danger' in response.content
-        assert b'bg-warning' not in response.content
-
-    def test_older_failures_are_added_up_across_both_windows(self, rf):
-        make_task('a' * 32, 'boom', success=False, minutes_ago=5 * 60)
-        make_task('b' * 32, 'old_boom', success=False, minutes_ago=30 * 60)
-
-        response = get_indicator(rf)
-        response.render()
-
-        assert b'2 failed earlier' in response.content
-        assert payload(get_indicator(rf, '?format=json'))['failed_before'] == 2
-
-    def test_the_scheduled_count_gets_its_own_badge(self, rf):
-        """It sits beside the failure badge rather than replacing it: what is queued to run
-        and what has already broken are separate questions."""
-        make_schedule()
-        make_task('a' * 32, 'boom', success=False, minutes_ago=1)
-
-        response = get_indicator(rf)
-        response.render()
-
-        assert b'1 scheduled' in response.content
-        # text-bg-* rather than bg-*: the latter leaves white text on pale blue
-        assert b'badge text-bg-info' in response.content
-        assert b'bg-danger' in response.content
-
-    def test_no_scheduled_badge_when_nothing_is_scheduled(self, rf):
-        """The title still counts them -- "0 scheduled" is a fact worth stating on hover --
-        so this looks for the badge rather than the word."""
-        response = get_indicator(rf)
-        response.render()
-
-        assert b'bg-info' not in response.content
-        assert b'>0 scheduled</span>' not in response.content
-
-    def test_fragment_names_no_tasks(self, rf):
-        make_task('a' * 32, 'secret_task_name', result='secret result')
-
-        response = get_indicator(rf)
-        response.render()
-
-        assert b'secret' not in response.content
-
-    def test_fragment_is_a_fragment(self, rf):
-        response = get_indicator(rf)
-        response.render()
-
-        # nothing for the corner to unwrap: no document, and no element to swap into
-        assert b'</html>' not in response.content
-        assert b'hx-get' not in response.content
-
-    def test_the_badge_links_to_the_summary(self, rf):
-        """Both endpoints answer to the same audience, so the link always leads somewhere
-        its reader can actually open."""
-        for user in (make_user(is_superuser=True), make_user(is_staff=True)):
-            response = get_indicator(rf, user=user)
-            response.render()
-
-            assert b'href="/task-summary/"' in response.content
-
-
-@pytest.mark.django_db
-@pytest.mark.urls('tufts_local.tests.urls')
-class TestIndicatorWiring:
-    def test_the_page_does_not_carry_its_own_indicator(self, rf):
-        """The navbar polls the indicator on every page, this one included, so a copy in
-        the header would put the same badge on screen twice. That wiring lives in
-        coldfront-branding; all this repo owes it is the endpoint."""
         response = get_summary(rf)
         response.render()
 
-        assert b'/task-summary-indicator/' not in response.content
+        assert response.context_data['recent_count'] == 1
+        assert b'Finished in the last 24 hours' in response.content
+        assert segment(response, 'more than 24 hours')[1] == 1
+
+    def test_the_labels_follow_the_setting(self, rf, settings):
+        settings.TASK_RECENT_WINDOW_HOURS = 1
+
+        response = get_summary(rf)
+        response.render()
+
+        assert b'Finished in the last 1 hour <' in response.content
+        assert b'more than 1 hour ago is a count only' in response.content
+        assert segment(response, 'more than 1 hour')[1] == 0
 
 
 class TestCell:
@@ -640,8 +489,8 @@ class TestCell:
 @pytest.mark.django_db
 @pytest.mark.urls('tufts_local.tests.urls')
 class TestAcknowledgedFailures:
-    """Acknowledging is the only thing that clears the indicator, so this is the part of
-    that feature worth pinning down from the summary's side."""
+    """Acknowledging is what clears a failure's alert (see test_task_failures.py); this is the
+    summary's side of it."""
 
     def acknowledge(self, task):
         return TaskAcknowledgement.objects.create(task=task)
@@ -653,38 +502,7 @@ class TestAcknowledgedFailures:
         response = get_summary(rf)
 
         # still counted, still part of the total: signed off, not erased
-        assert segment(response, '2 to 24 hours') == ({'Success': 0, 'Failed': 0, 'Acknowledged': 1}, 1)
-
-    def test_a_red_badge_goes_green(self, rf):
-        task = make_task('a' * 32, 'boom', success=False, minutes_ago=1)
-        make_task('b' * 32, 'fine', minutes_ago=1)
-
-        assert b'bg-danger' in self.rendered(rf)
-
-        self.acknowledge(task)
-
-        assert b'bg-success' in self.rendered(rf)
-
-    def test_an_amber_badge_goes_green(self, rf):
-        task = make_task('a' * 32, 'old_boom', success=False, minutes_ago=30 * 60)
-
-        assert b'text-bg-warning' in self.rendered(rf)
-
-        self.acknowledge(task)
-
-        assert b'bg-warning' not in self.rendered(rf)
-
-    def test_the_json_counts_drop_it_too(self, rf):
-        recent = make_task('a' * 32, 'boom', success=False, minutes_ago=1)
-        older = make_task('b' * 32, 'old_boom', success=False, minutes_ago=30 * 60)
-
-        before = payload(get_indicator(rf, '?format=json'))
-        self.acknowledge(recent)
-        self.acknowledge(older)
-        after = payload(get_indicator(rf, '?format=json'))
-
-        assert (before['failed_recent'], before['failed_before']) == (1, 1)
-        assert (after['failed_recent'], after['failed_before']) == (0, 0)
+        assert segment(response, 'more than 2 hours') == ({'Success': 0, 'Failed': 0, 'Acknowledged': 1}, 1)
 
     def test_the_task_is_still_listed_in_full(self, rf):
         """The row stays on the page -- acknowledging is not hiding, which is what the
@@ -696,9 +514,3 @@ class TestAcknowledgedFailures:
         response.render()
 
         assert b'boom' in response.content
-
-    @staticmethod
-    def rendered(rf):
-        response = get_indicator(rf)
-        response.render()
-        return response.content
