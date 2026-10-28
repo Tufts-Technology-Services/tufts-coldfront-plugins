@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
+from .alerts import alert_indicator, alert_list
 from .login_as_user import login_as_user_view
 from .project_create_view import AdminProjectCreateView
 from .reports import (
@@ -9,9 +10,9 @@ from .reports import (
     sf_report,
 )
 from .storage_status_change_view import storage_status_change_review
-from .task_acknowledgement import acknowledge_task, unacknowledge_task
+from .task_acknowledgement import acknowledge_task, acknowledge_tasks_in_bulk, unacknowledge_task
 from .task_report import task_report
-from .task_summary import task_summary, task_summary_indicator
+from .task_summary import task_summary
 from .update_project_owner_view import UpdateProjectOwnerView
 from .views import (
     add_user_to_coldfront,
@@ -22,7 +23,10 @@ from .views import (
 )
 
 __all__ = [
+    'alert_indicator',
+    'alert_list',
     'acknowledge_task',
+    'acknowledge_tasks_in_bulk',
     'unacknowledge_task',
     'AdminProjectCreateView',
     'project_update_user_role',
@@ -36,6 +40,5 @@ __all__ = [
     'storage_status_change_review',
     'task_report',
     'task_summary',
-    'task_summary_indicator',
     'UpdateProjectOwnerView',
 ]

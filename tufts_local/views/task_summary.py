@@ -8,18 +8,17 @@ import logging
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.db.models import Count, Q
 from django.http import JsonResponse
+from django.template.defaultfilters import pluralize
 from django.template.response import TemplateResponse
 from django.utils import timezone
 from django.views.decorators.http import require_GET
 from django_q.models import Schedule, Task
 
-from tufts_local.views.task_report import _exclude_ignored, _ignore_rules, _is_ignored, _may_view, _q_options
+from tufts_local.queue_health import get_task_queue_health
+from tufts_local.task_failures import exclude_ignored, ignore_rules, is_ignored, recent_window_hours
+from tufts_local.views.task_report import _may_view, _q_options
 
 logger = logging.getLogger(__name__)
-
-# the segment boundaries, measured back from the moment the page is built
-RECENT_WINDOW = datetime.timedelta(hours=2)
-AGGREGATE_WINDOW = datetime.timedelta(hours=24)
 
 # longer cell values are cut short in the table and offered in full in a popover
 MAX_CELL_CHARS = 60
@@ -27,8 +26,8 @@ MAX_CELL_CHARS = 60
 # The three outcomes a finished task can be in, as (aggregate name, label). django-q
 # records only a boolean, so 'Acknowledged' is this app's own third state: a failure
 # someone has looked at and signed off (see models.TaskAcknowledgement). Counting it
-# apart from 'Failed' keeps 'Failed' meaning what the corner badge means -- failures
-# nobody has dealt with yet -- so the page explains the badge instead of contradicting it.
+# apart from 'Failed' keeps 'Failed' meaning what the task failure alerts count -- failures
+# nobody has dealt with yet -- so the page explains the alerts instead of contradicting them.
 STATUS_LABELS = (('succeeded', 'Success'), ('failed', 'Failed'), ('acknowledged', 'Acknowledged'))
 
 
@@ -132,46 +131,40 @@ def _pending_schedules(ignored_names, ignored_groups):
     for schedule in Schedule.objects.exclude(repeats=0):
         options = _q_options(schedule)
         name = schedule.name or options.get('task_name') or ''
-        if not _is_ignored(name, options.get('group') or '', ignored_names, ignored_groups):
+        if not is_ignored(name, options.get('group') or '', ignored_names, ignored_groups):
             kept.append(schedule)
     return kept
 
 
 def _summary():
     """
-    The whole summary, shared by the page, the JSON endpoint and the indicator.
+    The whole summary, shared by the page and its JSON output.
 
-    Three windows back from one clock reading, so they partition the completed tasks
-    exactly: no task lands in two of them and none lands in none of them. The oldest two
-    are counted; the last two hours is counted *and* listed, since that is the part still
+    Two windows split at one clock reading, recent_window_hours() back, so they partition
+    the completed tasks exactly: no task lands in both and none lands in neither. The older
+    one is counted; the recent one is counted *and* listed, since that is the part still
     worth acting on. Scheduled tasks have not finished at all, so they are kept out of
     every window and returned on their own.
     """
-    ignored_names, ignored_groups = _ignore_rules()
-    tasks = _exclude_ignored(Task.objects.all(), ignored_names, ignored_groups)
+    ignored_names, ignored_groups = ignore_rules()
+    tasks = exclude_ignored(Task.objects.all(), ignored_names, ignored_groups)
 
     now = timezone.now()
-    recent_start = now - RECENT_WINDOW
-    day_start = now - AGGREGATE_WINDOW
+    hours = recent_window_hours()
+    recent_start = now - datetime.timedelta(hours=hours)
 
     return {
         'generated_at': now,
+        'recent_hours': hours,
         'older': _segment(
             'older',
-            'Finished more than 24 hours ago',
-            tasks.filter(stopped__lt=day_start),
-            until=day_start,
-        ),
-        'earlier': _segment(
-            'earlier',
-            'Finished 2 to 24 hours ago',
-            tasks.filter(stopped__gte=day_start, stopped__lt=recent_start),
-            since=day_start,
+            f'Finished more than {hours} hour{pluralize(hours)} ago',
+            tasks.filter(stopped__lt=recent_start),
             until=recent_start,
         ),
         'recent': _segment(
             'recent',
-            'Finished in the last 2 hours',
+            f'Finished in the last {hours} hour{pluralize(hours)}',
             tasks.filter(stopped__gte=recent_start),
             since=recent_start,
         ),
@@ -182,11 +175,6 @@ def _summary():
 
 def _counts_by_status(segment):
     return {count['status']: count['count'] for count in segment['counts']}
-
-
-def _failed(segment):
-    """Failures nobody has acknowledged yet -- the ones still asking for attention."""
-    return _counts_by_status(segment)['Failed']
 
 
 def _wants_json(request):
@@ -226,7 +214,7 @@ def task_summary(request):
         return JsonResponse(
             {
                 'generated_at': _isoformat(summary['generated_at']),
-                'segments': [_segment_json(summary[key]) for key in ('older', 'earlier', 'recent')],
+                'segments': [_segment_json(summary[key]) for key in ('older', 'recent')],
                 'recent_tasks': _records(summary['recent_tasks'], recent_columns),
                 'schedules': _records(summary['schedules'], schedule_columns),
             }
@@ -236,12 +224,14 @@ def task_summary(request):
         request,
         'tufts_local/task_summary.html',
         {
-            # the last two hours is listed row by row below, so it isn't in the counts table
-            'segments': [summary['older'], summary['earlier']],
+            # the recent window is listed row by row below, so it isn't in the counts table
+            'segments': [summary['older']],
             'recent_columns': recent_columns,
             'recent_rows': _detail_rows(summary['recent_tasks'], recent_columns),
             'recent_count': summary['recent']['total'],
             'recent_since': summary['recent']['since'],
+            'recent_label': summary['recent']['label'],
+            'recent_hours': summary['recent_hours'],
             'schedule_columns': schedule_columns,
             'schedule_rows': _detail_rows(summary['schedules'], schedule_columns),
             'schedule_count': len(summary['schedules']),
@@ -249,55 +239,6 @@ def task_summary(request):
             # the templates truncate to the same width the popover threshold uses, so a
             # cell never offers "see the rest" when there is no rest to see
             'max_cell_chars': MAX_CELL_CHARS,
-        },
-    )
-
-
-@login_required
-@require_GET
-@user_passes_test(_may_view)
-def task_summary_indicator(request):
-    """
-    The summary reduced to counts, for the status indicator in the navbar.
-
-    Returns an HTML fragment to swap in, or the same numbers as JSON with ?format=json.
-    The only caller is outside this repo: coldfront-branding's common/authorized_navbar.html
-    polls it with htmx, staff-gated to match _may_view, so the badge rides along on every
-    page. Nothing here renders it -- a template that wants its own copy would be a second
-    badge saying the same thing.
-
-    Counts only, which is all a navbar badge has room for; the detail is a click away on
-    the summary page itself. Acknowledged failures don't count towards failed_recent or
-    failed_before, so signing one off on the task report puts the badge back to green.
-    """
-    summary = _summary()
-    recent, earlier, older = summary['recent'], summary['earlier'], summary['older']
-    failed_recent = _failed(recent)
-    # failures older than the red badge's window still need answering, so they colour the
-    # badge amber rather than waiting to be found in the tooltip
-    failed_before = _failed(earlier) + _failed(older)
-
-    if _wants_json(request):
-        return JsonResponse(
-            {
-                'generated_at': _isoformat(summary['generated_at']),
-                'failed_recent': failed_recent,
-                'failed_before': failed_before,
-                'segments': {key: _segment_json(summary[key]) for key in ('older', 'earlier', 'recent')},
-                'scheduled': len(summary['schedules']),
-            }
-        )
-
-    return TemplateResponse(
-        request,
-        'tufts_local/_task_summary_indicator.html',
-        {
-            'failed_recent': failed_recent,
-            'failed_before': failed_before,
-            'succeeded_recent': _counts_by_status(recent)['Success'],
-            'failed_earlier': _failed(earlier),
-            'failed_older': _failed(older),
-            'scheduled': len(summary['schedules']),
-            'generated_at': summary['generated_at'],
+            'queue_health': get_task_queue_health(),
         },
     )

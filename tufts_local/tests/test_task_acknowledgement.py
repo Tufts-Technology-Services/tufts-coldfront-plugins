@@ -255,3 +255,99 @@ class TestModel:
         acknowledgement = TaskAcknowledgement.objects.get()
         assert acknowledgement.acknowledged_by is None
         assert str(acknowledgement) == f'{TASK_ID} acknowledged by a deleted user'
+
+
+@pytest.mark.django_db
+@pytest.mark.urls('tufts_local.tests.urls')
+class TestBulkAcknowledgement:
+    """The endpoint behind an alert's Acknowledge button and the report's "Acknowledge all shown"."""
+
+    URL = '/task-acknowledge-bulk/'
+
+    @pytest.fixture
+    def staff_client(self, client):
+        client.force_login(make_real_user(is_superuser=False, is_staff=True))
+        return client
+
+    @staticmethod
+    def window(**bounds):
+        now = timezone.now()
+        return '&'.join(f'{k}={(now + v).isoformat()}'.replace('+', '%2B') for k, v in bounds.items())
+
+    def test_acknowledges_failures_in_the_window(self, staff_client):
+        make_task('a' * 32, minutes_ago=1)
+        make_task('b' * 32, minutes_ago=90)
+        make_task('c' * 32, minutes_ago=5)
+
+        staff_client.post(
+            f'{self.URL}?{self.window(since=-datetime.timedelta(minutes=60), before=datetime.timedelta(0))}'
+        )
+
+        assert set(TaskAcknowledgement.objects.values_list('task_id', flat=True)) == {'a' * 32, 'c' * 32}
+
+    def test_narrows_by_name_and_group_like_the_report(self, staff_client):
+        make_task('a' * 32, name='index_new_allocation')
+        make_task('b' * 32, name='refresh_ncq_eligibility')
+
+        staff_client.post(f'{self.URL}?{self.window(before=datetime.timedelta(0))}&name=index&group=starfish')
+
+        assert list(TaskAcknowledgement.objects.values_list('task_id', flat=True)) == ['a' * 32]
+
+    def test_records_who_and_why(self, staff_client):
+        make_task('a' * 32)
+
+        staff_client.post(f'{self.URL}?{self.window(before=datetime.timedelta(0))}', {'reason': '  vendor outage  '})
+
+        acknowledgement = TaskAcknowledgement.objects.get()
+        assert acknowledgement.acknowledged_by.username == 'rdms_admin'
+        assert acknowledgement.reason == 'vendor outage'
+
+    def test_leaves_successes_and_existing_acknowledgements_alone(self, staff_client):
+        make_task('a' * 32, success=True)
+        already = make_task('b' * 32)
+        TaskAcknowledgement.objects.create(task=already, reason='earlier')
+
+        response = staff_client.post(f'{self.URL}?{self.window(before=datetime.timedelta(0))}', follow=True)
+
+        assert list(TaskAcknowledgement.objects.values_list('reason', flat=True)) == ['earlier']
+        assert 'There were no unacknowledged failures to acknowledge.' in [str(m) for m in response.context['messages']]
+
+    def test_before_is_required(self, staff_client):
+        make_task('a' * 32)
+
+        response = staff_client.post(self.URL)
+
+        assert response.status_code == 400
+        assert not TaskAcknowledgement.objects.exists()
+
+    def test_a_mangled_bound_acknowledges_nothing(self, staff_client):
+        make_task('a' * 32)
+
+        response = staff_client.post(f'{self.URL}?before=yesterday')
+
+        assert response.status_code == 400
+        assert not TaskAcknowledgement.objects.exists()
+
+    def test_goes_back_to_a_local_next(self, staff_client):
+        response = staff_client.post(f'{self.URL}?{self.window(before=datetime.timedelta(0))}', {'next': '/alerts/'})
+
+        assert response.url == '/alerts/'
+
+    def test_ignores_an_offsite_next(self, staff_client):
+        response = staff_client.post(
+            f'{self.URL}?{self.window(before=datetime.timedelta(0))}', {'next': 'https://evil.example/'}
+        )
+
+        assert response.url == '/task-report/'
+
+    def test_get_is_not_allowed(self, staff_client):
+        assert staff_client.get(f'{self.URL}?{self.window(before=datetime.timedelta(0))}').status_code == 405
+
+    def test_ordinary_users_may_not(self, client):
+        client.force_login(make_real_user(username='someone', is_superuser=False))
+        make_task('a' * 32)
+
+        response = client.post(f'{self.URL}?{self.window(before=datetime.timedelta(0))}')
+
+        assert response.status_code == 302
+        assert not TaskAcknowledgement.objects.exists()
