@@ -263,31 +263,42 @@ def send_tier2_quota_info(client_config_id):
             )
         report = buffer.getvalue()
 
-    return _mail_tier2_quota_report(report, report_date, len(datasets))
+    return _mail_report(
+        title='Tier 2 quota report',
+        filename=f'tier2_quota_report_{report_date}.csv',
+        content=report,
+        mimetype='text/csv',
+        report_date=report_date,
+        body=f'Quotas TrueNAS reported for {len(datasets)} datasets on {report_date}, attached as CSV.',
+        summary=f'{len(datasets)} datasets',
+    )
 
 
-def _mail_tier2_quota_report(report, report_date, dataset_count):
-    """Send the report to DATA_ENGINEER_EMAIL as a CSV attachment."""
+def _mail_report(title, filename, content, mimetype, report_date, body, summary):
+    """Send a report to DATA_ENGINEER_EMAIL as an attachment.
+
+    `title` is the subject line (the date is appended), `mimetype` says what the attachment
+    is ('text/csv', 'application/json', ...) and `summary` is a short description of what
+    the report holds, used to build the task result.
+    """
     # its own switch rather than coldfront's EMAIL_ENABLED: scheduled reports to staff and
     # transactional mail to users are worth turning on and off independently
     if not import_from_settings('REPORTING_EMAIL_ENABLED', False):
-        logger.warning(
-            f'REPORTING_EMAIL_ENABLED is off: built the tier 2 quota report for {report_date} but sent nothing.'
-        )
-        return {'message': f'{dataset_count} datasets; not sent, reporting email is disabled'}
+        logger.warning(f'REPORTING_EMAIL_ENABLED is off: built the {title.lower()} for {report_date} but sent nothing.')
+        return {'message': f'{summary}; not sent, reporting email is disabled'}
 
     # no default: a deployment that hasn't named a recipient should raise an error
     recipient = import_from_settings('DATA_ENGINEER_EMAIL')
     subject_prefix = import_from_settings('EMAIL_SUBJECT_PREFIX', '')
     message = EmailMessage(
-        subject=f'{subject_prefix} Tier 2 quota report {report_date}'.strip(),
-        body=f'Quotas TrueNAS reported for {dataset_count} datasets on {report_date}, attached as CSV.',
+        subject=f'{subject_prefix} {title} {report_date}'.strip(),
+        body=body,
         # EmailMessage falls back to DEFAULT_FROM_EMAIL when this is empty, which is what
         # coldfront leaves EMAIL_SENDER as until a deployment sets it
         from_email=import_from_settings('EMAIL_SENDER', ''),
         to=[recipient],
     )
-    message.attach(f'tier2_quota_report_{report_date}.csv', report, 'text/csv')
+    message.attach(filename, content, mimetype)
     message.send(fail_silently=False)
-    logger.info(f'Sent the tier 2 quota report for {report_date} to {recipient}.')
-    return {'message': f'{dataset_count} datasets sent to {recipient}'}
+    logger.info(f'Sent the {title.lower()} for {report_date} to {recipient}.')
+    return {'message': f'{summary} sent to {recipient}'}

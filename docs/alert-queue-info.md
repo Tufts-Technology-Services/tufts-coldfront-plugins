@@ -1,11 +1,13 @@
 # Admin alerts, task queue health and failed tasks
 
 Staff and superusers see an alerts indicator in the navbar. It counts the current alerts
-and links to a page that lists them. Alerts come from two sources so far: the django-q task
-queue's health, and failed background tasks that nobody has acknowledged.
+and links to a page that lists them. Alerts come from four sources so far: the django-q task
+queue's health, failed background tasks that nobody has acknowledged, allocation requests
+that have waited too long, and pending project reviews. Each source has an audience, and
+each person sees only the alerts of the sources whose audience includes them.
 
-This describes what is built. Alerts for other audiences, such as PIs, Approvers and project
-members, are planned in [alert-audiences-plan.md](alert-audiences-plan.md) but not built.
+This describes what is built. Project alerts for PIs, Approvers and project members are
+planned in [alert-audiences-plan.md](alert-audiences-plan.md) but not built.
 
 ## What's implemented
 
@@ -20,7 +22,9 @@ members, are planned in [alert-audiences-plan.md](alert-audiences-plan.md) but n
 | Admin and Staff menus | "Background Tasks", a link to `/task-summary/`. |
 
 Ordinary users see none of this. The navbar item, the two alert views and the task pages are
-all limited to staff and superusers.
+all limited to staff and superusers. A reviewer who isn't staff therefore sees no reviewer
+alerts yet, even though they're in those sources' audience: opening the bell and the alerts
+page to everyone comes with project alerts (phase 2 of the audiences plan).
 
 The navbar indicator with critical alerts, with only a warning, and with none:
 
@@ -32,11 +36,21 @@ The task queue panel when healthy (collapsed), degraded and with the broker down
 
 ### Alert sources
 
-| Source | Severity | Raised when | Links to |
-| --- | --- | --- | --- |
-| `task queue` | Critical | The task broker (Redis) can't be reached ("Task queue: broker down"), or it can but no cluster has sent a heartbeat ("Task queue: no workers"). | `/task-summary/` |
-| `background tasks` | Critical | Unacknowledged, non-ignored failures in the last `TASK_RECENT_WINDOW_HOURS` ("Background tasks: 3 failed in the last 24 hours"). | `/task-report/` |
-| `background tasks` | Warning | Unacknowledged, non-ignored failures older than that, back as far as `TASK_FAILURE_ALERT_DAYS` ("Background tasks: 2 earlier failures not acknowledged"). | `/task-report/` |
+| Source | Audience | Severity | Raised when | Links to |
+| --- | --- | --- | --- | --- |
+| `task queue` | staff | Critical | The task broker (Redis) can't be reached ("Task queue: broker down"), or it can but no cluster has sent a heartbeat ("Task queue: no workers"). | `/task-summary/` |
+| `background tasks` | staff | Critical | Unacknowledged, non-ignored failures in the last `TASK_RECENT_WINDOW_HOURS` ("Background tasks: 3 failed in the last 24 hours"). | `/task-report/` |
+| `background tasks` | staff | Warning | Unacknowledged, non-ignored failures older than that, back as far as `TASK_FAILURE_ALERT_DAYS` ("Background tasks: 2 earlier failures not acknowledged"). | `/task-report/` |
+| `allocation requests` | `allocation.can_review_allocation_requests` | Warning | Allocations have been New or Renewal Requested for more than `ALLOCATION_REQUEST_ALERT_DAYS` ("Allocation requests: 2 waiting more than 1 day"). | `/allocation/request-list` |
+| `project reviews` | `project.can_review_pending_project_reviews` | Info | Any project review is Pending ("Project reviews: 3 pending"). | `/project/project-review-list` |
+
+- **Audiences:** "staff" means `is_staff` or `is_superuser`. A permission audience means
+  `user.has_perm()`, which every active superuser passes, as on the ColdFront page the alert
+  links to. Staff without the permission don't see those alerts.
+- **How long a request has waited** is measured from when it entered its current status,
+  read from the allocation's history: for a renewal, that's when the renewal was requested,
+  the same date ColdFront's request list shows. Paid and Approved allocations are on that
+  list too, but they wait on someone other than the reviewer, so they don't count.
 
 - A queue that is only degraded, with a cluster starting up or shutting down, raises no
   alert. It shows on the panel only, because it usually sorts itself out within seconds.
@@ -59,9 +73,10 @@ The task queue panel when healthy (collapsed), degraded and with the broker down
 | --- | --- | --- |
 | `TASK_RECENT_WINDOW_HOURS` | 24 | How far back counts as recent: the critical task alert's window, and the part of the task summary listed in full. A whole number of hours, at least 1. |
 | `TASK_FAILURE_ALERT_DAYS` | 7 | How far back the warning task alert counts older failures. A whole number of days, at least 1, or `None` for no limit. |
+| `ALLOCATION_REQUEST_ALERT_DAYS` | 1 | How many days an allocation request may wait for review before it raises an alert. A whole number of days, at least 0. With 0, every waiting request counts. |
 
-Both are read on every check, so changing one needs no code change. A Django system check
-(`checks.py`, `tufts_local.E001` and `E002`) rejects bad values, so a typo stops
+All three are read on every check, so changing one needs no code change. Django system checks
+(`checks.py`, `tufts_local.E001` to `E003`) reject bad values, so a typo stops
 `manage.py check` and `migrate` at deploy time. In coldfront-ansible, set them through
 `coldfront_settings`.
 
@@ -88,16 +103,20 @@ connections would make each queue check wait indefinitely.
                  │                                │
                  ▼                                │
   alerts.py                                       │
-  get_current_alerts()  ── reuses a run for 15s   │
+  get_current_alerts(user) ── reuses a run for 15s│
+   └─ keeps the alerts whose source's audience    │
+      includes the user                           │
   collect_alerts()                                │
    ├─ runs each registered source in try/except   │
    ├─ a source that crashes → "Could not check X" │
    └─ sorts danger → warning → info               │
                  │                                │
-       ┌─────────┴─ registry of sources ─────────────────────────┐
-       │ 'task queue'       → queue_health.task_queue_alerts()   │
-       │ 'background tasks' → task_failures.task_failure_alerts()│
-       └─────────┬───────────────────────────────────────────────┘
+       ┌─────────┴─ registry of sources, each with an audience ──────────┐
+       │ 'task queue'          → queue_health.task_queue_alerts()        │
+       │ 'background tasks'    → task_failures.task_failure_alerts()     │
+       │ 'allocation requests' → review_alerts.allocation_request_alerts()│
+       │ 'project reviews'     → review_alerts.project_review_alerts()   │
+       └─────────┬───────────────────────────────────────────────────────┘
                  ▼                                │
   queue_health.py                                 │
   task_queue_alerts()  ── alerts only if red      │
@@ -188,16 +207,19 @@ of its own to acknowledge. Acknowledging also clears the cached alerts in the pr
 handled it, so the person who acted sees the alert go at once.
 
 **Alert sources.** A source is any function registered with
-`@register_alert_source('name')` that takes no arguments and returns a list of `Alert`. To
-add a new type of alert, write a source in a module that `LocalConfig.ready()` imports.
-`apps.py` does this for `queue_health` and `task_failures`. Test each source by calling it
+`@register_alert_source('name', audience=...)` that takes no arguments and returns a list of
+`Alert`. The audience is a function that takes a user and returns whether they should see
+the source's alerts: `staff` (the default), `superusers`, or `with_permission('app.codename')`.
+A source's "Could not check" warning goes to the same audience. To add a new type of alert,
+write a source in a module that `LocalConfig.ready()` imports. `apps.py` does this for
+`queue_health`, `task_failures` and `review_alerts`. Test each source by calling it
 directly: inside the alerts list, a bug in one shows up only as a "Could not check" warning.
 
 **Alerts are checked at most every 15 seconds.** The navbar polls every 30 seconds from
-every open staff tab, so the views read alerts through `get_current_alerts()`. Each
-process keeps its last run of the sources in memory for `CACHE_SECONDS` (15), however many
-tabs are polling, and the "as of" times show when that run happened. The cache isn't
-Django's, because that lives in the same Redis the queue source checks on. The task summary
+every open staff tab, so the views read alerts through `get_current_alerts(user)`. Each
+process keeps its last run of every source in memory for `CACHE_SECONDS` (15), however many
+tabs are polling. It filters that one run for each reader, and the "as of" times show when
+the run happened. The cache isn't Django's, because that lives in the same Redis the queue source checks on. The task summary
 panel doesn't use the cache: it checks the queue fresh on each page view.
 
 **A dead broker is answered at once.** redis-py retries a failed command 10 times by
@@ -251,9 +273,8 @@ counted only.
 
 ## Not built yet
 
-- **Alerts for other audiences:** limiting a site-wide alert to superusers or reviewers,
-  and project alerts for PIs, Approvers and project members. These are planned in
-  [alert-audiences-plan.md](alert-audiences-plan.md).
+- **Project alerts** for PIs, Approvers and project members, and the bell for everyone who
+  isn't staff. These are phases 2 and 3 of [alert-audiences-plan.md](alert-audiences-plan.md).
 - **Acknowledging alerts in general,** for sources with nothing of their own to acknowledge.
   See *Acknowledgement belongs to the source* above, and the last section of the audiences
   plan.

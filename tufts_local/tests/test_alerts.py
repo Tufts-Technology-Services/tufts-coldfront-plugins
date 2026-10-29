@@ -3,7 +3,8 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import pytest
-from django.contrib.auth.models import AnonymousUser
+from django.contrib.auth import get_user_model
+from django.contrib.auth.models import AnonymousUser, Permission
 
 from tufts_local import alerts
 from tufts_local.alerts import (
@@ -11,9 +12,25 @@ from tufts_local.alerts import (
     collect_alerts,
     get_current_alerts,
     register_alert_source,
+    staff,
+    superusers,
+    with_permission,
 )
 from tufts_local.tests.test_task_summary import add_session, make_user
 from tufts_local.views import alert_indicator, alert_list
+
+STAFF = make_user(is_staff=True)
+
+
+def make_account(username, **flags):
+    return get_user_model().objects.create(username=username, **flags)
+
+
+def grant(user, perm):
+    app_label, codename = perm.split('.')
+    user.user_permissions.add(Permission.objects.get(content_type__app_label=app_label, codename=codename))
+    # has_perm caches what it finds on the instance, so read the user afresh
+    return get_user_model().objects.get(pk=user.pk)
 
 
 @pytest.fixture
@@ -93,8 +110,8 @@ class TestGetCurrentAlerts:
         return runs
 
     def test_polls_within_the_interval_share_one_run(self, counted_source):
-        first, first_checked = get_current_alerts()
-        second, second_checked = get_current_alerts()
+        first, first_checked = get_current_alerts(STAFF)
+        second, second_checked = get_current_alerts(STAFF)
 
         assert len(counted_source) == 1
         assert [alert.title for alert in second] == ['down']
@@ -103,17 +120,92 @@ class TestGetCurrentAlerts:
     def test_sources_run_again_once_the_interval_is_up(self, counted_source, monkeypatch):
         monkeypatch.setattr(alerts, 'CACHE_SECONDS', 0)
 
-        get_current_alerts()
-        found, _ = get_current_alerts()
+        get_current_alerts(STAFF)
+        found, _ = get_current_alerts(STAFF)
 
         assert len(counted_source) == 2
         assert found == []
 
     def test_callers_get_their_own_list(self, counted_source):
-        found, _ = get_current_alerts()
+        found, _ = get_current_alerts(STAFF)
         found.clear()
 
-        assert get_current_alerts()[0] != []
+        assert get_current_alerts(STAFF)[0] != []
+
+
+@pytest.mark.django_db
+@pytest.mark.usefixtures('no_sources')
+class TestAudiences:
+    REVIEW = 'allocation.can_review_allocation_requests'
+
+    @pytest.fixture
+    def people(self):
+        return {
+            'member': make_account('member01'),
+            'staff': make_account('staff01', is_staff=True),
+            'superuser': make_account('admin01', is_superuser=True),
+            'reviewer': grant(make_account('reviewer01'), self.REVIEW),
+        }
+
+    def visible_to(self, people):
+        return {name: [alert.title for alert in get_current_alerts(user)[0]] for name, user in people.items()}
+
+    def test_staff_is_the_default(self, people):
+        register_alert_source('plain')(lambda: [Alert('info', 'fyi')])
+
+        assert self.visible_to(people) == {'member': [], 'staff': ['fyi'], 'superuser': ['fyi'], 'reviewer': []}
+
+    def test_superusers_only(self, people):
+        register_alert_source('root', audience=superusers)(lambda: [Alert('info', 'fyi')])
+
+        assert self.visible_to(people) == {'member': [], 'staff': [], 'superuser': ['fyi'], 'reviewer': []}
+
+    def test_with_permission_includes_superusers_but_not_other_staff(self, people):
+        register_alert_source('review', audience=with_permission(self.REVIEW))(lambda: [Alert('info', 'fyi')])
+
+        assert self.visible_to(people) == {'member': [], 'staff': [], 'superuser': ['fyi'], 'reviewer': ['fyi']}
+
+    def test_with_permission_excludes_inactive_holders(self, people):
+        register_alert_source('review', audience=with_permission(self.REVIEW))(lambda: [Alert('info', 'fyi')])
+        people['reviewer'].is_active = False
+        people['reviewer'].save()
+
+        assert get_current_alerts(get_user_model().objects.get(pk=people['reviewer'].pk))[0] == []
+
+    def test_each_reader_gets_only_their_sources(self, people):
+        register_alert_source('staff', audience=staff)(lambda: [Alert('warning', 'for staff')])
+        register_alert_source('review', audience=with_permission(self.REVIEW))(lambda: [Alert('danger', 'to review')])
+
+        assert self.visible_to(people) == {
+            'member': [],
+            'staff': ['for staff'],
+            'superuser': ['to review', 'for staff'],
+            'reviewer': ['to review'],
+        }
+
+    def test_a_failure_warning_goes_to_the_source_audience_only(self, people):
+        def broken():
+            raise RuntimeError('redis-host:6379 refused')
+
+        register_alert_source('review', audience=with_permission(self.REVIEW))(broken)
+
+        seen = self.visible_to(people)
+
+        assert seen['reviewer'] == ['Could not check review']
+        assert seen['staff'] == []
+
+    def test_readers_with_different_audiences_share_one_run(self, people):
+        runs = []
+
+        def source():
+            runs.append(1)
+            return [Alert('info', 'fyi')]
+
+        register_alert_source('root', audience=superusers)(source)
+
+        self.visible_to(people)
+
+        assert len(runs) == 1
 
 
 def test_unknown_severity_is_rejected():

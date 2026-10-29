@@ -14,8 +14,8 @@ from tufts_local.views.task_report import _may_view
 @require_GET
 @user_passes_test(_may_view)
 def alert_list(request):
-    """Every alert the registered sources currently raise, worst first, each with its detail and link."""
-    alerts, checked_at = get_current_alerts()
+    """Every alert the registered sources currently raise for this user, worst first, each with its detail and link."""
+    alerts, checked_at = get_current_alerts(request.user)
     return TemplateResponse(
         request,
         'tufts_local/alert_list.html',
@@ -34,8 +34,9 @@ def alert_indicator(request):
     The only caller is coldfront-branding's common/authorized_navbar.html, which polls this
     with htmx on every page for staff.
     The alerts come from get_current_alerts(), so these polls don't each run every source.
+    Each user's count covers only the alerts meant for them.
     """
-    alerts, checked_at = get_current_alerts()
+    alerts, checked_at = get_current_alerts(request.user)
     return TemplateResponse(
         request,
         'tufts_local/_alert_indicator.html',
