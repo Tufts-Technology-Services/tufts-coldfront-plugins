@@ -4,7 +4,7 @@
 
 import pytest
 
-from tufts_local.checks import check_task_settings
+from tufts_local.checks import check_review_alert_settings, check_task_settings
 
 
 def error_ids():
@@ -41,3 +41,17 @@ def test_failure_alert_days_rejected(settings, days):
     settings.TASK_FAILURE_ALERT_DAYS = days
 
     assert error_ids() == ['tufts_local.E002']
+
+
+@pytest.mark.parametrize('days', [0, 1, 7, 30])
+def test_allocation_request_alert_days_allowed(settings, days):
+    settings.ALLOCATION_REQUEST_ALERT_DAYS = days
+
+    assert check_review_alert_settings(None) == []
+
+
+@pytest.mark.parametrize('days', [-1, 1.5, '7', True, None])
+def test_allocation_request_alert_days_rejected(settings, days):
+    settings.ALLOCATION_REQUEST_ALERT_DAYS = days
+
+    assert [error.id for error in check_review_alert_settings(None)] == ['tufts_local.E003']

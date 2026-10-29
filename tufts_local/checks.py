@@ -9,6 +9,7 @@ at deploy time instead of breaking the task pages and alerts at run time.
 
 from django.core import checks
 
+from tufts_local.review_alerts import allocation_request_alert_days
 from tufts_local.task_failures import failure_alert_days, recent_window_hours
 
 
@@ -38,3 +39,17 @@ def check_task_settings(app_configs, **kwargs):
             )
         )
     return errors
+
+
+@checks.register()
+def check_review_alert_settings(app_configs, **kwargs):
+    days = allocation_request_alert_days()
+    if not (_is_whole_number(days) and days >= 0):
+        return [
+            checks.Error(
+                f'ALLOCATION_REQUEST_ALERT_DAYS must be a whole number of days, at least 0, not {days!r}.',
+                hint='0 raises the alert for every allocation request waiting for review.',
+                id='tufts_local.E003',
+            )
+        ]
+    return []

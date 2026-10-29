@@ -170,14 +170,18 @@ class TestAcknowledgingFromAnAlert:
 
         assert set(TaskAcknowledgement.objects.values_list('task_id', flat=True)) == {'c' * 32}
 
-    def test_the_alert_goes_at_once_for_the_person_who_acted(self, staff_client):
+    def test_the_alert_goes_at_once_for_the_person_who_acted(self, staff_client, django_user_model):
+        staff = django_user_model.objects.get(username='rdms_admin')
         make_task('a' * 32, 'boom', success=False, minutes_ago=1)
-        assert get_current_alerts()[0] != []
+        assert get_current_alerts(staff)[0] != []
 
         staff_client.post(self.alert_with_severity('danger').ack_url)
 
-        assert [alert.source for alert in get_current_alerts()[0]] == ['task queue']
+        assert [alert.source for alert in get_current_alerts(staff)[0]] == ['task queue']
 
 
 def test_registered_as_an_alert_source():
-    assert alerts._alert_sources['background tasks'] is task_failure_alerts
+    source = alerts._alert_sources['background tasks']
+
+    assert source.func is task_failure_alerts
+    assert source.audience is alerts.staff

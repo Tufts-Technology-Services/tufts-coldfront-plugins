@@ -5,7 +5,6 @@
 import pytest
 from django.contrib.auth import get_user_model
 
-from coldfront.core.field_of_science.models import FieldOfScience
 from coldfront.core.project.models import (
     AttributeType,
     Project,
@@ -13,8 +12,6 @@ from coldfront.core.project.models import (
     ProjectAttributeType,
     ProjectStatusChoice,
     ProjectUser,
-    ProjectUserRoleChoice,
-    ProjectUserStatusChoice,
 )
 
 from tufts_local.history import SYSTEM, get_project_membership_changes
@@ -28,28 +25,6 @@ def save_as(instance, user):
     """Save with `user` recorded as having made the change, as HistoryRequestMiddleware does in a request."""
     instance._history_user = user
     instance.save()
-
-
-@pytest.fixture
-def roles(db):
-    return {name: ProjectUserRoleChoice.objects.get_or_create(name=name)[0] for name in ('Manager', 'User')}
-
-
-@pytest.fixture
-def statuses(db):
-    return {name: ProjectUserStatusChoice.objects.get_or_create(name=name)[0] for name in ('Active', 'Removed')}
-
-
-@pytest.fixture
-def project(db, roles, statuses):
-    FieldOfScience.objects.get_or_create(pk=FieldOfScience.DEFAULT_PK, defaults={'description': 'Other'})
-    pi = make_person('pi01', 'Pat', 'Investigator')
-    project = Project.objects.create(
-        title='Ocean Modelling', pi=pi, status=ProjectStatusChoice.objects.get_or_create(name='Active')[0]
-    )
-    # what ColdFront's ProjectCreateView does: the PI is a Manager member too
-    ProjectUser.objects.create(project=project, user=pi, role=roles['Manager'], status=statuses['Active'])
-    return project
 
 
 def add_member(project, username, role, status, by=None):

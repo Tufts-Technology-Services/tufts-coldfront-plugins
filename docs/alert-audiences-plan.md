@@ -1,6 +1,6 @@
 # Plan: alert audiences
 
-Status: proposed, 2026-10-28. This builds on the admin alerts feature described in
+Status: proposed, 2026-10-28. Phase 1 built 2026-10-29; phases 2 and 3 not started. This builds on the admin alerts feature described in
 [alert-queue-info.md](alert-queue-info.md).
 
 ## Goal
@@ -97,6 +97,8 @@ so test each source directly.
 
 ## Phase 1: audiences for site-wide alerts
 
+Built. See [alert-queue-info.md](alert-queue-info.md) for what shipped.
+
 1. Add an audience to each source: `register_alert_source(name, audience=staff)`. An
    audience is a function that takes a user and returns true or false. Provide
    `superusers`, `staff` and `with_permission(codename)`. The default is `staff`, so the
@@ -104,11 +106,15 @@ so test each source directly.
 2. `get_current_alerts(user)` still runs each source once for all users and caches the
    result. It then filters by each source's audience. A source's "Could not check X"
    warning goes to that source's audience.
-3. Decide whether the task queue alert stays with all staff or goes to superusers only.
+3. The task queue alert stays with all staff (decided 2026-10-29).
 4. Add sources for reviewers:
    - allocation requests that have waited more than N days, for
-     `can_review_allocation_requests`;
+     `can_review_allocation_requests`. N is `ALLOCATION_REQUEST_ALERT_DAYS`, default 1, and
+     the wait counts from when the request entered New or Renewal Requested;
    - pending project reviews, for `can_review_pending_project_reviews`.
+
+   Until phase 2 opens the views and the bell to everyone, a reviewer who isn't staff can't
+   see these.
 
 ## Phase 2: project alerts in the same bell
 
@@ -190,5 +196,4 @@ sources building alert titles from stable facts rather than counts that change.
    following the decision on opt-outs. Should a "No" also turn off the alert?
 3. **Polling for non-staff.** Is every 5 minutes right, or should the bell update only when
    a page loads?
-4. **The task queue alert.** Should it go to all staff or to superusers only (phase 1,
-   step 3)?
+4. ~~**The task queue alert.**~~ Decided: all staff.
