@@ -7,17 +7,14 @@ import datetime
 import io
 import logging
 
-from django.contrib.auth.models import Group, User
-from django.core.mail import EmailMessage
+from coldfront_utils import mail_report
 from django_q.tasks import Schedule, schedule
 from storage.truenas import get_truenas_client
 
 from coldfront.core.allocation.models import Allocation, AllocationAttribute
 from coldfront.core.project.models import Project, ProjectUser
 from coldfront.core.resource.models import Resource
-from coldfront.core.utils.common import import_from_settings
 
-from tufts_local.analytics_utils import get_ncq_eligibility
 from tufts_local.starfish_utils import (
     add_to_starfish_index,
     get_starfish_usage_data_by_volume,
@@ -26,7 +23,6 @@ from tufts_local.starfish_utils import (
     set_project_approvers_from_starfish,
     sync_approver_tags,
 )
-from tufts_local.utils import create_user, setup_custom_logger
 
 logger = logging.getLogger(__name__)
 
@@ -106,71 +102,6 @@ def _set_sf_owner_tag(allocation):
         )
 
 
-def refresh_ncq_eligibility():
-    # imported here, not at module scope: coldfront_billing is an optional companion app, and a
-    # top-level import makes tufts_local unimportable wherever it isn't installed
-    from coldfront_billing.models import (  # pylint: disable=import-outside-toplevel
-        NoCostQuota,
-        NoCostQuotaAllotment,
-    )
-
-    ncq_logger = setup_custom_logger('ncq', 'ncq.log')
-    eligibility_data = get_ncq_eligibility()
-    tier1_group_name = 'faculty_pi_eligible_tier1'
-    tier2_group_name = 'faculty_pi_eligible_tier2'
-    group_tier1 = Group.objects.get(name=tier1_group_name)
-    group_tier2 = Group.objects.get(name=tier2_group_name)
-    tier1_users = User.objects.filter(groups=group_tier1).values_list('username', flat=True)
-    tier2_users = User.objects.filter(groups=group_tier2).values_list('username', flat=True)
-    for entry in eligibility_data:
-        is_eligible = entry.get('no_cost_quota_eligible', 'No')
-        username = entry.get('username', '').lower()
-        in_tier_1 = username in tier1_users
-        in_tier_2 = username in tier2_users
-        if is_eligible.lower().strip() == 'yes':
-            if not in_tier_1:
-                ncq_logger.info(f'Adding user {username} to group {tier1_group_name}')
-                user = create_user(username)
-                user.groups.add(group_tier1)
-            if not in_tier_2:
-                ncq_logger.info(f'Adding user {username} to group {tier2_group_name}')
-                user = create_user(username)
-                user.groups.add(group_tier2)
-        else:
-            if in_tier_1:
-                ncq_logger.info(f'Removing user {username} from group {tier1_group_name}')
-                user = create_user(username)
-                user.groups.remove(group_tier1)
-                # delete the allotments associated with this user first so that we can log the details of what is being deleted
-                allotments = NoCostQuotaAllotment.objects.filter(no_cost_quota__user=user)
-                if allotments.exists():
-                    ncq_logger.info(
-                        f'User {username} is no longer eligible for NoCostQuota. Deleting {allotments.count()} associated NoCostQuotaAllotment(s).'
-                    )
-                    for allotment in allotments:
-                        ncq_logger.info(
-                            f'Deleting NoCostQuotaAllotment of size {allotment.amount_tb} TB associated with allocation {allotment.allocation.id}.'
-                        )
-                        allotment.delete()
-                NoCostQuota.objects.filter(user=user).delete()
-            if in_tier_2:
-                ncq_logger.info(f'Removing user {username} from group {tier2_group_name}')
-                user = create_user(username)
-                user.groups.remove(group_tier2)
-                # delete the allotments associated with this user first so that we can log the details of what is being deleted
-                allotments = NoCostQuotaAllotment.objects.filter(no_cost_quota__user=user)
-                if allotments.exists():
-                    ncq_logger.info(
-                        f'User {username} is no longer eligible for NoCostQuota. Deleting {allotments.count()} associated NoCostQuotaAllotment(s).'
-                    )
-                    for allotment in allotments:
-                        ncq_logger.info(
-                            f'Deleting NoCostQuotaAllotment of size {allotment.amount_tb} TB associated with allocation {allotment.allocation.id}.'
-                        )
-                        allotment.delete()
-                NoCostQuota.objects.filter(user=user).delete()
-
-
 def index_new_allocation(allocation_id, scan_id=None, retries=5, wait=5):
     """
     Index a new allocation in Starfish
@@ -230,7 +161,7 @@ def index_new_allocation(allocation_id, scan_id=None, retries=5, wait=5):
         raise e
 
 
-def send_tier2_quota_info(client_config_id):
+def send_tier2_quota_report(client_config_id):
     """Mail the data engineer a CSV of the quotas TrueNAS reports for its datasets.
 
     Datasets with no quota set are left out: TrueNAS reports those with a null refquota,
@@ -263,7 +194,7 @@ def send_tier2_quota_info(client_config_id):
             )
         report = buffer.getvalue()
 
-    return _mail_report(
+    return mail_report(
         title='Tier 2 quota report',
         filename=f'tier2_quota_report_{report_date}.csv',
         content=report,
@@ -272,33 +203,3 @@ def send_tier2_quota_info(client_config_id):
         body=f'Quotas TrueNAS reported for {len(datasets)} datasets on {report_date}, attached as CSV.',
         summary=f'{len(datasets)} datasets',
     )
-
-
-def _mail_report(title, filename, content, mimetype, report_date, body, summary):
-    """Send a report to DATA_ENGINEER_EMAIL as an attachment.
-
-    `title` is the subject line (the date is appended), `mimetype` says what the attachment
-    is ('text/csv', 'application/json', ...) and `summary` is a short description of what
-    the report holds, used to build the task result.
-    """
-    # its own switch rather than coldfront's EMAIL_ENABLED: scheduled reports to staff and
-    # transactional mail to users are worth turning on and off independently
-    if not import_from_settings('REPORTING_EMAIL_ENABLED', False):
-        logger.warning(f'REPORTING_EMAIL_ENABLED is off: built the {title.lower()} for {report_date} but sent nothing.')
-        return {'message': f'{summary}; not sent, reporting email is disabled'}
-
-    # no default: a deployment that hasn't named a recipient should raise an error
-    recipient = import_from_settings('DATA_ENGINEER_EMAIL')
-    subject_prefix = import_from_settings('EMAIL_SUBJECT_PREFIX', '')
-    message = EmailMessage(
-        subject=f'{subject_prefix} {title} {report_date}'.strip(),
-        body=body,
-        # EmailMessage falls back to DEFAULT_FROM_EMAIL when this is empty, which is what
-        # coldfront leaves EMAIL_SENDER as until a deployment sets it
-        from_email=import_from_settings('EMAIL_SENDER', ''),
-        to=[recipient],
-    )
-    message.attach(filename, content, mimetype)
-    message.send(fail_silently=False)
-    logger.info(f'Sent the {title.lower()} for {report_date} to {recipient}.')
-    return {'message': f'{summary} sent to {recipient}'}

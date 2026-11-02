@@ -57,7 +57,7 @@ def mail(settings, mailoutbox):
     settings.REPORTING_EMAIL_ENABLED = True
     settings.EMAIL_SENDER = 'coldfront@tufts.edu'
     settings.EMAIL_SUBJECT_PREFIX = '[ColdFront]'
-    settings.DATA_ENGINEER_EMAIL = DATA_ENGINEER
+    settings.REPORTING_EMAIL = DATA_ENGINEER
     return mailoutbox
 
 
@@ -79,7 +79,7 @@ class TestTier2QuotaReport:
         ]
         today = datetime.date.today().isoformat()
 
-        tasks.send_tier2_quota_info('truenas')
+        tasks.send_tier2_quota_report('truenas')
 
         # spelled out in full: this is the file another system parses, so the column order,
         # the absence of an index column and the line endings are all part of the contract
@@ -90,21 +90,21 @@ class TestTier2QuotaReport:
         )
 
     def test_builds_the_client_from_the_given_config_id(self, truenas, mail):
-        tasks.send_tier2_quota_info('tier2-appliance')
+        tasks.send_tier2_quota_report('tier2-appliance')
 
         assert truenas.calls == ['tier2-appliance']
 
     def test_strips_the_pool_prefix_from_mountpoints(self, truenas, mail):
         truenas.datasets = [dataset(mountpoint='/mnt/tank/tier2/smith_lab')]
 
-        tasks.send_tier2_quota_info('truenas')
+        tasks.send_tier2_quota_report('truenas')
 
         assert rows_of(attached_report(mail))[1][0] == '/tier2/smith_lab'
 
     def test_keeps_mountpoints_that_do_not_carry_the_prefix(self, truenas, mail):
         truenas.datasets = [dataset(mountpoint='/mnt/other/tier2/smith_lab')]
 
-        tasks.send_tier2_quota_info('truenas')
+        tasks.send_tier2_quota_report('truenas')
 
         assert rows_of(attached_report(mail))[1][0] == '/mnt/other/tier2/smith_lab'
 
@@ -116,7 +116,7 @@ class TestTier2QuotaReport:
             dataset(mountpoint='/mnt/tank/tier2/has_none', quota=None),
         ]
 
-        tasks.send_tier2_quota_info('truenas')
+        tasks.send_tier2_quota_report('truenas')
 
         rows = rows_of(attached_report(mail))
         assert [row[0] for row in rows[1:]] == ['/tier2/has_one']
@@ -126,7 +126,7 @@ class TestTier2QuotaReport:
         that has been deliberately pinned shut."""
         truenas.datasets = [dataset(quota=0)]
 
-        tasks.send_tier2_quota_info('truenas')
+        tasks.send_tier2_quota_report('truenas')
 
         assert len(rows_of(attached_report(mail))) == 2
 
@@ -135,14 +135,14 @@ class TestTier2QuotaReport:
         that 1.3e+12 would otherwise end up in the file."""
         truenas.datasets = [dataset(quota=1_000_000.0)]
 
-        tasks.send_tier2_quota_info('truenas')
+        tasks.send_tier2_quota_report('truenas')
 
         assert rows_of(attached_report(mail))[1][2] == '1000000'
 
     def test_an_empty_response_still_produces_a_header(self, truenas, mail):
         truenas.datasets = []
 
-        tasks.send_tier2_quota_info('truenas')
+        tasks.send_tier2_quota_report('truenas')
 
         assert attached_report(mail) == 'mountpoint,used,quota,snapshot_size,report_date\n'
 
@@ -151,7 +151,7 @@ class TestTier2QuotaReport:
         silence -- the report is how anyone would notice it exists."""
         truenas.datasets = [dataset(compression_ratio='1.4')]
 
-        tasks.send_tier2_quota_info('truenas')
+        tasks.send_tier2_quota_report('truenas')
 
         rows = rows_of(attached_report(mail))
         assert rows[0] == ['mountpoint', 'used', 'quota', 'snapshot_size', 'compression_ratio', 'report_date']
@@ -160,7 +160,7 @@ class TestTier2QuotaReport:
     def test_a_field_missing_from_one_dataset_leaves_an_empty_cell(self, truenas, mail):
         truenas.datasets = [dataset(compression_ratio='1.4'), dataset()]
 
-        tasks.send_tier2_quota_info('truenas')
+        tasks.send_tier2_quota_report('truenas')
 
         rows = rows_of(attached_report(mail))
         assert rows[1][4] == '1.4'
@@ -172,7 +172,7 @@ class TestMailingTheReport:
         truenas.datasets = [dataset()]
         today = datetime.date.today().isoformat()
 
-        tasks.send_tier2_quota_info('truenas')
+        tasks.send_tier2_quota_report('truenas')
 
         assert len(mail) == 1
         assert mail[0].to == [DATA_ENGINEER]
@@ -184,7 +184,7 @@ class TestMailingTheReport:
         truenas.datasets = [dataset()]
         today = datetime.date.today().isoformat()
 
-        tasks.send_tier2_quota_info('truenas')
+        tasks.send_tier2_quota_report('truenas')
 
         filename, _content, mimetype = mail[0].attachments[0]
         assert filename == f'tier2_quota_report_{today}.csv'
@@ -196,7 +196,7 @@ class TestMailingTheReport:
         settings.DEFAULT_FROM_EMAIL = 'webmaster@tufts.edu'
         truenas.datasets = [dataset()]
 
-        tasks.send_tier2_quota_info('truenas')
+        tasks.send_tier2_quota_report('truenas')
 
         assert mail[0].from_email == 'webmaster@tufts.edu'
 
@@ -205,7 +205,7 @@ class TestMailingTheReport:
         to say what happened without carrying the whole CSV into the database."""
         truenas.datasets = [dataset(), dataset(mountpoint='/mnt/tank/tier2/jones_lab')]
 
-        result = tasks.send_tier2_quota_info('truenas')
+        result = tasks.send_tier2_quota_report('truenas')
 
         assert result == {'message': f'2 datasets sent to {DATA_ENGINEER}'}
 
@@ -215,7 +215,7 @@ class TestMailingTheReport:
         settings.REPORTING_EMAIL_ENABLED = False
         truenas.datasets = [dataset()]
 
-        result = tasks.send_tier2_quota_info('truenas')
+        result = tasks.send_tier2_quota_report('truenas')
 
         assert mail == []
         assert result == {'message': '1 datasets; not sent, reporting email is disabled'}
@@ -223,10 +223,10 @@ class TestMailingTheReport:
     def test_the_switch_is_off_until_a_deployment_sets_it(self, truenas, settings, mailoutbox):
         """Nothing defines REPORTING_EMAIL_ENABLED, so the absent setting has to read as
         off rather than send on the strength of a name nobody has configured."""
-        settings.DATA_ENGINEER_EMAIL = DATA_ENGINEER
+        settings.REPORTING_EMAIL = DATA_ENGINEER
         truenas.datasets = [dataset()]
 
-        tasks.send_tier2_quota_info('truenas')
+        tasks.send_tier2_quota_report('truenas')
 
         assert mailoutbox == []
 
@@ -236,7 +236,7 @@ class TestMailingTheReport:
         settings.EMAIL_ENABLED = False
         truenas.datasets = [dataset()]
 
-        tasks.send_tier2_quota_info('truenas')
+        tasks.send_tier2_quota_report('truenas')
 
         assert len(mail) == 1
 
@@ -246,7 +246,7 @@ class TestMailingTheReport:
         settings.REPORTING_EMAIL_ENABLED = True
         truenas.datasets = [dataset()]
 
-        with pytest.raises(ImproperlyConfigured, match='DATA_ENGINEER_EMAIL'):
-            tasks.send_tier2_quota_info('truenas')
+        with pytest.raises(ImproperlyConfigured, match='REPORTING_EMAIL'):
+            tasks.send_tier2_quota_report('truenas')
 
         assert mailoutbox == []
