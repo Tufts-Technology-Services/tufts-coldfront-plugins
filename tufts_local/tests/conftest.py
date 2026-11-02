@@ -39,6 +39,18 @@ def fake_broker(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def no_billing_role_lookup(monkeypatch, settings):
+    """
+    Keep coldfront_billing's context processor off the database, where billing is installed.
+
+    It asks has_billing_perm() about request.user on every render, and that queries ProjectUser
+    with the user. Many view tests use a MagicMock user, which the query can't take.
+    """
+    if settings.BILLING_INSTALLED:
+        monkeypatch.setattr('coldfront_billing.context_processor.has_billing_perm', lambda user: False)
+
+
+@pytest.fixture(autouse=True)
 def no_cached_alerts(monkeypatch):
     """Each test starts with no alerts held from an earlier test's run of the sources."""
     monkeypatch.setattr(alerts, '_latest', None)

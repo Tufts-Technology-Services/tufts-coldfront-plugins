@@ -3,8 +3,9 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 """
-Stand-ins for the private Tufts packages (coldfront_utils, coldfront_billing, storage)
-that aren't published to a public index.
+Stand-ins for the private Tufts packages (coldfront_utils, storage) that aren't published to
+a public index. coldfront_billing needs none: only billing_tasks imports it, and nothing loads
+that module during django.setup().
 
 These have to be installed into sys.modules before django.setup() runs apps.populate(),
 because LocalConfig.ready() imports signals -> tasks -> starfish_utils, which reaches for
@@ -65,13 +66,6 @@ def _ttl_cache(*args, **kwargs):
 _stub_module('coldfront_utils', ttl_cache=_ttl_cache)
 _stub_module('coldfront_utils.util')
 _stub_module('coldfront_utils.util.ad_search', requires=('coldfront_utils', 'ldap'), ADSearch=type('ADSearch', (), {}))
-
-_stub_module('coldfront_billing')
-_stub_module(
-    'coldfront_billing.models',
-    NoCostQuota=type('NoCostQuota', (), {}),
-    NoCostQuotaAllotment=type('NoCostQuotaAllotment', (), {}),
-)
 
 _stub_module('storage')
 _stub_module('storage.utils', get_client_config=lambda *a, **k: {})
