@@ -172,4 +172,4 @@ def task_queue_alerts():
             f'task{pluralize(health.queued)} waiting will not run. A cluster on another host also goes unseen if its Q_CLUSTER name or '
             'SECRET_KEY differs from this server.'
         )
-    return [Alert('danger', f'Task queue: {health.label.lower()}', detail=detail, link=reverse('task-summary'))]
+    return [Alert('danger', f'Task queue: {health.label.lower()}', detail=detail, link=reverse('task-report'))]

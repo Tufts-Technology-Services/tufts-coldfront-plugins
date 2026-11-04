@@ -1,0 +1,16 @@
+{% comment %}
+The task queue's health in one line: a button that opens _task_queue_modal.html for the detail.
+Used on the task report (beside the filters) and the task summary (beside the heading).
+
+On the report the htmx poll sends this back with oob=True, and htmx swaps it in place by its id
+(an out-of-band swap), so the status refreshes with the tables. Bootstrap's modal click handler
+is delegated on document, so the swapped-in button still opens the modal.
+{% endcomment %}
+<button type="button" id="task-queue-indicator"{% if oob %} hx-swap-oob="true"{% endif %}
+        class="btn btn-sm border border-{{ queue_health.severity }} d-inline-flex align-items-center gap-2 text-nowrap"
+        data-bs-toggle="modal" data-bs-target="#task-queue-modal"
+        title="Task queue: {{ queue_health.label }}. Click for the broker and cluster detail.">
+  <span class="small">Task queue</span>
+  <span class="badge text-bg-{{ queue_health.severity }}">{{ queue_health.label }}</span>
+  <span class="small text-body-secondary d-none d-md-inline">{{ queue_health.summary }}</span>
+</button>

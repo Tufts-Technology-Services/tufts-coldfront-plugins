@@ -1,0 +1,12 @@
+{% comment %}
+The task queue's detail, opened from _task_queue_indicator.html. Keep it outside any region htmx
+swaps wholesale (see _task_detail_modal.html for why); only its contents, #task-queue-detail,
+are refreshed, out-of-band.
+{% endcomment %}
+<div class="modal fade" id="task-queue-modal" tabindex="-1" aria-labelledby="task-queue-label" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      {% include "tufts_local/_task_queue_detail.html" %}
+    </div>
+  </div>
+</div>

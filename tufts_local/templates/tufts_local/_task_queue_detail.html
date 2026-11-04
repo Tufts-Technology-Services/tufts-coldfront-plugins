@@ -1,0 +1,73 @@
+{% comment %}
+The inside of the task queue modal: header, broker, clusters and when this was checked.
+Swapped out-of-band by the task report's poll, like _task_queue_indicator.html; the poll is
+paused while the modal is open, so nobody's reading is replaced under them.
+{% endcomment %}
+<div id="task-queue-detail"{% if oob %} hx-swap-oob="true"{% endif %}>
+  <div class="modal-header">
+    <h5 class="modal-title" id="task-queue-label">
+      Task queue <span class="badge text-bg-{{ queue_health.severity }}">{{ queue_health.label }}</span>
+    </h5>
+    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+  </div>
+  <div class="modal-body">
+    <p class="mb-2">{{ queue_health.summary|capfirst }}.</p>
+    <p>
+      Broker
+      {% if queue_health.broker_ok %}
+      <span class="badge text-bg-success">Reachable</span>
+      <span class="small text-body-secondary">{{ queue_health.broker_info }}</span>
+      {% else %}
+      <span class="badge text-bg-danger">Unreachable</span>
+      {% endif %}
+    </p>
+
+    {% if not queue_health.broker_ok %}
+    <div class="alert alert-{{ queue_health.severity }} mb-0">
+      Could not connect to the task broker: {{ queue_health.broker_error }}
+      Worker status is unknown, and new background tasks cannot be queued.
+    </div>
+    {% elif not queue_health.clusters %}
+    <div class="alert alert-{{ queue_health.severity }} mb-0">
+      No task clusters have reported in the last few seconds. Queued tasks will not run until a
+      cluster is started (<code>systemctl status coldfront-qcluster</code>). A cluster on another
+      host also stays hidden if its Q_CLUSTER name or SECRET_KEY differs from this server's.
+    </div>
+    {% else %}
+    {% if queue_health.state == 'degraded' %}
+    <div class="alert alert-{{ queue_health.severity }}">
+      No cluster is taking tasks right now: each is starting up or shutting down.
+    </div>
+    {% endif %}
+    <div class="table-responsive">
+      <table class="table table-sm mb-0">
+        <thead>
+          <tr>
+            <th scope="col">Host</th>
+            <th scope="col">Cluster</th>
+            <th scope="col">Status</th>
+            <th scope="col">Workers</th>
+            <th scope="col">Up for</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for cluster in queue_health.clusters %}
+          <tr>
+            <td class="text-nowrap">{{ cluster.host }}</td>
+            <td class="text-nowrap">{{ cluster.cluster_id }}</td>
+            <td class="text-nowrap">
+              <span class="badge text-bg-{{ cluster.severity }}">{{ cluster.status }}</span>
+            </td>
+            <td>{{ cluster.workers }}</td>
+            <td class="text-nowrap">{% if cluster.started %}{{ cluster.started|timesince }}{% endif %}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+  </div>
+  <div class="modal-footer justify-content-start">
+    <span class="small text-body-secondary">Checked {% now "Y-m-d H:i:s" %}</span>
+  </div>
+</div>

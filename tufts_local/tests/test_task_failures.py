@@ -11,7 +11,7 @@ from tufts_local import alerts
 from tufts_local.alerts import get_current_alerts
 from tufts_local.models import IgnoredTask, TaskAcknowledgement
 from tufts_local.task_failures import task_failure_alerts
-from tufts_local.tests.test_task_summary import make_task
+from tufts_local.tests.test_task_report import make_task
 
 DAY = 24 * 60
 

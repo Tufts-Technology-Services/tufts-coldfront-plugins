@@ -17,9 +17,8 @@ planned in [alert-audiences-plan.md](alert-audiences-plan.md) but not built.
 | --- | --- |
 | Navbar, every page | A warning triangle (`fa-triangle-exclamation`) with a dot in the worst alert's colour, then "N alerts". If any alert is critical, it adds "· N critical". With no alerts, the triangle is dimmed and has no dot or count. Hovering shows each alert's title. Clicking opens the alerts page. It refreshes every 30 seconds while the tab is visible. |
 | `/alerts/` | Every current alert, worst first, with its severity (Critical, Warning or Info), title, detail, source, and a Details button when it has a link. Alerts that can be acknowledged also have an Acknowledge button, with an optional reason. With no alerts: "There are no alerts to display." |
-| `/task-summary/` | A "Task queue status" panel above the task counts. It is collapsed while the queue is healthy and open otherwise. It shows the broker's state and every cluster heartbeat: host, cluster id, status, workers and uptime. |
-| `/task-report/` | Besides each failure's Ack button, an "Acknowledge all shown" button, with an optional reason. It acknowledges every unacknowledged failure matching the report's filters, as of when the page loaded. |
-| Admin and Staff menus | "Background Tasks", a link to `/task-summary/`. |
+| `/task-report/` | A "Task queue" button beside the filters: the status badge and a one-line summary, with a border in the status colour. It opens a modal with the broker's state and every cluster heartbeat: host, cluster id, status, workers and uptime. The status refreshes along with the tables. Besides each failure's Ack button, an "Acknowledge all shown" button, with an optional reason. It acknowledges every unacknowledged failure matching the report's filters, as of when the page loaded. |
+| Admin and Staff menus | "Background Tasks", a link to `/task-report/`. |
 
 Ordinary users see none of this. The navbar item, the two alert views and the task pages are
 all limited to staff and superusers. A reviewer who isn't staff therefore sees no reviewer
@@ -38,7 +37,7 @@ The task queue panel when healthy (collapsed), degraded and with the broker down
 
 | Source | Audience | Severity | Raised when | Links to |
 | --- | --- | --- | --- | --- |
-| `task queue` | staff | Critical | The task broker (Redis) can't be reached ("Task queue: broker down"), or it can but no cluster has sent a heartbeat ("Task queue: no workers"). | `/task-summary/` |
+| `task queue` | staff | Critical | The task broker (Redis) can't be reached ("Task queue: broker down"), or it can but no cluster has sent a heartbeat ("Task queue: no workers"). | `/task-report/` |
 | `background tasks` | staff | Critical | Unacknowledged, non-ignored failures in the last `TASK_RECENT_WINDOW_HOURS` ("Background tasks: 3 failed in the last 24 hours"). | `/task-report/` |
 | `background tasks` | staff | Warning | Unacknowledged, non-ignored failures older than that, back as far as `TASK_FAILURE_ALERT_DAYS` ("Background tasks: 2 earlier failures not acknowledged"). | `/task-report/` |
 | `allocation requests` | `allocation.can_review_allocation_requests` | Warning | Allocations have been New or Renewal Requested for more than `ALLOCATION_REQUEST_ALERT_DAYS` ("Allocation requests: 2 waiting more than 1 day"). | `/allocation/request-list` |
@@ -71,7 +70,7 @@ The task queue panel when healthy (collapsed), degraded and with the broker down
 
 | Setting | Default | Meaning |
 | --- | --- | --- |
-| `TASK_RECENT_WINDOW_HOURS` | 24 | How far back counts as recent: the critical task alert's window, and the part of the task summary listed in full. A whole number of hours, at least 1. |
+| `TASK_RECENT_WINDOW_HOURS` | 24 | How far back counts as recent: the critical task alert's window, and the first period in the task report's summary counts. A whole number of hours, at least 1. |
 | `TASK_FAILURE_ALERT_DAYS` | 7 | How far back the warning task alert counts older failures. A whole number of days, at least 1, or `None` for no limit. |
 | `ALLOCATION_REQUEST_ALERT_DAYS` | 1 | How many days an allocation request may wait for review before it raises an alert. A whole number of days, at least 0. With 0, every waiting request counts. |
 
@@ -93,13 +92,13 @@ connections would make each queue check wait indefinitely.
  │ navbar on every page (coldfront-branding authorized_navbar.html)          │
  │   [▲ N alerts] ─── htmx every 30s ──▶ /alert-indicator/                   │
  │                          click ──────▶ /alerts/                           │
- │   Admin / Staff menu ── Background Tasks ──▶ /task-summary/               │
- │   /task-summary/ ── queue status panel, collapsed while green             │
+ │   Admin / Staff menu ── Background Tasks ──▶ /task-report/                │
+ │   /task-report/ ── queue status button beside the filters, detail modal   │
  └───────────────────────────────────────────────────────────────────────────┘
                  │                                │
                  ▼                                ▼
-  views/alerts.py                        views/task_summary.py
-  alert_indicator, alert_list            task_summary (+ queue_health in context)
+  views/alerts.py                        views/task_report.py
+  alert_indicator, alert_list            task_report (+ queue_health in context)
                  │                                │
                  ▼                                │
   alerts.py                                       │
@@ -161,7 +160,7 @@ A frozen dataclass in `queue_health.py`.
 - **Fields:** `broker_ok`, `broker_error`, `broker_info`, `queued` and `clusters` (a
   list of `ClusterStatus`).
 - **`overall_ok`:** true only when `state` is `healthy`.
-- **`summary`:** the line shown beside the panel's badge, such as "2 clusters · 8 workers ·
+- **`summary`:** the line shown beside the queue button's badge, such as "2 clusters · 8 workers ·
   1 task waiting".
 - **`state`, `label` and `severity`:** one table, `_STATES`, maps each state to its label
   and colour, worst first:
@@ -219,8 +218,8 @@ directly: inside the alerts list, a bug in one shows up only as a "Could not che
 every open staff tab, so the views read alerts through `get_current_alerts(user)`. Each
 process keeps its last run of every source in memory for `CACHE_SECONDS` (15), however many
 tabs are polling. It filters that one run for each reader, and the "as of" times show when
-the run happened. The cache isn't Django's, because that lives in the same Redis the queue source checks on. The task summary
-panel doesn't use the cache: it checks the queue fresh on each page view.
+the run happened. The cache isn't Django's, because that lives in the same Redis the queue source checks on. The task report's
+queue button doesn't use the cache: it checks the queue fresh on each page view and poll.
 
 **A dead broker is answered at once.** redis-py retries a failed command 10 times by
 default, which would make every check during an outage wait out 11 attempts. The health
@@ -229,11 +228,10 @@ keeps its retries, because `get_broker()` builds a new client on each call. The 
 command, `queue_size()`, doubles as the reachability check, so there is no separate ping.
 
 **Task failures share one set of rules.** `task_failures.py` owns "which failures still
-need attention": the ignore list helpers and `unacknowledged_failures()`. The task summary,
-the task report and the alert all use them, so the summary's counts explain the alert
-rather than contradict it. The summary has two segments, split at
-`TASK_RECENT_WINDOW_HOURS`: recent tasks, counted and listed in full, and older ones,
-counted only.
+need attention": the ignore list helpers and `unacknowledged_failures()`. The task report
+and the alert both use them, so the report's counts explain the alert rather than contradict
+it. The report's summary counts (collapsed by default, at the top of Completed) have two
+periods, split at `TASK_RECENT_WINDOW_HOURS`, and follow the report's filters.
 
 ## Changes
 

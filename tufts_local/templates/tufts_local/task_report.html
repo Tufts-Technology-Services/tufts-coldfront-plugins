@@ -6,22 +6,35 @@ Background Task Report
 {% endblock %}
 
 {% block content %}
+<style>
+  .section-toggle .fa-chevron-right { transition: transform .15s; }
+  .section-toggle:not(.collapsed) .fa-chevron-right { transform: rotate(90deg); }
+</style>
 <h2>Background Task Report</h2>
 <p>
   Tasks handled by the django-q cluster: what is still waiting to run, and what has already
   run along with the result it returned. Filter by the task name a job was queued with, or by
-  its state. Open a completed task's magnifier for everything about it.
+  its state; the summary of counts follows the same filters. The task queue button on the right
+  says whether the queue can run tasks at all. Open a completed task's magnifier for
+  everything about it.
 </p>
 
 <div class="col-lg-12 mt-2">
-  <form method="get" class="d-sm-flex align-items-center mb-3">
-    <div class="me-2">{{ form.name|as_crispy_field }}</div>
-    <div class="me-2">{{ form.state|as_crispy_field }}</div>
-    <button type="submit" class="btn btn-primary me-1">
-      <i class="fa fa-filter" aria-hidden="true"></i> Filter
-    </button>
-    <a href="{% url 'task-report' %}" class="btn btn-secondary">Reset</a>
-  </form>
+  {% comment %}
+  The filters on the left and the task queue's health on the right, on one line. The queue
+  status is refreshed by the table poll, out-of-band; see _task_queue_indicator.html.
+  {% endcomment %}
+  <div class="d-sm-flex align-items-center gap-3 mb-3">
+    <form method="get" class="d-sm-flex align-items-center">
+      <div class="me-2">{{ form.name|as_crispy_field }}</div>
+      <div class="me-2">{{ form.state|as_crispy_field }}</div>
+      <button type="submit" class="btn btn-primary me-1">
+        <i class="fa fa-filter" aria-hidden="true"></i> Filter
+      </button>
+      <a href="{% url 'task-report' %}" class="btn btn-secondary">Reset</a>
+    </form>
+    <div class="ms-sm-auto">{% include "tufts_local/_task_queue_indicator.html" %}</div>
+  </div>
 
   {% if unacknowledged_count %}
   {% comment %}
@@ -69,6 +82,7 @@ Outside #task-tables on purpose: the poll replaces that div's contents, and a mo
 was open at the time would go with it.
 {% endcomment %}
 {% include "tufts_local/_task_detail_modal.html" %}
+{% include "tufts_local/_task_queue_modal.html" %}
 {% endblock %}
 
 {% block javascript %}
@@ -83,7 +97,7 @@ function shouldAutoRefresh() {
         return false;
     }
     // don't pull the table out from under someone reading a row's detail
-    return !document.querySelector('#task-detail-modal.show');
+    return !document.querySelector('#task-detail-modal.show, #task-queue-modal.show');
 }
 
 {% comment %}
@@ -165,8 +179,58 @@ document.getElementById('task-detail-copy').addEventListener('click', function()
     });
 });
 
+{% comment %}
+Which foldable sections (data-remember-collapse) the reader has open or closed, kept per browser.
+The server always renders each in its default state, so without this a poll would snap them back
+every few seconds and a filter submit would forget them. Restoring sets the classes Bootstrap's own
+click handler reads, because Bootstrap's API isn't reachable from here (see _task_detail_modal.html).
+{% endcomment %}
+var SECTION_STATE_KEY = 'tufts-task-report-sections';
+
+function savedSectionState() {
+    try {
+        return JSON.parse(localStorage.getItem(SECTION_STATE_KEY)) || {};
+    } catch (e) {
+        return {};
+    }
+}
+
+function rememberSection(event) {
+    var section = event.target;
+    if (!section.hasAttribute('data-remember-collapse')) {
+        return;
+    }
+    var state = savedSectionState();
+    state[section.id] = event.type === 'shown.bs.collapse';
+    try {
+        localStorage.setItem(SECTION_STATE_KEY, JSON.stringify(state));
+    } catch (e) {
+        // private browsing or a full quota: the sections just won't be remembered
+    }
+}
+
+function restoreSections(root) {
+    var state = savedSectionState();
+    root.querySelectorAll('[data-remember-collapse]').forEach(function(section) {
+        if (!(section.id in state)) {
+            return;
+        }
+        var open = state[section.id];
+        section.classList.toggle('show', open);
+        document.querySelectorAll('[aria-controls="' + section.id + '"]').forEach(function(toggle) {
+            toggle.classList.toggle('collapsed', !open);
+            toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+        });
+    });
+}
+
+document.addEventListener('shown.bs.collapse', rememberSection);
+document.addEventListener('hidden.bs.collapse', rememberSection);
+restoreSections(document);
+
 document.body.addEventListener('htmx:afterSwap', function(event) {
     if (event.target === document.getElementById('task-tables')) {
+        restoreSections(event.target);
         document.getElementById('last-updated').textContent = new Date().toLocaleTimeString();
     }
 });
