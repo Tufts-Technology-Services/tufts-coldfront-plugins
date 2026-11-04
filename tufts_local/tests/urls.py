@@ -10,9 +10,14 @@ the coldfront core urlconf directly. Use `@pytest.mark.urls('tufts_local.tests.u
 for tests that call response.render() on a tufts_local view.
 """
 
+from django.apps import apps
 from django.urls import include, path
 
 urlpatterns = [
     path('', include('coldfront.config.urls')),
     path('', include('tufts_local.urls')),
 ]
+
+# as production's local_urls adds it, where billing is installed
+if apps.is_installed('coldfront_billing'):
+    urlpatterns.append(path('billing/', include('coldfront_billing.urls')))

@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
+from django.apps import apps
 from django.urls import path
 
 from tufts_local import views
@@ -104,3 +105,15 @@ urlpatterns = [
         name='alert-indicator',
     ),
 ]
+
+# coldfront_billing is optional, so its views are only routed where it's installed
+if apps.is_installed('coldfront_billing'):
+    from tufts_local.views.billing_alerts import acknowledge_allotment_failure
+
+    urlpatterns.append(
+        path(
+            'allotment-failure-acknowledge/<int:pk>/',
+            acknowledge_allotment_failure,
+            name='allotment-failure-acknowledge',
+        )
+    )
