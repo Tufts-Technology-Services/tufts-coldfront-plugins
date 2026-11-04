@@ -9,14 +9,14 @@ Background Task Report
 <h2>Background Task Report</h2>
 <p>
   Tasks handled by the django-q cluster: what is still waiting to run, and what has already
-  run along with the result it returned. Filter by the task name or group label a job was
-  queued with. The tables refresh every {{ refresh_seconds }} seconds.
+  run along with the result it returned. Filter by the task name a job was queued with, or by
+  its state. Open a completed task's magnifier for everything about it.
 </p>
 
 <div class="col-lg-12 mt-2">
   <form method="get" class="d-sm-flex align-items-center mb-3">
     <div class="me-2">{{ form.name|as_crispy_field }}</div>
-    <div class="me-2">{{ form.group|as_crispy_field }}</div>
+    <div class="me-2">{{ form.state|as_crispy_field }}</div>
     <button type="submit" class="btn btn-primary me-1">
       <i class="fa fa-filter" aria-hidden="true"></i> Filter
     </button>
@@ -44,7 +44,7 @@ Background Task Report
 
   <div class="d-flex justify-content-between align-items-center mb-2">
     <div class="form-check">
-      <input type="checkbox" class="form-check-input" id="auto-refresh" checked>
+      <input type="checkbox" class="form-check-input" id="auto-refresh">
       <label class="form-check-label" for="auto-refresh">Auto-refresh every {{ refresh_seconds }} seconds</label>
     </div>
     <span class="text-muted small">
@@ -93,8 +93,76 @@ rows the poll swapped in; see _task_detail_modal.html for why they can't be popo
 {% endcomment %}
 document.getElementById('task-detail-modal').addEventListener('show.bs.modal', function(event) {
     var button = event.relatedTarget;
+    var body = document.getElementById('task-detail-body');
     document.getElementById('task-detail-label').textContent = button.dataset.detailTitle || '';
-    document.getElementById('task-detail-body').textContent = button.dataset.detail || '';
+    var source = button.dataset.detailTemplate && document.getElementById(button.dataset.detailTemplate);
+    if (source) {
+        body.replaceChildren(source.content.cloneNode(true));
+    } else {
+        var text = document.createElement('pre');
+        text.className = 'small mb-0 text-wrap';
+        text.textContent = button.dataset.detail || '';
+        body.replaceChildren(text);
+    }
+    document.getElementById('task-detail-copy-status').textContent = '';
+});
+
+{% comment %}
+The modal as plain text, for pasting into a ticket or a chat: "Label: value" for each row
+of the summary, then each <pre> section under its heading, with its line breaks intact.
+{% endcomment %}
+function taskDetailText() {
+    var lines = [document.getElementById('task-detail-label').textContent, ''];
+    var squash = function(text) { return text.replace(/\s+/g, ' ').trim(); };
+    Array.from(document.getElementById('task-detail-body').children).forEach(function(element) {
+        if (element.tagName === 'DL') {
+            element.querySelectorAll('dt').forEach(function(term) {
+                var value = term.nextElementSibling ? squash(term.nextElementSibling.textContent) : '';
+                lines.push(squash(term.textContent) + ': ' + value);
+            });
+        } else if (element.tagName === 'PRE') {
+            lines.push(element.textContent);
+        } else {
+            lines.push('', squash(element.textContent));
+        }
+    });
+    return lines.join('\n').trim() + '\n';
+}
+
+{% comment %}
+navigator.clipboard only exists on HTTPS (or localhost). The textarea fallback covers a page
+served over plain HTTP; execCommand is deprecated, but every browser still honours it.
+{% endcomment %}
+function copyToClipboard(text) {
+    if (navigator.clipboard && window.isSecureContext) {
+        return navigator.clipboard.writeText(text);
+    }
+    return new Promise(function(resolve, reject) {
+        var area = document.createElement('textarea');
+        area.value = text;
+        area.setAttribute('readonly', '');
+        area.style.position = 'fixed';
+        area.style.opacity = '0';
+        // inside the modal, or its focus trap pulls focus back before the copy happens
+        document.getElementById('task-detail-body').appendChild(area);
+        area.select();
+        var copied = document.execCommand('copy');
+        area.remove();
+        if (copied) {
+            resolve();
+        } else {
+            reject(new Error('copy command refused'));
+        }
+    });
+}
+
+document.getElementById('task-detail-copy').addEventListener('click', function() {
+    var status = document.getElementById('task-detail-copy-status');
+    copyToClipboard(taskDetailText()).then(function() {
+        status.textContent = 'Copied.';
+    }, function() {
+        status.textContent = 'Could not copy; select the text and copy it by hand.';
+    });
 });
 
 document.body.addEventListener('htmx:afterSwap', function(event) {

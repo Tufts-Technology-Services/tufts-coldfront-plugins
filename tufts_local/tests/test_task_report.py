@@ -127,6 +127,50 @@ class TestCompletedTasks:
         assert b'add_sf_tags_alloc_activate_2' in response.content
         assert b'TimeoutError' in response.content
 
+    def test_columns_are_in_order(self, rf):
+        make_task('a' * 32, 'indexing')
+
+        response = get_report(rf)
+        response.render()
+
+        completed = response.content.split(b'Completed', 1)[1]
+        headings = [part.split(b'</th>', 1)[0] for part in completed.split(b'<th scope="col">')[1:]]
+        assert headings == [
+            b'Status',
+            b'Function',
+            b'Message',
+            b'Started',
+            b'<span class="visually-hidden">Duration</span>',
+            b'Ack',
+        ]
+
+    def test_started_leaves_out_the_year(self, rf):
+        task = make_task('a' * 32, 'indexing')
+
+        response = get_report(rf)
+        response.render()
+
+        local = timezone.localtime(task.started)
+        cell = f'title="{local:%Y-%m-%d %H:%M:%S}">{local:%m-%d %H:%M:%S}</td>'
+        assert cell.encode() in response.content
+
+    def test_message_comes_from_the_result(self, rf):
+        make_task('a' * 32, 'dict_result', result={'message': 'quota updated', 'count': 3}, minutes_ago=1)
+        make_task('b' * 32, 'string_result', result='TimeoutError: not indexed', minutes_ago=2)
+        make_task('c' * 32, 'no_result', result=None, minutes_ago=3)
+
+        response = get_report(rf)
+
+        messages = [t.result_message for t in response.context_data['page_obj']]
+        assert messages == ['quota updated', 'TimeoutError: not indexed', '']
+
+    def test_auto_refresh_starts_off(self, rf):
+        response = get_report(rf)
+        response.render()
+
+        checkbox = response.content.split(b'id="auto-refresh"', 1)[1].split(b'>', 1)[0]
+        assert b'checked' not in checkbox
+
     def test_result_is_escaped_in_the_detail_modal(self, rf):
         # tracebacks carry quotes and angle brackets, which would otherwise break out of the attribute
         make_task('a' * 32, 'risky', result='<script>alert("x")</script>')
@@ -156,31 +200,44 @@ class TestCompletedTasks:
         names = [t.name for t in response.context_data['page_obj']]
         assert names == ['add_sf_tags_alloc_activate_1']
 
-    def test_group_filter_matches_exactly(self, rf):
+    @pytest.mark.parametrize(
+        ('state', 'expected'),
+        [
+            ('', ['fine', 'open', 'signed_off']),
+            ('success', ['fine']),
+            ('failed', ['open', 'signed_off']),
+            ('unacknowledged', ['open']),
+            ('acknowledged', ['signed_off']),
+            ('scheduled', []),
+            ('queued', []),
+        ],
+    )
+    def test_state_filter(self, rf, state, expected):
+        make_task('a' * 32, 'fine', success=True, minutes_ago=1)
+        make_task('b' * 32, 'open', success=False, minutes_ago=2)
+        signed_off = make_task('c' * 32, 'signed_off', success=False, minutes_ago=3)
+        TaskAcknowledgement.objects.create(task=signed_off)
+
+        response = get_report(rf, f'?state={state}')
+
+        assert [t.name for t in response.context_data['page_obj']] == expected
+
+    def test_unknown_state_filter_is_ignored(self, rf):
+        make_task('a' * 32, 'indexing')
+
+        response = get_report(rf, '?state=nonexistent')
+
+        assert response.context_data['form'].errors
+        assert [t.name for t in response.context_data['page_obj']] == ['indexing']
+
+    def test_group_is_no_longer_a_filter(self, rf):
         make_task('a' * 32, 'indexing', group='starfish')
         make_task('b' * 32, 'eligibility', group='ncq')
 
         response = get_report(rf, '?group=ncq')
 
-        names = [t.name for t in response.context_data['page_obj']]
-        assert names == ['eligibility']
-
-    def test_group_choices_come_from_existing_tasks(self, rf):
-        make_task('a' * 32, 'indexing', group='starfish')
-        make_task('b' * 32, 'eligibility', group='ncq')
-
-        response = get_report(rf)
-
-        choices = response.context_data['form'].fields['group'].choices
-        assert choices == [('', 'All'), ('ncq', 'ncq'), ('starfish', 'starfish')]
-
-    def test_unknown_group_filter_is_ignored(self, rf):
-        make_task('a' * 32, 'indexing', group='starfish')
-
-        response = get_report(rf, '?group=nonexistent')
-
-        assert response.context_data['form'].errors
-        assert [t.name for t in response.context_data['page_obj']] == ['indexing']
+        assert 'group' not in response.context_data['form'].fields
+        assert len(response.context_data['page_obj'].object_list) == 2
 
     def test_pagination(self, rf):
         for i in range(55):
@@ -195,11 +252,11 @@ class TestCompletedTasks:
         assert len(second_page.context_data['page_obj'].object_list) == 5
 
     def test_filters_are_preserved_in_pagination_links(self, rf):
-        make_task('a' * 32, 'indexing', group='starfish')
+        make_task('a' * 32, 'indexing')
 
-        response = get_report(rf, '?name=index&group=starfish')
+        response = get_report(rf, '?name=index&state=success')
 
-        assert response.context_data['filter_parameters'] == 'name=index&group=starfish&'
+        assert response.context_data['filter_parameters'] == 'name=index&state=success&'
 
 
 @pytest.mark.django_db
@@ -225,19 +282,14 @@ class TestPendingTasks:
         assert rows[0]['name'] == 'add_sf_tags_alloc_activate_7'
         assert rows[0]['group'] == 'starfish'
 
-    def test_schedule_is_filtered_by_name_and_group(self, rf):
+    def test_schedule_is_filtered_by_name_and_state(self, rf):
         self.make_pending_schedule()
 
         assert get_report(rf, '?name=alloc_activate_7').context_data['pending_rows']
         assert not get_report(rf, '?name=refresh_ncq').context_data['pending_rows']
-        assert get_report(rf, '?group=starfish').context_data['pending_rows']
-
-    def test_schedule_group_appears_in_dropdown(self, rf):
-        self.make_pending_schedule(group='starfish')
-
-        response = get_report(rf)
-
-        assert ('starfish', 'starfish') in response.context_data['form'].fields['group'].choices
+        assert get_report(rf, '?state=scheduled').context_data['pending_rows']
+        assert not get_report(rf, '?state=queued').context_data['pending_rows']
+        assert not get_report(rf, '?state=failed').context_data['pending_rows']
 
     def test_exhausted_schedules_are_excluded(self, rf):
         schedule = self.make_pending_schedule()
@@ -301,6 +353,8 @@ class TestQueuedTasks:
 
         assert get_report(rf, '?name=approvers').context_data['pending_rows']
         assert not get_report(rf, '?name=index').context_data['pending_rows']
+        assert get_report(rf, '?state=queued').context_data['pending_rows']
+        assert not get_report(rf, '?state=scheduled').context_data['pending_rows']
 
     def test_unreadable_payload_does_not_break_the_page(self, rf):
         OrmQ.objects.create(key='default', payload='not a signed package')
@@ -372,10 +426,10 @@ class TestAutoRefresh:
         assert response.template_name == 'tufts_local/task_report.html'
 
     def test_poll_keeps_the_active_filters(self, rf):
-        make_task('a' * 32, 'indexing', group='starfish')
-        make_task('b' * 32, 'eligibility', group='ncq')
+        make_task('a' * 32, 'indexing', success=True)
+        make_task('b' * 32, 'eligibility', success=False)
 
-        response = get_report(rf, '?group=ncq', htmx=True)
+        response = get_report(rf, '?state=failed', htmx=True)
         response.render()
 
         assert b'eligibility' in response.content
@@ -391,12 +445,12 @@ class TestAutoRefresh:
 
     def test_poll_url_carries_filters_and_page(self, rf):
         for i in range(55):
-            make_task(f'{i:032d}', f'task_{i}', group='starfish', minutes_ago=i)
+            make_task(f'{i:032d}', f'task_{i}', minutes_ago=i)
 
-        response = get_report(rf, '?group=starfish&page=2')
+        response = get_report(rf, '?state=success&page=2')
         response.render()
 
-        assert b'hx-get="/task-report/?group=starfish&amp;page=2"' in response.content
+        assert b'hx-get="/task-report/?state=success&amp;page=2"' in response.content
 
     def test_refresh_interval_is_published_to_the_template(self, rf):
         response = get_report(rf)
@@ -492,15 +546,6 @@ class TestIgnoredTasks:
         response = get_report(rf)
 
         assert response.context_data['pending_rows'] == []
-
-    def test_ignored_group_drops_out_of_the_dropdown(self, rf):
-        make_task('a' * 32, 'indexing', group='starfish')
-        make_task('b' * 32, 'eligibility', group='ncq')
-        self.ignore_group('starfish')
-
-        response = get_report(rf)
-
-        assert response.context_data['form'].fields['group'].choices == [('', 'All'), ('ncq', 'ncq')]
 
     def test_ignored_tasks_are_hidden_silently(self, rf):
         make_task('a' * 32, 'add_sf_tags_alloc_activate_1')
@@ -634,6 +679,16 @@ class TestDetailModal:
         assert response.content.count(b'id="task-detail-modal"') == 1
         assert response.content.count(b'data-bs-target="#task-detail-modal"') == 2
 
+    def test_the_modal_offers_a_copy_button(self, rf):
+        make_task('a' * 32, 'boom')
+
+        response = get_report(rf)
+        response.render()
+
+        assert b'id="task-detail-copy"' in response.content
+        assert b'function taskDetailText()' in response.content
+        assert not _nested_in_task_tables(response.content, 'task-detail-copy')
+
     def test_the_modal_sits_outside_the_swapped_region(self, rf):
         """hx-swap="innerHTML" replaces everything inside #task-tables, so a modal nested
         in there is gone the moment the first poll lands, and every trigger on the page
@@ -652,15 +707,32 @@ class TestDetailModal:
         assert not _nested_in_task_tables(response.content, 'task-detail-modal')
 
     def test_the_trigger_carries_the_whole_detail(self, rf):
-        make_task('a' * 32, 'risky', result='TimeoutError: not indexed')
+        task = make_task('a' * 32, 'risky', group='starfish', result='TimeoutError: not indexed')
 
         response = get_report(rf)
         response.render()
 
         assert b'data-detail-title="risky"' in response.content
-        detail = response.content.split(b'data-detail="', 1)[1].split(b'">', 1)[0]
+        assert f'data-detail-template="task-detail-{task.id}"'.encode() in response.content
+        detail = response.content.split(f'<template id="task-detail-{task.id}">'.encode(), 1)[1]
+        detail = detail.split(b'</template>', 1)[0]
+        for heading in (b'Name', b'ID', b'Function', b'Group', b'Started', b'Stopped', b'Attempts'):
+            assert b'>' + heading + b'</dt>' in detail
         assert b'Args' in detail and b'Kwargs' in detail and b'Result' in detail
+        assert b'starfish' in detail
         assert b'TimeoutError: not indexed' in detail
+
+    def test_the_detail_says_whether_a_failure_was_acknowledged(self, rf):
+        task = make_task('a' * 32, 'boom', success=False)
+        user = get_user_model().objects.create(username='someone')
+        TaskAcknowledgement.objects.create(task=task, acknowledged_by=user, reason='vendor outage')
+
+        response = get_report(rf)
+        response.render()
+
+        detail = response.content.split(b'<template id="task-detail-', 1)[1].split(b'</template>', 1)[0]
+        assert b'by someone' in detail
+        assert b'vendor outage' in detail
 
     def test_the_detail_survives_a_swap(self, rf):
         """The partial htmx swaps in has to carry its own trigger, or the detail is
@@ -725,13 +797,13 @@ class TestAckColumn:
         assert b'x-csrftoken' in response.content.lower()
 
     def test_the_button_remembers_the_filter_and_page(self, rf):
-        make_task('a' * 32, 'boom', group='starfish', success=False)
+        make_task('a' * 32, 'boom', success=False)
 
-        response = get_report(rf, '?group=starfish')
+        response = get_report(rf, '?state=failed')
         response.render()
 
-        assert response.context_data['return_to'] == 'group=starfish&page=1'
-        assert b'value="group=starfish&amp;page=1"' in response.content
+        assert response.context_data['return_to'] == 'state=failed&page=1'
+        assert b'value="state=failed&amp;page=1"' in response.content
 
     def test_the_acknowledgement_comes_back_with_the_row(self, rf):
         """Every row asks whether it has been acknowledged. Without select_related that is
@@ -772,6 +844,15 @@ class TestAcknowledgeAllShown:
 
         assert response.context_data['unacknowledged_count'] == 1
         assert 'name=index' in response.context_data['acknowledge_all_url']
+
+    @pytest.mark.parametrize(('state', 'count'), [('failed', 1), ('unacknowledged', 1), ('success', 0), ('queued', 0)])
+    def test_follows_the_state(self, rf, state, count):
+        """A state that hides the unacknowledged failures hides the button that would acknowledge them."""
+        make_task('a' * 32, 'boom', success=False)
+
+        response = self.rendered(rf, f'?state={state}')
+
+        assert response.context_data['unacknowledged_count'] == count
 
     def test_not_offered_when_nothing_needs_it(self, rf):
         make_task('a' * 32, 'fine')

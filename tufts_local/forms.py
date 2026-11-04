@@ -78,13 +78,20 @@ class ReportFilterForm(forms.Form):
 
 
 class TaskFilterForm(forms.Form):
-    name = forms.CharField(max_length=100, required=False, label='Task Name')
-    group = forms.ChoiceField(required=False, label='Group')
+    # the first two are pending states and the rest completed ones; views/task_report.py
+    # says which table each one narrows
+    STATE_CHOICES = [
+        ('', 'All'),
+        ('scheduled', 'Scheduled'),
+        ('queued', 'Queued'),
+        ('success', 'Succeeded'),
+        ('failed', 'Failed'),
+        ('unacknowledged', 'Failed, not acknowledged'),
+        ('acknowledged', 'Failed, acknowledged'),
+    ]
 
-    def __init__(self, *args, groups=(), **kwargs):
-        super().__init__(*args, **kwargs)
-        # group choices come from the groups actually present in the queue, so they can't be declared statically
-        self.fields['group'].choices = [('', 'All')] + [(g, g) for g in groups]
+    name = forms.CharField(max_length=100, required=False, label='Task Name')
+    state = forms.ChoiceField(choices=STATE_CHOICES, required=False, label='State')
 
     def clean_name(self):
         return self.cleaned_data['name'].strip()

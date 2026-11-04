@@ -1,0 +1,69 @@
+{% comment %}
+Everything about one completed task, for the detail modal. Each row of the Completed table
+carries this inside a <template>, which the modal's show.bs.modal listener (task_report.html)
+clones into the modal body. Django escapes every value here as it renders, so the clone is
+safe in a way that innerHTML on the raw values would not be: args, kwargs and result are
+whatever a task was given or returned.
+{% endcomment %}
+<dl class="row mb-0">
+  <dt class="col-sm-3">Status</dt>
+  <dd class="col-sm-9">
+    {% if task.success %}
+    <span class="badge bg-success">Success</span>
+    {% else %}
+    <span class="badge bg-danger">Failed</span>
+    {% endif %}
+  </dd>
+
+  <dt class="col-sm-3">Name</dt>
+  <dd class="col-sm-9">{{ task.name|default:"—" }}</dd>
+
+  <dt class="col-sm-3">ID</dt>
+  <dd class="col-sm-9"><code>{{ task.id }}</code></dd>
+
+  <dt class="col-sm-3">Function</dt>
+  <dd class="col-sm-9 text-break">{{ task.func }}</dd>
+
+  <dt class="col-sm-3">Hook</dt>
+  <dd class="col-sm-9 text-break">{{ task.hook|default:"—" }}</dd>
+
+  <dt class="col-sm-3">Group</dt>
+  <dd class="col-sm-9">{{ task.group|default:"—" }}</dd>
+
+  <dt class="col-sm-3">Cluster</dt>
+  <dd class="col-sm-9">{{ task.cluster|default:"—" }}</dd>
+
+  <dt class="col-sm-3">Started</dt>
+  <dd class="col-sm-9">{{ task.started|date:"Y-m-d H:i:s" }}</dd>
+
+  <dt class="col-sm-3">Stopped</dt>
+  <dd class="col-sm-9">{{ task.stopped|date:"Y-m-d H:i:s" }}</dd>
+
+  <dt class="col-sm-3">Duration</dt>
+  <dd class="col-sm-9">{{ task.time_taken|floatformat:1 }}s</dd>
+
+  <dt class="col-sm-3">Attempts</dt>
+  <dd class="col-sm-9">{{ task.attempt_count }}</dd>
+
+  {% if not task.success %}
+  <dt class="col-sm-3">Acknowledged</dt>
+  <dd class="col-sm-9">
+    {% if task.acknowledgement %}
+    by {{ task.acknowledgement.acknowledged_by|default:"a deleted user" }},
+    {{ task.acknowledgement.acknowledged_at|date:"Y-m-d H:i" }}
+    {% if task.acknowledgement.reason %}<br><span class="text-muted">{{ task.acknowledgement.reason }}</span>{% endif %}
+    {% else %}
+    No
+    {% endif %}
+  </dd>
+  {% endif %}
+</dl>
+
+<h6 class="mt-3">Args</h6>
+<pre class="small mb-0 text-wrap">{{ task.args|default_if_none:"—" }}</pre>
+
+<h6 class="mt-3">Kwargs</h6>
+<pre class="small mb-0 text-wrap">{{ task.kwargs|default_if_none:"—" }}</pre>
+
+<h6 class="mt-3">Result</h6>
+<pre class="small mb-0 text-wrap">{{ task.result|default_if_none:"—" }}</pre>
