@@ -64,19 +64,21 @@ views/task_report.py), so the filter inputs above it are never clobbered mid-typ
 <h3 class="mt-4">Completed <span class="badge bg-secondary">{{ task_count }}</span></h3>
 <hr>
 {% if page_obj.object_list %}
+{% comment %}
+Six narrow columns so the table fits without scrolling sideways: Started leaves out the
+year (it is in the cell's title, and in the modal), and Duration's heading is for screen
+readers only, since "12.3s" says what it is. Everything else about a task -- name, group,
+stopped, attempts, args, kwargs, the whole result -- is in the modal the magnifier opens.
+{% endcomment %}
 <div class="table-responsive">
   <table class="table table-sm">
     <thead>
       <tr>
         <th scope="col">Status</th>
-        <th scope="col">Name</th>
-        <th scope="col">Group</th>
         <th scope="col">Function</th>
+        <th scope="col">Message</th>
         <th scope="col">Started</th>
-        <th scope="col">Stopped</th>
-        <th scope="col">Duration</th>
-        <th scope="col">Attempts</th>
-        <th scope="col" style="min-width: 16rem;">Result</th>
+        <th scope="col"><span class="visually-hidden">Duration</span></th>
         <th scope="col">Ack</th>
       </tr>
     </thead>
@@ -90,35 +92,25 @@ views/task_report.py), so the filter inputs above it are never clobbered mid-typ
           <span class="badge bg-danger">Failed</span>
           {% endif %}
         </td>
-        <td class="text-nowrap">{{ task.name|default:"—" }}</td>
-        <td class="text-nowrap">{{ task.group|default:"—" }}</td>
-        <td>{{ task.func }}</td>
-        <td class="text-nowrap">{{ task.started|date:"Y-m-d H:i:s" }}</td>
-        <td class="text-nowrap">{{ task.stopped|date:"Y-m-d H:i:s" }}</td>
-        <td class="text-nowrap">{{ task.time_taken|floatformat:1 }}s</td>
-        <td>{{ task.attempt_count }}</td>
-        <td>
-          <span class="small">{{ task.result|default_if_none:""|truncatechars:60 }}</span>
+        <td class="text-break">{{ task.func }}</td>
+        <td class="text-break">
+          <span class="small">{{ task.result_message|truncatechars:100 }}</span>
           {% comment %}
           A modal, not a popover: these rows are swapped in by htmx and nothing would ever
-          instantiate a popover on them. See _task_detail_modal.html. The newlines inside
-          data-detail are deliberate -- the modal writes the value into a <pre>.
+          instantiate a popover on them. See _task_detail_modal.html. The <template> travels
+          with its row, so a poll that brings the row back brings its detail with it.
           {% endcomment %}
           <button type="button" class="btn btn-link btn-sm p-0 align-baseline task-detail"
                   data-bs-toggle="modal" data-bs-target="#task-detail-modal"
-                  aria-label="Show the full arguments and result for {{ task.name }}"
-                  data-detail-title="{{ task.name }}"
-                  data-detail="Args
-{{ task.args|default_if_none:"—" }}
-
-Kwargs
-{{ task.kwargs|default_if_none:"—" }}
-
-Result
-{{ task.result|default_if_none:"—" }}">
+                  aria-label="Show every detail of {{ task.name|default:task.id }}"
+                  data-detail-title="{{ task.name|default:task.id }}"
+                  data-detail-template="task-detail-{{ task.id }}">
             <i class="fa fa-search-plus" aria-hidden="true"></i>
           </button>
+          <template id="task-detail-{{ task.id }}">{% include "tufts_local/_task_detail.html" %}</template>
         </td>
+        <td class="text-nowrap" title="{{ task.started|date:"Y-m-d H:i:s" }}">{{ task.started|date:"m-d H:i:s" }}</td>
+        <td class="text-nowrap">{{ task.time_taken|floatformat:1 }}s</td>
         {% include "tufts_local/_task_ack_cell.html" %}
       </tr>
       {% endfor %}

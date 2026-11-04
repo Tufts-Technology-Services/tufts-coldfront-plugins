@@ -18,13 +18,19 @@ document, so it picks up buttons that arrive long after load with no help from u
         <h5 class="modal-title" id="task-detail-label"></h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
-      <div class="modal-body">
+      <div class="modal-body" id="task-detail-body">
         {% comment %}
-        Filled with textContent, never innerHTML: the text is whatever a task returned or
-        raised, so it is not ours to trust as markup. <pre> keeps the line breaks that a
-        traceback or a pickled argument list depends on.
+        Filled by task_report.html from whichever button opened it: a copy of the row's
+        <template> (see _task_detail.html), or for buttons with only a data-detail string
+        (the Acknowledged badge), a <pre> set with textContent, never innerHTML -- the
+        text is not ours to trust as markup.
         {% endcomment %}
-        <pre class="small mb-0 text-wrap" id="task-detail-body"></pre>
+      </div>
+      <div class="modal-footer">
+        <span class="text-muted small me-auto" id="task-detail-copy-status" role="status"></span>
+        <button type="button" class="btn btn-secondary btn-sm" id="task-detail-copy">
+          <i class="fa fa-copy" aria-hidden="true"></i> Copy to clipboard
+        </button>
       </div>
     </div>
   </div>

@@ -115,8 +115,8 @@ def acknowledge_tasks_in_bulk(request):
 
     The window is in the query string, because it says which failures: `since` (inclusive) and
     `before` (exclusive). `before` is required, so a click acknowledges what its page or alert
-    showed and never a failure that arrived afterwards. `name` and `group` narrow it the way the
-    task report's filters do. The form body carries an optional `reason` and a `next` path to
+    showed and never a failure that arrived afterwards. `name` narrows it the way the task
+    report's name filter does. The form body carries an optional `reason` and a `next` path to
     go back to.
 
     bulk_create with ignore_conflicts, for the same reason acknowledge_task uses get_or_create:
@@ -132,11 +132,8 @@ def acknowledge_tasks_in_bulk(request):
 
     failures = failures_between(since=since, before=before)
     name = request.GET.get('name', '')
-    group = request.GET.get('group', '')
     if name:
         failures = failures.filter(name__icontains=name)
-    if group:
-        failures = failures.filter(group=group)
 
     reason = request.POST.get('reason', '').strip()[: TaskAcknowledgement._meta.get_field('reason').max_length]
     # ids only: a backlog of failures would otherwise load every pickled argument and result

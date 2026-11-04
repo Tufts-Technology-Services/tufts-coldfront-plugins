@@ -8,6 +8,7 @@ from urllib.parse import urlencode
 
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.core.paginator import EmptyPage, PageNotAnInteger, Paginator
+from django.db.models import Q
 from django.template.response import TemplateResponse
 from django.urls import reverse
 from django.utils import timezone
@@ -22,6 +23,16 @@ logger = logging.getLogger(__name__)
 TASKS_PER_PAGE = 50
 # how often the page polls itself for fresh rows; the template reads this too
 REFRESH_SECONDS = 5
+
+# The state filter (TaskFilterForm.state) covers both tables. A pending state keeps those rows
+# of the Pending table and empties Completed; a completed state does the reverse.
+PENDING_STATES = {'scheduled': 'Scheduled', 'queued': 'Queued'}
+COMPLETED_STATES = {
+    'success': Q(success=True),
+    'failed': Q(success=False),
+    'unacknowledged': Q(success=False, acknowledgement__isnull=True),
+    'acknowledged': Q(success=False, acknowledgement__isnull=False),
+}
 
 
 def _parse_kwargs(raw):
@@ -127,18 +138,42 @@ def _queued_rows():
     return rows
 
 
-def _filter_rows(rows, name, group):
+def _filter_rows(rows, name, state):
     """
     Narrow pending rows in Python.
 
-    A schedule's name and group live inside a repr in a TextField and a queued task's
-    inside a signed payload, so neither can be filtered in SQL.
+    A schedule's name lives inside a repr in a TextField and a queued task's inside a
+    signed payload, so neither can be filtered in SQL.
     """
     if name:
         rows = [row for row in rows if name.lower() in row['name'].lower()]
-    if group:
-        rows = [row for row in rows if row['group'] == group]
+    if state:
+        rows = [row for row in rows if row['kind'] == PENDING_STATES.get(state)]
     return rows
+
+
+def _filter_tasks(tasks, name, state):
+    """Narrow a queryset of finished tasks the way the report's filters ask."""
+    if name:
+        tasks = tasks.filter(name__icontains=name)
+    if state in PENDING_STATES:
+        return tasks.none()
+    if state in COMPLETED_STATES:
+        tasks = tasks.filter(COMPLETED_STATES[state])
+    return tasks
+
+
+def _result_message(result):
+    """
+    The one line the Completed table shows for a task's result.
+
+    The plugins' tasks return a dict carrying a 'message', which is the useful part; anything
+    else -- a failure's traceback, a bare string, some other structure -- is shown as text.
+    The whole result is in the row's detail modal either way.
+    """
+    if isinstance(result, dict) and result.get('message') is not None:
+        return str(result['message'])
+    return '' if result is None else str(result)
 
 
 def _may_view(user):
@@ -149,15 +184,6 @@ def _may_view(user):
     and they link to each other -- a link its audience can't follow is worse than none.
     """
     return user.is_superuser or user.is_staff
-
-
-def _group_choices(pending_rows, ignored_names, ignored_groups):
-    tasks = exclude_ignored(Task.objects.all(), ignored_names, ignored_groups)
-    groups = set(
-        tasks.exclude(group__isnull=True).exclude(group='').values_list('group', flat=True).distinct().order_by('group')
-    )
-    groups.update(row['group'] for row in pending_rows if row['group'])
-    return sorted(groups)
 
 
 @login_required
@@ -176,24 +202,19 @@ def task_report(request):
         if not is_ignored(row['name'], row['group'], ignored_names, ignored_groups)
     ]
 
-    # build the group dropdown from every group present, so it doesn't depend on the filters
-    form = TaskFilterForm(request.GET or None, groups=_group_choices(all_pending, ignored_names, ignored_groups))
+    form = TaskFilterForm(request.GET or None)
 
     name = ''
-    group = ''
+    state = ''
     if form.is_bound and form.is_valid():
         name = form.cleaned_data['name']
-        group = form.cleaned_data['group']
+        state = form.cleaned_data['state']
 
-    pending_rows = _filter_rows(all_pending, name, group)
+    pending_rows = _filter_rows(all_pending, name, state)
     # queued rows have no scheduled time, so they sort ahead of the soonest scheduled run
     pending_rows.sort(key=lambda row: (row['when'] is not None, row['when']))
 
-    tasks = exclude_ignored(Task.objects.all(), ignored_names, ignored_groups)
-    if name:
-        tasks = tasks.filter(name__icontains=name)
-    if group:
-        tasks = tasks.filter(group=group)
+    tasks = _filter_tasks(exclude_ignored(Task.objects.all(), ignored_names, ignored_groups), name, state)
     # every row asks whether it has been acknowledged; without this that is 50 extra
     # queries a page, every five seconds
     tasks = tasks.select_related('acknowledgement').order_by('-stopped')
@@ -205,21 +226,23 @@ def task_report(request):
         page_obj = paginator.page(1)
     except EmptyPage:
         page_obj = paginator.page(paginator.num_pages)
+    # a list, so the summary set on each task here is the one the template reads
+    page_obj.object_list = list(page_obj.object_list)
+    for task in page_obj.object_list:
+        task.result_message = _result_message(task.result)
 
-    filter_parameters = urlencode({k: v for k, v in (('name', name), ('group', group)) if v})
+    filter_parameters = urlencode({k: v for k, v in (('name', name), ('state', state)) if v})
 
     # htmx polls this same view and swaps in just the tables, leaving the filter inputs alone
     template = '_task_tables.html' if request.htmx else 'task_report.html'
 
     # "Acknowledge all shown": the unacknowledged failures matching the filters, as of this page
     # load. It sits outside the polled tables, so `before` keeps it to what was on screen.
+    # The state needn't go along: any state that leaves an unacknowledged failure on screen
+    # leaves all of them, and the button isn't offered under the others.
     now = timezone.now()
-    unacknowledged = failures_between(before=now)
-    if name:
-        unacknowledged = unacknowledged.filter(name__icontains=name)
-    if group:
-        unacknowledged = unacknowledged.filter(group=group)
-    window = {'before': now.isoformat(), **{k: v for k, v in (('name', name), ('group', group)) if v}}
+    unacknowledged = _filter_tasks(failures_between(before=now), name, state)
+    window = {'before': now.isoformat(), **({'name': name} if name else {})}
 
     return TemplateResponse(
         request,

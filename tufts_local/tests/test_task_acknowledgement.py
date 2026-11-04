@@ -285,11 +285,11 @@ class TestBulkAcknowledgement:
 
         assert set(TaskAcknowledgement.objects.values_list('task_id', flat=True)) == {'a' * 32, 'c' * 32}
 
-    def test_narrows_by_name_and_group_like_the_report(self, staff_client):
+    def test_narrows_by_name_like_the_report(self, staff_client):
         make_task('a' * 32, name='index_new_allocation')
         make_task('b' * 32, name='refresh_ncq_eligibility')
 
-        staff_client.post(f'{self.URL}?{self.window(before=datetime.timedelta(0))}&name=index&group=starfish')
+        staff_client.post(f'{self.URL}?{self.window(before=datetime.timedelta(0))}&name=index')
 
         assert list(TaskAcknowledgement.objects.values_list('task_id', flat=True)) == ['a' * 32]
 
