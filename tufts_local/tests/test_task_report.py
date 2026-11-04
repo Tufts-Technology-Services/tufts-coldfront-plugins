@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
+import base64
 import datetime
 import logging
 from html.parser import HTMLParser
@@ -11,7 +12,9 @@ import pytest
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import AnonymousUser
 from django.contrib.sessions.middleware import SessionMiddleware
+from django.db import connection
 from django.test import RequestFactory
+from django.test.utils import CaptureQueriesContext
 from django.utils import timezone
 from django_htmx.middleware import HtmxDetails
 from django_q.models import OrmQ, Schedule, Task
@@ -133,7 +136,8 @@ class TestCompletedTasks:
         response = get_report(rf)
         response.render()
 
-        completed = response.content.split(b'Completed', 1)[1]
+        # past the summary counts, which have a table of their own at the top of Completed
+        completed = response.content.split(b'id="task-counts"', 1)[1].split(b'</table>', 1)[1]
         headings = [part.split(b'</th>', 1)[0] for part in completed.split(b'<th scope="col">')[1:]]
         assert headings == [
             b'Status',
@@ -779,7 +783,8 @@ class TestAckColumn:
         response.render()
 
         assert b'>Ack</button>' not in response.content
-        assert b'Acknowledged' not in response.content
+        # the badge, not the word: the summary counts have an Acknowledged column
+        assert b'</i> Acknowledged' not in response.content
 
     def test_the_button_carries_csrf_for_htmx(self, rf):
         """Every hx-post in the table is rejected as a CSRF failure without this header.
@@ -866,3 +871,276 @@ class TestAcknowledgeAllShown:
         response = get_report(rf, htmx=True)
 
         assert response.context_data['unacknowledged_count'] == 0
+
+
+def period_counts(response, label_start):
+    """One period of the summary counts, as ({status: count}, total), picked by how its label starts."""
+    period = next(p for p in response.context_data['periods'] if p['label'].startswith(label_start))
+    return {count['status']: count['count'] for count in period['counts']}, period['total']
+
+
+@pytest.mark.django_db
+@pytest.mark.urls('tufts_local.tests.urls')
+class TestSummaryCounts:
+    """The counts by period at the top of Completed, which replaced the task summary page."""
+
+    @pytest.fixture(autouse=True)
+    def two_hour_recent_window(self, settings):
+        settings.TASK_RECENT_WINDOW_HOURS = 2
+
+    def test_tasks_land_in_the_period_matching_their_age(self, rf):
+        make_task('a' * 32, 'just_now', minutes_ago=1)
+        make_task('b' * 32, 'this_afternoon', minutes_ago=5 * 60)
+        make_task('c' * 32, 'yesterday', minutes_ago=30 * 60)
+
+        response = get_report(rf)
+
+        assert period_counts(response, 'Last 2 hours')[1] == 1
+        assert period_counts(response, 'Earlier')[1] == 2
+
+    def test_counts_are_broken_down_by_status(self, rf):
+        make_task('a' * 32, 'ok_1', success=True, minutes_ago=5 * 60)
+        make_task('b' * 32, 'ok_2', success=True, minutes_ago=6 * 60)
+        make_task('c' * 32, 'boom', success=False, minutes_ago=7 * 60)
+        acknowledged = make_task('d' * 32, 'old_boom', success=False, minutes_ago=48 * 60)
+        TaskAcknowledgement.objects.create(task=acknowledged)
+
+        response = get_report(rf)
+
+        # an acknowledged failure is still counted, under its own heading: signed off, not erased
+        assert period_counts(response, 'Earlier') == ({'Succeeded': 2, 'Failed': 1, 'Acknowledged': 1}, 4)
+
+    def test_every_status_is_reported_even_at_zero(self, rf):
+        """'Failed 0' is the answer someone scanning the counts wants; a missing column isn't."""
+        response = get_report(rf)
+
+        assert period_counts(response, 'Earlier') == ({'Succeeded': 0, 'Failed': 0, 'Acknowledged': 0}, 0)
+
+    def test_the_periods_partition_every_task(self, rf):
+        """Split at one clock reading, no task is counted twice or falls between the periods;
+        minutes either side of the boundary is close enough to catch a second reading."""
+        for index, minutes_ago in enumerate((1, 119, 121, 23 * 60, 25 * 60)):
+            make_task(f'{index:032d}', f'task_{index}', minutes_ago=minutes_ago)
+
+        response = get_report(rf)
+
+        recent = period_counts(response, 'Last 2 hours')[1]
+        earlier = period_counts(response, 'Earlier')[1]
+        assert (recent, earlier) == (2, 3)
+        assert recent + earlier == Task.objects.count()
+
+    def test_the_counts_follow_the_filters(self, rf):
+        """They describe the tasks listed below them, so the two can't disagree."""
+        make_task('a' * 32, 'index_new_allocation', success=False, minutes_ago=1)
+        make_task('b' * 32, 'refresh_ncq_eligibility', success=True, minutes_ago=1)
+
+        by_name = get_report(rf, '?name=index')
+        by_state = get_report(rf, '?state=success')
+
+        assert period_counts(by_name, 'Last 2 hours') == ({'Succeeded': 0, 'Failed': 1, 'Acknowledged': 0}, 1)
+        assert period_counts(by_state, 'Last 2 hours') == ({'Succeeded': 1, 'Failed': 0, 'Acknowledged': 0}, 1)
+
+    def test_ignored_tasks_are_left_out(self, rf):
+        make_task('a' * 32, 'add_sf_tags_alloc_activate_1', minutes_ago=1)
+        make_task('b' * 32, 'refresh_ncq_eligibility', minutes_ago=1)
+        IgnoredTask.objects.create(field=IgnoredTask.NAME, pattern='add_sf_tags')
+
+        response = get_report(rf)
+
+        assert period_counts(response, 'Last 2 hours')[1] == 1
+
+    def test_the_labels_follow_the_recent_window_setting(self, rf, settings):
+        settings.TASK_RECENT_WINDOW_HOURS = 1
+
+        response = get_report(rf)
+        response.render()
+
+        assert [p['label'] for p in response.context_data['periods']] == ['Last 1 hour', 'Earlier']
+        assert b'Last 1 hour' in response.content
+
+    def test_the_default_recent_window(self, rf, settings):
+        del settings.TASK_RECENT_WINDOW_HOURS
+        make_task('a' * 32, 'recent', minutes_ago=23 * 60)
+        make_task('b' * 32, 'old', minutes_ago=25 * 60)
+
+        response = get_report(rf)
+
+        assert period_counts(response, 'Last 24 hours')[1] == 1
+        assert period_counts(response, 'Earlier')[1] == 1
+
+    def test_the_counts_table_is_rendered(self, rf):
+        make_task('a' * 32, 'boom', success=False, minutes_ago=1)
+
+        response = get_report(rf)
+        response.render()
+
+        counts = response.content.decode().split('id="task-counts"', 1)[1].split('</table>', 1)[0]
+        assert [h.split('<', 1)[0] for h in counts.split('class="text-end">')[1:5]] == [
+            'Succeeded',
+            'Failed',
+            'Acknowledged',
+            'Total',
+        ]
+        assert 'text-danger fw-semibold">1</td>' in counts
+
+    def test_the_poll_brings_fresh_counts(self, rf):
+        make_task('a' * 32, 'boom', success=False, minutes_ago=1)
+
+        response = get_report(rf, htmx=True)
+        response.render()
+
+        assert response.template_name == 'tufts_local/_task_tables.html'
+        assert b'id="task-counts"' in response.content
+
+
+@pytest.mark.django_db
+@pytest.mark.urls('tufts_local.tests.urls')
+class TestFoldingSections:
+    """Pending and the summary counts fold away, and the page remembers how the reader left them."""
+
+    def rendered(self, rf, htmx=False):
+        response = get_report(rf, htmx=htmx)
+        response.render()
+        return response.content.decode()
+
+    def test_pending_starts_open(self, rf):
+        content = self.rendered(rf)
+
+        assert '<div id="pending-tasks" class="collapse show" data-remember-collapse>' in content
+        assert 'href="#pending-tasks"\n     role="button" aria-expanded="true"' in content
+
+    def test_the_summary_starts_closed(self, rf):
+        content = self.rendered(rf)
+
+        assert '<div id="task-counts" class="collapse" data-remember-collapse>' in content
+        assert 'class="section-toggle collapsed' in content
+        assert 'href="#task-counts"\n   role="button" aria-expanded="false"' in content
+
+    def test_pending_shows_its_count_in_the_heading(self, rf):
+        create_schedule(
+            'tufts_local.tasks.index_new_allocation',
+            schedule_type=Schedule.ONCE,
+            next_run=timezone.now() + datetime.timedelta(minutes=5),
+        )
+
+        content = self.rendered(rf)
+
+        heading = content.split('href="#pending-tasks"', 1)[1].split('</h3>', 1)[0]
+        assert '<span class="badge bg-secondary">1</span>' in heading
+
+    def test_the_page_remembers_and_restores_them(self, rf):
+        """Every poll re-renders the sections in their default state, so the page has to put
+        the reader's choice back after each swap, or they'd snap shut every few seconds."""
+        content = self.rendered(rf)
+
+        assert "document.addEventListener('shown.bs.collapse', rememberSection);" in content
+        assert "document.addEventListener('hidden.bs.collapse', rememberSection);" in content
+        assert 'restoreSections(event.target);' in content
+
+    def test_the_sections_come_back_with_every_poll(self, rf):
+        content = self.rendered(rf, htmx=True)
+
+        assert content.count('data-remember-collapse') == 2
+
+
+def store_raw_pickle(task_id, column, pickled_bytes):
+    """Write a pickled column directly, the way an older deployment's code could have left it."""
+    raw = base64.b64encode(pickled_bytes).decode()
+    with connection.cursor() as cursor:
+        cursor.execute(f'UPDATE django_q_task SET {column} = %s WHERE id = %s', [raw, task_id])
+
+
+# a pickle naming a class in a module that doesn't exist: loading it raises ModuleNotFoundError
+UNLOADABLE_PICKLE = b'cgone_module\nGone\n.'
+
+
+@pytest.mark.django_db
+@pytest.mark.urls('tufts_local.tests.urls')
+class TestUnreadablePickles:
+    """
+    A result, args or kwargs holding an instance of a class this process can no longer import.
+
+    picklefield swallows that failure and hands back the stored base64 text instead, which the
+    report would then show as though it were the task's result. The report reads the columns
+    itself so it can say what happened.
+    """
+
+    def test_an_unloadable_result_says_so(self, rf, caplog):
+        task = make_task('a' * 32, 'gone')
+        store_raw_pickle(task.id, 'result', UNLOADABLE_PICKLE)
+
+        with caplog.at_level(logging.WARNING, logger='tufts_local.views.task_report'):
+            response = get_report(rf)
+            response.render()
+
+        shown = response.context_data['page_obj'].object_list[0]
+        note = "<unreadable: ModuleNotFoundError: No module named 'gone_module'>"
+        assert shown.result_message == note
+        content = response.content.decode()
+        # escaped, in the Message column and again in the detail modal's Result
+        assert content.count('&lt;unreadable: ModuleNotFoundError') == 2
+        assert base64.b64encode(UNLOADABLE_PICKLE).decode() not in content
+        assert f'Could not unpickle result of task {task.id}' in caplog.text
+
+    def test_unloadable_args_and_kwargs_say_so_too(self, rf):
+        task = make_task('a' * 32, 'gone')
+        store_raw_pickle(task.id, 'args', UNLOADABLE_PICKLE)
+        store_raw_pickle(task.id, 'kwargs', UNLOADABLE_PICKLE)
+
+        response = get_report(rf)
+        response.render()
+
+        detail = response.content.decode().split(f'<template id="task-detail-{task.id}">', 1)[1]
+        assert detail.count('&lt;unreadable: ModuleNotFoundError') == 2
+        # the result itself was fine, so it is still shown as it was
+        assert '>done</pre>' in detail
+
+    def test_one_bad_task_leaves_the_rest_alone(self, rf):
+        make_task('a' * 32, 'fine', result={'message': 'all good'}, minutes_ago=1)
+        bad = make_task('b' * 32, 'gone', minutes_ago=2)
+        store_raw_pickle(bad.id, 'result', UNLOADABLE_PICKLE)
+
+        response = get_report(rf)
+
+        messages = [t.result_message for t in response.context_data['page_obj']]
+        assert messages[0] == 'all good'
+        assert messages[1].startswith('<unreadable: ModuleNotFoundError')
+
+    def test_readable_values_still_decode(self, rf):
+        Task.objects.create(
+            id='a' * 32,
+            name='typed',
+            func='tufts_local.tasks.index_new_allocation',
+            args=(4821, 'pi_lab01'),
+            kwargs={'force': True},
+            result={'message': 'ok', 'count': 3},
+            started=timezone.now(),
+            stopped=timezone.now(),
+            success=True,
+        )
+
+        task = get_report(rf).context_data['page_obj'].object_list[0]
+
+        assert task.args == (4821, 'pi_lab01')
+        assert task.kwargs == {'force': True}
+        assert task.result == {'message': 'ok', 'count': 3}
+
+    def test_empty_values_stay_empty(self, rf):
+        make_task('a' * 32, 'nothing', result=None)
+
+        task = get_report(rf).context_data['page_obj'].object_list[0]
+
+        assert task.result is None
+        assert task.result_message == ''
+
+    def test_the_pickled_columns_are_fetched_once(self, rf):
+        """Each comes back as text for _unpickled, and is deferred so the page query doesn't
+        also select it for the field to unpickle: results can be large, and there are 50 a page."""
+        make_task('a' * 32, 'one')
+
+        with CaptureQueriesContext(connection) as queries:
+            get_report(rf)
+
+        (page_query,) = [q['sql'] for q in queries if 'FROM "django_q_task"' in q['sql'] and 'LIMIT' in q['sql']]
+        for column in ('args', 'kwargs', 'result'):
+            assert page_query.count(f'"django_q_task"."{column}"') == 1, column

@@ -10,7 +10,7 @@ from django_q.brokers import get_broker
 from django_q.conf import Conf
 
 from tufts_local.queue_health import get_task_queue_health, task_queue_alerts
-from tufts_local.tests.test_task_summary import get_summary
+from tufts_local.tests.test_task_report import get_report
 
 
 class TestQueueHealth:
@@ -131,49 +131,93 @@ class TestTaskQueueAlerts:
         assert alert.title == 'Task queue: broker down'
         assert 'Connection refused' in alert.detail
 
+    def test_alert_links_to_the_task_report(self, fake_broker):
+        """The queue status lives on the report now; the summary page it used to point at is gone."""
+        fake_broker.reachable = False
+
+        (alert,) = task_queue_alerts()
+
+        assert alert.link == '/task-report/'
+
 
 @pytest.mark.django_db
 @pytest.mark.urls('tufts_local.tests.urls')
-class TestQueuePanel:
-    def render_summary(self, rf):
-        response = get_summary(rf)
+class TestQueueIndicator:
+    """The task report's one-line queue status, and the modal it opens."""
+
+    def render_report(self, rf, htmx=False):
+        response = get_report(rf, htmx=htmx)
         response.render()
         return response.content.decode()
 
-    def test_collapsed_when_green(self, rf, fake_broker):
+    @staticmethod
+    def indicator(content):
+        return content.split('id="task-queue-indicator"', 1)[1].split('</button>', 1)[0]
+
+    @staticmethod
+    def detail(content):
+        return content.split('id="task-queue-detail"', 1)[1].split('Checked', 1)[0]
+
+    def test_green_shows_healthy_and_the_clusters_in_the_modal(self, rf, fake_broker):
         fake_broker.add_cluster(host='worker-host-a')
 
-        content = self.render_summary(rf)
+        content = self.render_report(rf)
 
-        assert 'id="task-queue-status" class="collapse"' in content
-        assert 'aria-expanded="false"' in content
-        assert '<span class="badge text-bg-success">Healthy</span>' in content
-        # the cluster rows are still on the page, just folded away
-        assert 'worker-host-a' in content
-        assert '<span class="badge text-bg-success">Idle</span>' in content
+        assert '<span class="badge text-bg-success">Healthy</span>' in self.indicator(content)
+        assert 'border-success' in content.split('id="task-queue-indicator"', 1)[1].split('>', 1)[0]
+        assert '1 cluster · 4 workers · 0 tasks waiting' in self.indicator(content)
+        assert 'worker-host-a' in self.detail(content)
+        assert '<span class="badge text-bg-success">Idle</span>' in self.detail(content)
 
-    def test_open_when_red(self, rf, fake_broker):
+    def test_the_indicator_opens_the_modal(self, rf):
+        content = self.render_report(rf)
+
+        assert 'data-bs-target="#task-queue-modal"' in self.indicator(content)
+        assert content.count('id="task-queue-modal"') == 1
+
+    def test_red_when_the_broker_is_down(self, rf, fake_broker):
         fake_broker.reachable = False
 
-        content = self.render_summary(rf)
+        content = self.render_report(rf)
 
-        assert 'id="task-queue-status" class="collapse show"' in content
-        assert 'aria-expanded="true"' in content
-        assert '<span class="badge text-bg-danger">Broker down</span>' in content
-        assert '<div class="alert alert-danger">\n    Could not connect to the task broker' in content
+        assert '<span class="badge text-bg-danger">Broker down</span>' in self.indicator(content)
+        assert 'Could not connect to the task broker' in self.detail(content)
 
-    def test_open_when_amber(self, rf, fake_broker):
+    def test_amber_when_degraded(self, rf, fake_broker):
         fake_broker.add_cluster(status=Conf.STOPPING)
 
-        content = self.render_summary(rf)
+        content = self.render_report(rf)
 
-        assert 'id="task-queue-status" class="collapse show"' in content
-        assert '<span class="badge text-bg-warning">Degraded</span>' in content
-        assert '<div class="alert alert-warning">' in content
+        assert '<span class="badge text-bg-warning">Degraded</span>' in self.indicator(content)
+        assert '<div class="alert alert-warning">' in self.detail(content)
 
     def test_no_workers_is_explained_in_red(self, rf):
         """The autouse fake broker has no clusters. The box matches the red badge, not amber's."""
-        content = self.render_summary(rf)
+        content = self.render_report(rf)
 
-        assert '<span class="badge text-bg-danger">No workers</span>' in content
-        assert '<div class="alert alert-danger">\n    No task clusters have reported' in content
+        assert '<span class="badge text-bg-danger">No workers</span>' in self.indicator(content)
+        assert '<div class="alert alert-danger mb-0">\n      No task clusters have reported' in self.detail(content)
+
+    def test_a_full_page_renders_it_in_place(self, rf):
+        """Out-of-band markers on a full page load would be inert, but would also say something untrue."""
+        content = self.render_report(rf)
+
+        assert 'hx-swap-oob' not in content
+
+    def test_a_poll_sends_it_back_out_of_band(self, rf, fake_broker):
+        """The indicator sits beside the filters, outside the polled tables, so htmx can only
+        refresh it out-of-band: by id, from the same response."""
+        fake_broker.add_cluster(host='worker-host-a')
+
+        content = self.render_report(rf, htmx=True)
+
+        assert '<button type="button" id="task-queue-indicator" hx-swap-oob="true"' in content
+        assert '<div id="task-queue-detail" hx-swap-oob="true">' in content
+        assert 'worker-host-a' in content
+        # only the contents travel: the modal itself stays put, outside the swapped region
+        assert 'id="task-queue-modal"' not in content
+
+    def test_the_poll_pauses_while_the_modal_is_open(self, rf):
+        content = self.render_report(rf)
+
+        assert '#task-queue-modal.show' in content

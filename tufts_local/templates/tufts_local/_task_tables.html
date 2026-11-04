@@ -1,10 +1,22 @@
 {% comment %}
 The refreshing part of the task report. Rendered inside task_report.html on a full page
-load, and returned on its own to htmx for the auto-refresh (see _wants_partial in
+load, and returned on its own to htmx for the auto-refresh (see the htmx check in
 views/task_report.py), so the filter inputs above it are never clobbered mid-typing.
 {% endcomment %}
-<h3>Pending</h3>
+{% comment %}
+Pending and the counts fold away. Their open/closed state is the reader's: task_report.html
+remembers it per browser and puts it back after every poll and page load, since each poll
+re-renders this partial in its default state. Each section is marked data-remember-collapse.
+{% endcomment %}
+<h3>
+  <a class="section-toggle text-reset text-decoration-none" data-bs-toggle="collapse" href="#pending-tasks"
+     role="button" aria-expanded="true" aria-controls="pending-tasks">
+    <i class="fa fa-chevron-right small" aria-hidden="true"></i> Pending
+  </a>
+  <span class="badge bg-secondary">{{ pending_rows|length }}</span>
+</h3>
 <hr>
+<div id="pending-tasks" class="collapse show" data-remember-collapse>
 {% if pending_rows %}
 <div class="table-responsive">
   <table class="table table-sm">
@@ -60,9 +72,45 @@ views/task_report.py), so the filter inputs above it are never clobbered mid-typ
   Tasks waiting in the queue are only listed when django-q is configured to use the ORM broker.
 </div>
 {% endif %}
+</div>
 
 <h3 class="mt-4">Completed <span class="badge bg-secondary">{{ task_count }}</span></h3>
 <hr>
+<a class="section-toggle collapsed d-inline-block small mb-2" data-bs-toggle="collapse" href="#task-counts"
+   role="button" aria-expanded="false" aria-controls="task-counts">
+  <i class="fa fa-chevron-right" aria-hidden="true"></i> Summary <span class="text-muted">(counts by period)</span>
+</a>
+<div id="task-counts" class="collapse" data-remember-collapse>
+  {% comment %}
+  The same filtered tasks as the table below, counted in two periods split at the start of the
+  recent window. Failed counts only failures nobody has acknowledged, as the alerts do.
+  {% endcomment %}
+  <table class="table table-sm w-auto mb-3">
+    <thead>
+      <tr>
+        <th scope="col">Period</th>
+        {% for label in status_labels %}<th scope="col" class="text-end">{{ label }}</th>{% endfor %}
+        <th scope="col" class="text-end">Total</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for period in periods %}
+      <tr>
+        <td class="text-nowrap">
+          {{ period.label }}
+          <span class="text-muted small">
+            {% if period.since %}since {{ period.since|date:"m-d H:i" }}{% else %}before {{ period.until|date:"m-d H:i" }}{% endif %}
+          </span>
+        </td>
+        {% for count in period.counts %}
+        <td class="text-end{% if count.status == 'Failed' and count.count %} text-danger fw-semibold{% endif %}">{{ count.count }}</td>
+        {% endfor %}
+        <td class="text-end">{{ period.total }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
 {% if page_obj.object_list %}
 {% comment %}
 Six narrow columns so the table fits without scrolling sideways: Started leaves out the
@@ -135,4 +183,12 @@ stopped, attempts, args, kwargs, the whole result -- is in the modal the magnifi
 <div class="alert alert-info" role="alert">
   <i class="fa fa-info-circle" aria-hidden="true"></i> There are no completed tasks to display.
 </div>
+{% endif %}
+{% if poll %}
+{% comment %}
+On a poll, the task queue's status comes back with the tables and htmx swaps it into place by
+id, out-of-band. A full page load renders it in place instead, so it isn't sent twice.
+{% endcomment %}
+{% include "tufts_local/_task_queue_indicator.html" with oob=True %}
+{% include "tufts_local/_task_queue_detail.html" with oob=True %}
 {% endif %}

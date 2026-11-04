@@ -84,11 +84,6 @@ urlpatterns = [
         name='task-unacknowledge',
     ),
     path(
-        'task-summary/',
-        views.task_summary,
-        name='task-summary',
-    ),
-    path(
         'history/',
         views.project_history_search,
         name='project-history-search',

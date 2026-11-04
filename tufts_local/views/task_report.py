@@ -3,24 +3,41 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import ast
+import datetime
 import logging
 from urllib.parse import urlencode
 
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.core.paginator import EmptyPage, PageNotAnInteger, Paginator
-from django.db.models import Q
+from django.db.models import Count, ExpressionWrapper, F, Q, TextField
+from django.template.defaultfilters import pluralize
 from django.template.response import TemplateResponse
 from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_GET
 from django_q.models import OrmQ, Schedule, Task
+from picklefield.fields import PickledObject
 
 from tufts_local.forms import TaskFilterForm
-from tufts_local.task_failures import exclude_ignored, failures_between, ignore_rules, is_ignored
+from tufts_local.queue_health import get_task_queue_health
+from tufts_local.task_failures import (
+    exclude_ignored,
+    failures_between,
+    ignore_rules,
+    is_ignored,
+    recent_window_hours,
+)
 
 logger = logging.getLogger(__name__)
 
 TASKS_PER_PAGE = 50
+
+# The three outcomes a finished task can be in, as (aggregate name, label), for the counts at
+# the top of the Completed section. django-q records only a boolean, so 'Acknowledged' is this
+# app's own third state: a failure someone has signed off (models.TaskAcknowledgement). Counting
+# it apart keeps 'Failed' meaning what the task failure alerts count -- failures nobody has dealt
+# with yet -- so the counts explain the alerts instead of contradicting them.
+STATUS_LABELS = (('succeeded', 'Succeeded'), ('failed', 'Failed'), ('acknowledged', 'Acknowledged'))
 # how often the page polls itself for fresh rows; the template reads this too
 REFRESH_SECONDS = 5
 
@@ -163,6 +180,98 @@ def _filter_tasks(tasks, name, state):
     return tasks
 
 
+def _status_counts(tasks):
+    """
+    How many of these tasks ended each way, counted in the database.
+
+    Every status is always present, including at zero: 'Failed 0' is the answer someone
+    scanning the counts is looking for, and a missing column doesn't give it to them.
+    """
+    counts = tasks.aggregate(
+        succeeded=Count('id', filter=Q(success=True)),
+        failed=Count('id', filter=Q(success=False, acknowledgement__isnull=True)),
+        acknowledged=Count('id', filter=Q(success=False, acknowledgement__isnull=False)),
+    )
+    return [{'status': label, 'count': counts[key]} for key, label in STATUS_LABELS]
+
+
+def _count_periods(tasks, now):
+    """
+    The counts table: the tasks split at one clock reading, recent_window_hours() back.
+
+    Split at a single instant, the two periods partition the tasks exactly: none lands in both
+    and none in neither. The recent one is the window the critical failure alert watches.
+    """
+    hours = recent_window_hours()
+    boundary = now - datetime.timedelta(hours=hours)
+    periods = []
+    for label, since, until, period_tasks in (
+        (f'Last {hours} hour{pluralize(hours)}', boundary, None, tasks.filter(stopped__gte=boundary)),
+        ('Earlier', None, boundary, tasks.filter(stopped__lt=boundary)),
+    ):
+        counts = _status_counts(period_tasks)
+        periods.append(
+            {
+                'label': label,
+                'since': since,
+                'until': until,
+                'counts': counts,
+                'total': sum(count['count'] for count in counts),
+            }
+        )
+    return periods
+
+
+# Task's pickled columns, read raw and unpickled here rather than by the field (see _unpickled)
+PICKLED_FIELDS = ('args', 'kwargs', 'result')
+
+
+class UnreadableValue:
+    """
+    Stands in for a pickled value this process can't load, such as a result holding an
+    instance of a class that has since been renamed or removed. Renders as a short note
+    saying so, in the Message column and the detail modal alike.
+    """
+
+    def __init__(self, error):
+        self.error = error
+
+    def __str__(self):
+        return f'<unreadable: {type(self.error).__name__}: {self.error}>'
+
+
+def _with_raw_pickles(tasks):
+    """
+    Fetch the pickled columns as the text stored in the database, instead of unpickled.
+
+    picklefield swallows a failure to unpickle a value it loads and hands back that stored
+    base64 text in its place, so an unloadable result would be shown as a blob of base64
+    with nothing to say why. Wrapping the column in a text-typed expression skips the
+    field's converter; _unpickled then decodes it where the error can be seen. The columns
+    are deferred so each one is fetched once, as text, and not a second time pickled.
+    """
+    raw = {f'raw_{name}': ExpressionWrapper(F(name), output_field=TextField()) for name in PICKLED_FIELDS}
+    return tasks.defer(*PICKLED_FIELDS).annotate(**raw)
+
+
+def _unpickled(task, name):
+    """
+    One of a task's pickled columns, decoded, or an UnreadableValue saying why it can't be.
+
+    Decoded by the field itself, so its compression and wrapping settings apply. Handing it
+    a PickledObject is how picklefield is told the text is certainly a pickle, which makes
+    it raise on failure instead of returning the text.
+    """
+    raw = getattr(task, f'raw_{name}')
+    if raw is None:
+        return None
+    try:
+        return Task._meta.get_field(name).to_python(PickledObject(raw))
+    except Exception as e:
+        logger.warning(f'Could not unpickle {name} of task {task.id}: {type(e).__name__}: {e}')
+        return UnreadableValue(e)
+
+
 def _result_message(result):
     """
     The one line the Completed table shows for a task's result.
@@ -180,8 +289,8 @@ def _may_view(user):
     """
     Who the task pages are for: superusers and staff alike.
 
-    Defined once, here, because task_summary and the acknowledgement views all share it
-    and they link to each other -- a link its audience can't follow is worse than none.
+    Defined once, here, because the acknowledgement views share it, and the report links to
+    them -- a link its audience can't follow is worse than none.
     """
     return user.is_superuser or user.is_staff
 
@@ -215,9 +324,12 @@ def task_report(request):
     pending_rows.sort(key=lambda row: (row['when'] is not None, row['when']))
 
     tasks = _filter_tasks(exclude_ignored(Task.objects.all(), ignored_names, ignored_groups), name, state)
+    now = timezone.now()
+    # counted from the same filtered tasks the table lists, so the two always agree
+    periods = _count_periods(tasks, now)
     # every row asks whether it has been acknowledged; without this that is 50 extra
     # queries a page, every five seconds
-    tasks = tasks.select_related('acknowledgement').order_by('-stopped')
+    tasks = _with_raw_pickles(tasks.select_related('acknowledgement').order_by('-stopped'))
 
     paginator = Paginator(tasks, TASKS_PER_PAGE)
     try:
@@ -229,6 +341,8 @@ def task_report(request):
     # a list, so the summary set on each task here is the one the template reads
     page_obj.object_list = list(page_obj.object_list)
     for task in page_obj.object_list:
+        for field_name in PICKLED_FIELDS:
+            setattr(task, field_name, _unpickled(task, field_name))
         task.result_message = _result_message(task.result)
 
     filter_parameters = urlencode({k: v for k, v in (('name', name), ('state', state)) if v})
@@ -240,7 +354,6 @@ def task_report(request):
     # load. It sits outside the polled tables, so `before` keeps it to what was on screen.
     # The state needn't go along: any state that leaves an unacknowledged failure on screen
     # leaves all of them, and the button isn't offered under the others.
-    now = timezone.now()
     unacknowledged = _filter_tasks(failures_between(before=now), name, state)
     window = {'before': now.isoformat(), **({'name': name} if name else {})}
 
@@ -263,5 +376,10 @@ def task_report(request):
             'unacknowledged_count': 0 if request.htmx else unacknowledged.count(),
             'acknowledge_all_url': f'{reverse("task-acknowledge-bulk")}?{urlencode(window)}',
             'return_path': request.get_full_path(),
+            # checked on every poll too: the status rides back with the tables, out-of-band
+            'queue_health': get_task_queue_health(),
+            'poll': bool(request.htmx),
+            'periods': periods,
+            'status_labels': [label for _key, label in STATUS_LABELS],
         },
     )

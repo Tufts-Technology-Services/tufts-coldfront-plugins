@@ -16,7 +16,7 @@ from tufts_local.alerts import (
     superusers,
     with_permission,
 )
-from tufts_local.tests.test_task_summary import add_session, make_user
+from tufts_local.tests.test_task_report import add_session, make_user
 from tufts_local.views import alert_indicator, alert_list
 
 STAFF = make_user(is_staff=True)
@@ -283,7 +283,7 @@ class TestAlertViews:
         content = get_alert_view(rf, alert_list, '/alerts/').content.decode()
 
         assert 'Task queue: no workers' in content
-        assert 'href="/task-summary/"' in content
+        assert 'href="/task-report/"' in content
         assert '<span class="badge text-bg-danger">Critical</span>' in content
 
     def test_list_offers_acknowledge_only_where_the_source_does(self, rf, no_sources):
