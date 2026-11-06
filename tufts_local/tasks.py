@@ -8,7 +8,7 @@ import io
 import logging
 
 from coldfront_utils import mail_report
-from django_q.tasks import Schedule, schedule
+from coldfront_utils.tasks import RetryLater, build_task_result, reschedulable
 from storage.truenas import get_truenas_client
 
 from coldfront.core.allocation.models import Allocation, AllocationAttribute
@@ -102,63 +102,47 @@ def _set_sf_owner_tag(allocation):
         )
 
 
-def index_new_allocation(allocation_id, scan_id=None, retries=5, wait=5):
+def index_task_options(allocation_id, **_):
+    """django-q options for every run of index_new_allocation, its retries included.
+
+    The task name is the one it had when activation started it: the task report's ignore rules
+    match on it.
     """
-    Index a new allocation in Starfish
+    return {"task_name": f"add_sf_tags_alloc_activate_{allocation_id}", "group": "starfish"}
+
+
+@reschedulable(retries=5, wait=5, q_options=index_task_options)
+def index_new_allocation(allocation_id, scan_id=None):
+    """Index a new allocation's directory in Starfish, then set its Owner and Approver tags.
+
+    Queued once the allocation's share exists (signals.py). A directory Starfish hasn't indexed
+    gets a shallow scan. A scan still running, or one that finished without finding the directory,
+    makes the task run again in 5 minutes, up to 5 times (@reschedulable): with the same scan while
+    it runs, and with a new scan after one that found nothing.
     """
+    allocation = Allocation.objects.get(id=allocation_id)
+    vol_path_attr = allocation.allocationattribute_set.filter(allocation_attribute_type__name="sf_vol_path")
+    if not vol_path_attr.exists():
+        raise ValueError(
+            f"Allocation {allocation_id} does not have an 'sf_vol_path' attribute. Cannot index in Starfish."
+        )
+    vol_path = vol_path_attr.first().value
+
+    logger.info(f"Indexing allocation {allocation_id}'s {vol_path} in Starfish.")
+    scan_id, status = add_to_starfish_index(vol_path, "starfish", scan_id)
+    if status is not True:
+        if scan_id is not None:
+            raise RetryLater(f"Starfish's scan {scan_id} of {vol_path} is still running", scan_id=scan_id)
+        raise RetryLater(f"{vol_path} isn't in Starfish's index after a scan", scan_id=None)
+
+    logger.info(f"{vol_path} is in Starfish's index. Setting its tags.")
     try:
-        allocation = Allocation.objects.get(id=allocation_id)
-        vol_path_attr = allocation.allocationattribute_set.filter(allocation_attribute_type__name="sf_vol_path")
-        if not vol_path_attr.exists():
-            raise ValueError(
-                f"Allocation {allocation_id} does not have an 'sf_vol_path' attribute. Cannot index in Starfish."
-            )
-
-        vol_path = vol_path_attr.first().value
-        logger.info(f"Indexing allocation with vol_path {vol_path} in Starfish.")
-        scan_id, status = add_to_starfish_index(vol_path, "starfish", scan_id)
-        if status is True:
-            # do new allocation starfish actions
-            logger.info(f"Successfully indexed allocation with vol_path {vol_path} in Starfish.")
-            try:
-                set_sf_owner_tag(allocation_id)
-                logger.info(f"Setting Starfish owner tag for allocation with vol_path {vol_path}.")
-                update_sf_approver_tags(allocation.project.id)
-                logger.info(f"Updating Starfish approver tags for allocation with vol_path {vol_path}.")
-            except Exception as e:
-                logger.error(f"Error setting Starfish tags for allocation with vol_path {vol_path}: {e}")
-
-        else:
-            if retries <= 0:
-                logger.error(
-                    f"Failed to index allocation with vol_path {vol_path} in Starfish after {retries} retries."
-                )
-                raise TimeoutError(f"allocation {vol_path} not yet indexed. can't add tags")
-            else:
-                logger.warning(
-                    f"Will recheck allocation with vol_path {vol_path} in Starfish in {wait} minutes. {retries - 1} retries left."
-                )
-                schedule(
-                    "tufts_local.tasks.index_new_allocation",
-                    allocation_id,
-                    scan_id,
-                    retries - 1,
-                    wait,
-                    schedule_type=Schedule.ONCE,
-                    next_run=datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(minutes=wait),
-                    q_options={
-                        "task_name": f"add_sf_tags_alloc_activate_{allocation_id}",
-                        "group": "starfish",
-                    },
-                )
-
-            return status
-    except Allocation.DoesNotExist as e:
-        logger.error(f"Allocation with ID {allocation_id} does not exist. Cannot index in Starfish.")
-        raise e
+        set_sf_owner_tag(allocation_id)
+        update_sf_approver_tags(allocation.project.id)
     except Exception as e:
-        logger.error(f"Error indexing allocation {allocation_id} in Starfish: {str(e)}")
-        raise e
+        logger.error(f"Error setting Starfish tags for allocation {allocation_id}'s {vol_path}: {e}")
+        return build_task_result("successful", f"indexed {vol_path}, but setting its tags failed: {e}")
+    return build_task_result("successful", f"indexed and tagged {vol_path}")
 
 
 def send_tier2_quota_report(client_config_id):
