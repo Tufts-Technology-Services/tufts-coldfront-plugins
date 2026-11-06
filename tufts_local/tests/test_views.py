@@ -15,7 +15,7 @@ from tufts_local.views import views
 
 
 def make_user(is_superuser=False):
-    user = MagicMock(name='user')
+    user = MagicMock(name="user")
     user.is_authenticated = True
     user.is_superuser = is_superuser
     return user
@@ -28,7 +28,7 @@ def rf():
 
 class TestProjectUpdateUserRole:
     def test_anonymous_user_redirects_to_login(self, rf):
-        request = rf.post('/project-update-user-role/')
+        request = rf.post("/project-update-user-role/")
         request.user = AnonymousUser()
 
         response = views.project_update_user_role(request)
@@ -36,58 +36,58 @@ class TestProjectUpdateUserRole:
         assert response.status_code == 302
 
     def test_get_not_allowed(self, rf):
-        request = rf.get('/project-update-user-role/')
+        request = rf.get("/project-update-user-role/")
         request.user = make_user()
 
         response = views.project_update_user_role(request)
 
         assert response.status_code == 405
 
-    @patch('tufts_local.views.views.approver_at_least')
-    @patch('tufts_local.views.views.get_object_or_404')
+    @patch("tufts_local.views.views.approver_at_least")
+    @patch("tufts_local.views.views.get_object_or_404")
     def test_not_allowed(self, mock_get_object, mock_approver, rf):
         mock_get_object.return_value = MagicMock()
         mock_approver.return_value = False
-        request = rf.post('/project-update-user-role/', {'user_project_id': '1', 'role': 'Manager'})
+        request = rf.post("/project-update-user-role/", {"user_project_id": "1", "role": "Manager"})
         request.user = make_user()
 
         response = views.project_update_user_role(request)
 
         assert response.status_code == 403
-        assert json.loads(response.content) == {'message': 'not allowed'}
+        assert json.loads(response.content) == {"message": "not allowed"}
 
-    @patch('tufts_local.views.views.approver_at_least')
-    @patch('tufts_local.views.views.get_object_or_404')
+    @patch("tufts_local.views.views.approver_at_least")
+    @patch("tufts_local.views.views.get_object_or_404")
     def test_no_role_specified(self, mock_get_object, mock_approver, rf):
         mock_get_object.return_value = MagicMock()
         mock_approver.return_value = True
-        request = rf.post('/project-update-user-role/', {'user_project_id': '1'})
+        request = rf.post("/project-update-user-role/", {"user_project_id": "1"})
         request.user = make_user()
 
         response = views.project_update_user_role(request)
 
         assert response.status_code == 400
-        assert json.loads(response.content) == {'message': 'no role specified'}
+        assert json.loads(response.content) == {"message": "no role specified"}
 
-    @patch('tufts_local.views.views.ProjectUserRoleChoice')
-    @patch('tufts_local.views.views.approver_at_least')
-    @patch('tufts_local.views.views.get_object_or_404')
+    @patch("tufts_local.views.views.ProjectUserRoleChoice")
+    @patch("tufts_local.views.views.approver_at_least")
+    @patch("tufts_local.views.views.get_object_or_404")
     def test_invalid_role(self, mock_get_object, mock_approver, mock_role_choice, rf):
         mock_get_object.return_value = MagicMock()
         mock_approver.return_value = True
         mock_role_choice.objects.get.return_value = None
-        request = rf.post('/project-update-user-role/', {'user_project_id': '1', 'role': 'Bogus'})
+        request = rf.post("/project-update-user-role/", {"user_project_id": "1", "role": "Bogus"})
         request.user = make_user()
 
         response = views.project_update_user_role(request)
 
         assert response.status_code == 400
-        assert json.loads(response.content) == {'message': 'invalid role specified'}
+        assert json.loads(response.content) == {"message": "invalid role specified"}
 
-    @patch('tufts_local.views.views.async_task')
-    @patch('tufts_local.views.views.ProjectUserRoleChoice')
-    @patch('tufts_local.views.views.approver_at_least')
-    @patch('tufts_local.views.views.get_object_or_404')
+    @patch("tufts_local.views.views.async_task")
+    @patch("tufts_local.views.views.ProjectUserRoleChoice")
+    @patch("tufts_local.views.views.approver_at_least")
+    @patch("tufts_local.views.views.get_object_or_404")
     def test_success(self, mock_get_object, mock_approver, mock_role_choice, mock_async_task, rf):
         project_user_obj = MagicMock()
         project_user_obj.project.id = 42
@@ -95,15 +95,15 @@ class TestProjectUpdateUserRole:
         mock_approver.return_value = True
         role = MagicMock()
         mock_role_choice.objects.get.return_value = role
-        mock_async_task.return_value = 'task-id-123'
+        mock_async_task.return_value = "task-id-123"
 
-        request = rf.post('/project-update-user-role/', {'user_project_id': '1', 'role': 'Manager'})
+        request = rf.post("/project-update-user-role/", {"user_project_id": "1", "role": "Manager"})
         request.user = make_user()
 
         response = views.project_update_user_role(request)
 
         assert response.status_code == 200
-        assert json.loads(response.content) == {'message': 'role updated', 'task_id': 'task-id-123'}
+        assert json.loads(response.content) == {"message": "role updated", "task_id": "task-id-123"}
         assert project_user_obj.role == role
         project_user_obj.save.assert_called_once()
         mock_async_task.assert_called_once_with(views.update_sf_approver_tags, 42)
@@ -111,14 +111,14 @@ class TestProjectUpdateUserRole:
 
 class TestProjectGetEmailNotification:
     def test_post_not_allowed(self, rf):
-        request = rf.post('/project-user-get-email-notification/1/')
+        request = rf.post("/project-user-get-email-notification/1/")
         request.user = make_user()
 
         response = views.project_get_email_notification(request, project_user_id=1)
 
         assert response.status_code == 405
 
-    @patch('tufts_local.views.views.get_object_or_404')
+    @patch("tufts_local.views.views.get_object_or_404")
     def test_allowed_as_pi(self, mock_get_object, rf):
         user = make_user()
         project_user_obj = MagicMock()
@@ -127,15 +127,15 @@ class TestProjectGetEmailNotification:
         project_user_obj.user = MagicMock()
         mock_get_object.return_value = project_user_obj
 
-        request = rf.get('/project-user-get-email-notification/1/')
+        request = rf.get("/project-user-get-email-notification/1/")
         request.user = user
 
         response = views.project_get_email_notification(request, project_user_id=1)
 
         assert response.status_code == 200
-        assert json.loads(response.content) == {'enable_notifications': True}
+        assert json.loads(response.content) == {"enable_notifications": True}
 
-    @patch('tufts_local.views.views.get_object_or_404')
+    @patch("tufts_local.views.views.get_object_or_404")
     def test_allowed_as_active_manager(self, mock_get_object, rf):
         user = make_user()
         project_user_obj = MagicMock()
@@ -144,17 +144,17 @@ class TestProjectGetEmailNotification:
         project_user_obj.user = MagicMock()
         mock_get_object.return_value = project_user_obj
 
-        request = rf.get('/project-user-get-email-notification/1/')
+        request = rf.get("/project-user-get-email-notification/1/")
         request.user = user
 
         response = views.project_get_email_notification(request, project_user_id=1)
 
         assert response.status_code == 200
         project_user_obj.project.projectuser_set.filter.assert_called_once_with(
-            user=user, role__name='Manager', status__name='Active'
+            user=user, role__name="Manager", status__name="Active"
         )
 
-    @patch('tufts_local.views.views.get_object_or_404')
+    @patch("tufts_local.views.views.get_object_or_404")
     def test_allowed_as_subject_user(self, mock_get_object, rf):
         user = make_user()
         project_user_obj = MagicMock()
@@ -163,14 +163,14 @@ class TestProjectGetEmailNotification:
         project_user_obj.user = user
         mock_get_object.return_value = project_user_obj
 
-        request = rf.get('/project-user-get-email-notification/1/')
+        request = rf.get("/project-user-get-email-notification/1/")
         request.user = user
 
         response = views.project_get_email_notification(request, project_user_id=1)
 
         assert response.status_code == 200
 
-    @patch('tufts_local.views.views.get_object_or_404')
+    @patch("tufts_local.views.views.get_object_or_404")
     def test_allowed_as_superuser(self, mock_get_object, rf):
         project_user_obj = MagicMock()
         project_user_obj.project.pi = MagicMock()
@@ -178,14 +178,14 @@ class TestProjectGetEmailNotification:
         project_user_obj.user = MagicMock()
         mock_get_object.return_value = project_user_obj
 
-        request = rf.get('/project-user-get-email-notification/1/')
+        request = rf.get("/project-user-get-email-notification/1/")
         request.user = make_user(is_superuser=True)
 
         response = views.project_get_email_notification(request, project_user_id=1)
 
         assert response.status_code == 200
 
-    @patch('tufts_local.views.views.get_object_or_404')
+    @patch("tufts_local.views.views.get_object_or_404")
     def test_not_allowed(self, mock_get_object, rf):
         project_user_obj = MagicMock()
         project_user_obj.project.pi = MagicMock()
@@ -193,18 +193,18 @@ class TestProjectGetEmailNotification:
         project_user_obj.user = MagicMock()
         mock_get_object.return_value = project_user_obj
 
-        request = rf.get('/project-user-get-email-notification/1/')
+        request = rf.get("/project-user-get-email-notification/1/")
         request.user = make_user(is_superuser=False)
 
         response = views.project_get_email_notification(request, project_user_id=1)
 
         assert response.status_code == 403
-        assert json.loads(response.content) == {'message': 'not allowed'}
+        assert json.loads(response.content) == {"message": "not allowed"}
 
 
 class TestUtlnAutocomplete:
     def test_not_superuser(self, rf):
-        request = rf.get('/utln-autocomplete/', {'query': 'abc'})
+        request = rf.get("/utln-autocomplete/", {"query": "abc"})
         request.user = make_user(is_superuser=False)
 
         response = views.utln_autocomplete(request)
@@ -212,29 +212,29 @@ class TestUtlnAutocomplete:
         assert response.status_code == 403
 
     def test_post_not_allowed(self, rf):
-        request = rf.post('/utln-autocomplete/')
+        request = rf.post("/utln-autocomplete/")
         request.user = make_user(is_superuser=True)
 
         response = views.utln_autocomplete(request)
 
         assert response.status_code == 405
 
-    @patch('tufts_local.views.views.utils')
+    @patch("tufts_local.views.views.utils")
     def test_success(self, mock_utils, rf):
-        mock_utils.user_autocomplete.return_value = ['jdoe', 'jsmith']
-        request = rf.get('/utln-autocomplete/', {'query': 'j'})
+        mock_utils.user_autocomplete.return_value = ["jdoe", "jsmith"]
+        request = rf.get("/utln-autocomplete/", {"query": "j"})
         request.user = make_user(is_superuser=True)
 
         response = views.utln_autocomplete(request)
 
         assert response.status_code == 200
-        assert json.loads(response.content) == {'suggestions': ['jdoe', 'jsmith']}
-        mock_utils.user_autocomplete.assert_called_once_with('j')
+        assert json.loads(response.content) == {"suggestions": ["jdoe", "jsmith"]}
+        mock_utils.user_autocomplete.assert_called_once_with("j")
 
 
 class TestAddUserToColdfront:
     def test_not_superuser(self, rf):
-        request = rf.post('/add-user-to-coldfront/', data={'username': 'jdoe'}, content_type='application/json')
+        request = rf.post("/add-user-to-coldfront/", data={"username": "jdoe"}, content_type="application/json")
         request.user = make_user(is_superuser=False)
 
         response = views.add_user_to_coldfront(request)
@@ -242,127 +242,127 @@ class TestAddUserToColdfront:
         assert response.status_code == 403
 
     def test_missing_username(self, rf):
-        request = rf.post('/add-user-to-coldfront/', data={'username': '  '}, content_type='application/json')
+        request = rf.post("/add-user-to-coldfront/", data={"username": "  "}, content_type="application/json")
         request.user = make_user(is_superuser=True)
 
         response = views.add_user_to_coldfront(request)
 
         assert response.status_code == 400
-        assert json.loads(response.content) == {'message': 'username is required'}
+        assert json.loads(response.content) == {"message": "username is required"}
 
-    @patch('tufts_local.views.views.utils')
+    @patch("tufts_local.views.views.utils")
     def test_success(self, mock_utils, rf):
         mock_utils.create_user.return_value = MagicMock()
-        request = rf.post('/add-user-to-coldfront/', data={'username': 'jdoe'}, content_type='application/json')
+        request = rf.post("/add-user-to-coldfront/", data={"username": "jdoe"}, content_type="application/json")
         request.user = make_user(is_superuser=True)
 
         response = views.add_user_to_coldfront(request)
 
         assert response.status_code == 201
-        mock_utils.create_user.assert_called_once_with('jdoe')
+        mock_utils.create_user.assert_called_once_with("jdoe")
 
-    @patch('tufts_local.views.views.utils')
+    @patch("tufts_local.views.views.utils")
     def test_unexpected_error_is_logged_not_shown(self, mock_utils, rf, caplog):
-        mock_utils.create_user.side_effect = Exception('LDAP bind failed for svc_account')
-        request = rf.post('/add-user-to-coldfront/', data={'username': 'jdoe'}, content_type='application/json')
+        mock_utils.create_user.side_effect = Exception("LDAP bind failed for svc_account")
+        request = rf.post("/add-user-to-coldfront/", data={"username": "jdoe"}, content_type="application/json")
         request.user = make_user(is_superuser=True)
 
         response = views.add_user_to_coldfront(request)
 
         assert response.status_code == 500
-        assert json.loads(response.content) == {'message': 'error occurred'}
-        assert 'svc_account' in caplog.text
+        assert json.loads(response.content) == {"message": "error occurred"}
+        assert "svc_account" in caplog.text
         assert caplog.records[-1].exc_info is not None
 
-    @pytest.mark.parametrize('message', ['No user found for jdoe', 'Multiple users found for jdoe'])
-    @patch('tufts_local.views.views.utils')
+    @pytest.mark.parametrize("message", ["No user found for jdoe", "Multiple users found for jdoe"])
+    @patch("tufts_local.views.views.utils")
     def test_a_user_that_cannot_be_found_says_why(self, mock_utils, rf, message):
         """These are for the admin to act on, so they are shown, unlike unexpected errors."""
         mock_utils.create_user.side_effect = UserNotFoundError(message)
-        request = rf.post('/add-user-to-coldfront/', data={'username': 'jdoe'}, content_type='application/json')
+        request = rf.post("/add-user-to-coldfront/", data={"username": "jdoe"}, content_type="application/json")
         request.user = make_user(is_superuser=True)
 
         response = views.add_user_to_coldfront(request)
 
         assert response.status_code == 404
-        assert json.loads(response.content) == {'message': message}
+        assert json.loads(response.content) == {"message": message}
 
 
 class TestStorageAllocationHistory:
     def test_missing_allocation_id(self, rf):
-        request = rf.get('/storage-allocation-history//')
+        request = rf.get("/storage-allocation-history//")
         request.user = make_user()
 
-        response = views.storage_allocation_history(request, allocation_id='')
+        response = views.storage_allocation_history(request, allocation_id="")
 
         assert response.status_code == 400
-        assert json.loads(response.content) == {'message': 'allocation_id is required'}
+        assert json.loads(response.content) == {"message": "allocation_id is required"}
 
-    @patch('tufts_local.views.views.utils')
+    @patch("tufts_local.views.views.utils")
     def test_not_allowed(self, mock_utils, rf):
         mock_utils.user_has_allocation_access.return_value = False
-        request = rf.get('/storage-allocation-history/5/')
+        request = rf.get("/storage-allocation-history/5/")
         request.user = make_user(is_superuser=False)
 
-        response = views.storage_allocation_history(request, allocation_id='5')
+        response = views.storage_allocation_history(request, allocation_id="5")
 
         assert response.status_code == 403
-        assert json.loads(response.content) == {'message': 'not allowed'}
+        assert json.loads(response.content) == {"message": "not allowed"}
 
-    @patch('tufts_local.views.views.get_object_or_404')
-    @patch('tufts_local.views.views.utils')
+    @patch("tufts_local.views.views.get_object_or_404")
+    @patch("tufts_local.views.views.utils")
     def test_success(self, mock_utils, mock_get_object, rf):
         mock_utils.user_has_allocation_access.return_value = True
-        mock_utils.get_storage_allocation_history.return_value = (['history'], ['usage'])
-        mock_utils.history_chart_format.return_value = {'datasets': []}
-        request = rf.get('/storage-allocation-history/5/')
+        mock_utils.get_storage_allocation_history.return_value = (["history"], ["usage"])
+        mock_utils.history_chart_format.return_value = {"datasets": []}
+        request = rf.get("/storage-allocation-history/5/")
         request.user = make_user(is_superuser=False)
 
-        response = views.storage_allocation_history(request, allocation_id='5')
+        response = views.storage_allocation_history(request, allocation_id="5")
 
         assert response.status_code == 200
-        assert json.loads(response.content) == {'datasets': []}
-        mock_utils.get_storage_allocation_history.assert_called_once_with('5')
-        mock_utils.history_chart_format.assert_called_once_with(['history'], ['usage'])
+        assert json.loads(response.content) == {"datasets": []}
+        mock_utils.get_storage_allocation_history.assert_called_once_with("5")
+        mock_utils.history_chart_format.assert_called_once_with(["history"], ["usage"])
 
-    @patch('tufts_local.views.views.get_object_or_404')
-    @patch('tufts_local.views.views.utils')
+    @patch("tufts_local.views.views.get_object_or_404")
+    @patch("tufts_local.views.views.utils")
     def test_superuser_bypasses_access_check(self, mock_utils, mock_get_object, rf):
         mock_utils.get_storage_allocation_history.return_value = ([], [])
-        mock_utils.history_chart_format.return_value = {'datasets': []}
-        request = rf.get('/storage-allocation-history/5/')
+        mock_utils.history_chart_format.return_value = {"datasets": []}
+        request = rf.get("/storage-allocation-history/5/")
         request.user = make_user(is_superuser=True)
 
-        response = views.storage_allocation_history(request, allocation_id='5')
+        response = views.storage_allocation_history(request, allocation_id="5")
 
         assert response.status_code == 200
         mock_utils.user_has_allocation_access.assert_not_called()
 
-    @patch('tufts_local.views.views.get_object_or_404')
-    @patch('tufts_local.views.views.utils')
+    @patch("tufts_local.views.views.get_object_or_404")
+    @patch("tufts_local.views.views.utils")
     def test_error_returns_500_without_its_details(self, mock_utils, mock_get_object, rf, caplog):
         """The details are logged with a traceback, not shown (769a5eb)."""
         mock_utils.user_has_allocation_access.return_value = True
-        mock_utils.get_storage_allocation_history.side_effect = Exception('connection to vast-api refused')
-        request = rf.get('/storage-allocation-history/5/')
+        mock_utils.get_storage_allocation_history.side_effect = Exception("connection to vast-api refused")
+        request = rf.get("/storage-allocation-history/5/")
         request.user = make_user(is_superuser=False)
 
-        response = views.storage_allocation_history(request, allocation_id='5')
+        response = views.storage_allocation_history(request, allocation_id="5")
 
         assert response.status_code == 500
-        assert json.loads(response.content) == {'message': 'error occurred'}
-        assert 'vast-api' in caplog.text
+        assert json.loads(response.content) == {"message": "error occurred"}
+        assert "vast-api" in caplog.text
         assert caplog.records[-1].exc_info is not None
 
-    @patch('tufts_local.views.views.utils')
+    @patch("tufts_local.views.views.utils")
     def test_a_missing_allocation_is_a_404(self, mock_utils, rf):
         """Before, the Http404 was caught as an unexpected error and answered with a 500."""
         mock_utils.user_has_allocation_access.return_value = True
-        request = rf.get('/storage-allocation-history/5/')
+        request = rf.get("/storage-allocation-history/5/")
         request.user = make_user(is_superuser=False)
 
-        with patch('tufts_local.views.views.get_object_or_404', side_effect=Http404('No Allocation matches')):
+        with patch("tufts_local.views.views.get_object_or_404", side_effect=Http404("No Allocation matches")):
             with pytest.raises(Http404):
-                views.storage_allocation_history(request, allocation_id='5')
+                views.storage_allocation_history(request, allocation_id="5")
 
         mock_utils.get_storage_allocation_history.assert_not_called()

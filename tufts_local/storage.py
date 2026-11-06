@@ -28,7 +28,7 @@ def get_quotas_batch(resource_id=None, client_config_id=None):
     resource = Resource.objects.get(id=resource_id)
     client_config = get_client_config(client_config_id)
     # to take full advantage of caching, we need to group by volume
-    path_attr = client_config['native_path_attribute_name']
+    path_attr = client_config["native_path_attribute_name"]
 
     # log a warning for Allocations of this resource that are missing a native path attribute
     resource_allocations = resource.allocation_set.distinct()
@@ -54,10 +54,10 @@ def get_quotas_batch(resource_id=None, client_config_id=None):
         allocation__in=resource_allocations, allocation_attribute_type__name=path_attr
     )
     # get a set of all unique volumes
-    volumes = set(i.split(':')[0] for i in sf_attrs.values_list('value', flat=True).distinct())
+    volumes = set(i.split(":")[0] for i in sf_attrs.values_list("value", flat=True).distinct())
 
     for vol in volumes:
-        vol_attributes = sf_attrs.filter(value__startswith=f'{vol}:')
+        vol_attributes = sf_attrs.filter(value__startswith=f"{vol}:")
         volume_data = get_starfish_usage_data_by_volume(vol, client_config_id)
         for vol_path in vol_attributes:
             try:
@@ -70,7 +70,7 @@ def get_quotas_batch(resource_id=None, client_config_id=None):
             usage, report_date = get_path_usage_data(volume_data, vol_path.value)
             if usage and report_date:
                 logger.info(
-                    f'Updating usage for allocation {vol_path.allocation.pk} with usage {usage} bytes and report date {report_date}'
+                    f"Updating usage for allocation {vol_path.allocation.pk} with usage {usage} bytes and report date {report_date}"
                 )
                 report_date = datetime.datetime.now()  # TrueNAS API does not provide a timestamp for when the quota information was last updated, so we will use the current time as the report date
                 update_allocation_attribute_value(vol_path.allocation, QUOTA_IN_BYTES_ATTRIBUTE_NAME, usage)
@@ -84,6 +84,6 @@ def get_quotas_batch(resource_id=None, client_config_id=None):
                 )
             else:
                 logger.warning(
-                    f'No matching subfolder found for allocation attribute with vol_path value {vol_path.value}'
+                    f"No matching subfolder found for allocation attribute with vol_path value {vol_path.value}"
                 )
     return True

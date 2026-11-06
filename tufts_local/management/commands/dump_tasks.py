@@ -16,48 +16,48 @@ usage: schedule("django.core.management.call_command", "dump_tasks", "/var/archi
 
 
 class Command(BaseCommand):
-    help = 'Archive django_q tasks older than N days to JSON Lines, then delete them'
+    help = "Archive django_q tasks older than N days to JSON Lines, then delete them"
 
     def add_arguments(self, parser):
-        parser.add_argument('outfile')
-        parser.add_argument('--days', type=int, default=90)
+        parser.add_argument("outfile")
+        parser.add_argument("--days", type=int, default=90)
 
     def handle(self, outfile, days, **opts):
         cutoff = timezone.now() - timedelta(days=days)
-        qs = Task.objects.filter(stopped__lt=cutoff).order_by('started')
+        qs = Task.objects.filter(stopped__lt=cutoff).order_by("started")
 
         written_ids = []
         try:
             # Append so repeated runs into the same file never overwrite an archive.
-            with open(outfile, 'a', encoding='utf-8') as f:
+            with open(outfile, "a", encoding="utf-8") as f:
                 for t in qs.iterator(chunk_size=500):
                     row = {
-                        'id': t.id,
-                        'name': t.name,
-                        'func': t.func,
-                        'hook': t.hook,
-                        'group': t.group,
-                        'cluster': t.cluster,
-                        'started': t.started,
-                        'stopped': t.stopped,
-                        'success': t.success,
-                        'attempt_count': t.attempt_count,
+                        "id": t.id,
+                        "name": t.name,
+                        "func": t.func,
+                        "hook": t.hook,
+                        "group": t.group,
+                        "cluster": t.cluster,
+                        "started": t.started,
+                        "stopped": t.stopped,
+                        "success": t.success,
+                        "attempt_count": t.attempt_count,
                     }
                     try:
-                        row['args'] = t.args
-                        row['kwargs'] = t.kwargs
-                        row['result'] = t.result
+                        row["args"] = t.args
+                        row["kwargs"] = t.kwargs
+                        row["result"] = t.result
                     except Exception as e:  # e.g. pickled class no longer exists
-                        row['unpickle_error'] = repr(e)
+                        row["unpickle_error"] = repr(e)
 
-                    f.write(json.dumps(row, default=str) + '\n')
+                    f.write(json.dumps(row, default=str) + "\n")
                     written_ids.append(t.id)
 
                 # Make sure the data is on disk before anything is deleted.
                 f.flush()
                 os.fsync(f.fileno())
         except Exception as e:
-            raise CommandError(f'Dump failed, nothing deleted: {e}') from e
+            raise CommandError(f"Dump failed, nothing deleted: {e}") from e
 
         # Delete only the rows that were actually written, in batches.
         deleted = 0
@@ -66,4 +66,4 @@ class Command(BaseCommand):
             n, _ = Task.objects.filter(id__in=batch).delete()
             deleted += n
 
-        self.stdout.write(f'Archived {len(written_ids)} tasks to {outfile}, deleted {deleted}')
+        self.stdout.write(f"Archived {len(written_ids)} tasks to {outfile}, deleted {deleted}")

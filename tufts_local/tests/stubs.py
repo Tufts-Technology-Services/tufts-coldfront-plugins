@@ -45,7 +45,7 @@ def _stub_module(name, requires=(), **attrs):
     reaches through to coldfront's ldap_user_search plugin, so it needs python-ldap even
     when coldfront_utils itself is installed.
     """
-    for dependency in requires or (name.split('.')[0],):
+    for dependency in requires or (name.split(".")[0],):
         if not _installed(dependency):
             break
     else:
@@ -63,10 +63,10 @@ def _ttl_cache(*args, **kwargs):
     return decorator
 
 
-_stub_module('coldfront_utils', ttl_cache=_ttl_cache)
-_stub_module('coldfront_utils.util')
-_stub_module('coldfront_utils.util.ad_search', requires=('coldfront_utils', 'ldap'), ADSearch=type('ADSearch', (), {}))
+_stub_module("coldfront_utils", ttl_cache=_ttl_cache)
+_stub_module("coldfront_utils.util")
+_stub_module("coldfront_utils.util.ad_search", requires=("coldfront_utils", "ldap"), ADSearch=type("ADSearch", (), {}))
 
-_stub_module('storage')
-_stub_module('storage.utils', get_client_config=lambda *a, **k: {})
-_stub_module('storage.truenas', get_truenas_client=lambda *a, **k: None)
+_stub_module("storage")
+_stub_module("storage.utils", get_client_config=lambda *a, **k: {})
+_stub_module("storage.truenas", get_truenas_client=lambda *a, **k: None)

@@ -25,17 +25,17 @@ def check_task_settings(app_configs, **kwargs):
     if not (_is_whole_number(hours) and hours >= 1):
         errors.append(
             checks.Error(
-                f'TASK_RECENT_WINDOW_HOURS must be a whole number of hours, at least 1, not {hours!r}.',
-                id='tufts_local.E001',
+                f"TASK_RECENT_WINDOW_HOURS must be a whole number of hours, at least 1, not {hours!r}.",
+                id="tufts_local.E001",
             )
         )
     days = failure_alert_days()
     if days is not None and not (_is_whole_number(days) and days >= 1):
         errors.append(
             checks.Error(
-                f'TASK_FAILURE_ALERT_DAYS must be a whole number of days, at least 1, or None, not {days!r}.',
-                hint='None counts unacknowledged failures however old they are.',
-                id='tufts_local.E002',
+                f"TASK_FAILURE_ALERT_DAYS must be a whole number of days, at least 1, or None, not {days!r}.",
+                hint="None counts unacknowledged failures however old they are.",
+                id="tufts_local.E002",
             )
         )
     return errors
@@ -47,9 +47,9 @@ def check_review_alert_settings(app_configs, **kwargs):
     if not (_is_whole_number(days) and days >= 0):
         return [
             checks.Error(
-                f'ALLOCATION_REQUEST_ALERT_DAYS must be a whole number of days, at least 0, not {days!r}.',
-                hint='0 raises the alert for every allocation request waiting for review.',
-                id='tufts_local.E003',
+                f"ALLOCATION_REQUEST_ALERT_DAYS must be a whole number of days, at least 0, not {days!r}.",
+                hint="0 raises the alert for every allocation request waiting for review.",
+                id="tufts_local.E003",
             )
         ]
     return []

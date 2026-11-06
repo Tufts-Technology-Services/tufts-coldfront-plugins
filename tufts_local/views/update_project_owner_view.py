@@ -18,21 +18,21 @@ logger = logging.getLogger(__name__)
 
 
 class UpdateProjectOwnerView(LoginRequiredMixin, UserPassesTestMixin, FormView):
-    template_name = 'tufts_local/update_project_owner_form.html'
+    template_name = "tufts_local/update_project_owner_form.html"
     form_class = UpdateProjectOwnerForm
-    success_url = reverse_lazy('update-project-owner')
+    success_url = reverse_lazy("update-project-owner")
 
     def test_func(self):
         """UserPassesTestMixin Tests"""
         return self.request.user.is_superuser
 
     def form_valid(self, form):
-        project_key = form.cleaned_data['project_key']
-        new_owner = form.cleaned_data['new_owner']
+        project_key = form.cleaned_data["project_key"]
+        new_owner = form.cleaned_data["new_owner"]
         try:
             project = update_project_owner(project_key, new_owner)
         except UserNotFoundError as e:
-            form.add_error('new_owner', str(e))
+            form.add_error("new_owner", str(e))
             return self.form_invalid(form)
         except Exception as e:
             form.add_error(None, str(e))
@@ -50,20 +50,20 @@ class UpdateProjectOwnerView(LoginRequiredMixin, UserPassesTestMixin, FormView):
         queueing fails (the broker is down, say), the change still stands, with a warning.
         """
         try:
-            for allocation in project.allocation_set.filter(status__name='Active'):
+            for allocation in project.allocation_set.filter(status__name="Active"):
                 # built per call: async_task pops task_name out of the dict it's given
                 async_task(
                     set_sf_owner_tag,
                     allocation.id,
-                    q_options={'task_name': f'sf_owner_tag_{allocation.id}', 'group': 'starfish'},
+                    q_options={"task_name": f"sf_owner_tag_{allocation.id}", "group": "starfish"},
                 )
             async_task(
                 update_sf_approver_tags,
                 project.id,
-                q_options={'task_name': f'sf_approver_tags_{project.id}', 'group': 'starfish'},
+                q_options={"task_name": f"sf_approver_tags_{project.id}", "group": "starfish"},
             )
         except Exception:
-            logger.exception(f'Could not queue the Starfish tag updates for project {project.id}')
+            logger.exception(f"Could not queue the Starfish tag updates for project {project.id}")
             messages.warning(
                 self.request,
                 "The owner was updated, but the Starfish tag updates for it couldn't be queued, so "

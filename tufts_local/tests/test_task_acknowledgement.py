@@ -20,35 +20,35 @@ from django_q.models import Task
 from tufts_local.models import TaskAcknowledgement
 from tufts_local.views import acknowledge_task, unacknowledge_task
 
-TASK_ID = 'a' * 32
+TASK_ID = "a" * 32
 
 
 def make_mock_user(is_superuser=False, is_staff=False):
-    user = MagicMock(name='user')
+    user = MagicMock(name="user")
     user.is_authenticated = True
     user.is_superuser = is_superuser
     # spelled out because a MagicMock would otherwise answer every permission check truthily
     user.is_staff = is_staff
-    user.username = 'rdms_admin'
+    user.username = "rdms_admin"
     return user
 
 
-def make_real_user(username='rdms_admin', is_superuser=True, is_staff=False):
+def make_real_user(username="rdms_admin", is_superuser=True, is_staff=False):
     """A database user, needed wherever an acknowledgement actually records who made it."""
     return get_user_model().objects.create(username=username, is_superuser=is_superuser, is_staff=is_staff)
 
 
-def make_task(task_id=TASK_ID, name='add_sf_tags_alloc_activate_1', success=False, minutes_ago=1):
+def make_task(task_id=TASK_ID, name="add_sf_tags_alloc_activate_1", success=False, minutes_ago=1):
     stopped = timezone.now() - datetime.timedelta(minutes=minutes_ago)
     return Task.objects.create(
         id=task_id,
         name=name,
-        func='tufts_local.tasks.index_new_allocation',
-        group='starfish',
+        func="tufts_local.tasks.index_new_allocation",
+        group="starfish",
         started=stopped - datetime.timedelta(seconds=30),
         stopped=stopped,
         success=success,
-        result='TimeoutError: not indexed',
+        result="TimeoutError: not indexed",
     )
 
 
@@ -58,8 +58,8 @@ def rf():
 
 
 def post(rf, view, task_id=TASK_ID, user=None, htmx=False, **data):
-    headers = {'HTTP_HX_REQUEST': 'true'} if htmx else {}
-    request = rf.post(f'/task-acknowledge/{task_id}/', data, **headers)
+    headers = {"HTTP_HX_REQUEST": "true"} if htmx else {}
+    request = rf.post(f"/task-acknowledge/{task_id}/", data, **headers)
     # what django_htmx's HtmxMiddleware sets
     request.htmx = HtmxDetails(request)
     request.user = user if user is not None else make_mock_user(is_superuser=True)
@@ -71,33 +71,33 @@ def post(rf, view, task_id=TASK_ID, user=None, htmx=False, **data):
 
 class TestAccess:
     def test_anonymous_user_redirects_to_login(self, rf):
-        request = rf.post(f'/task-acknowledge/{TASK_ID}/')
+        request = rf.post(f"/task-acknowledge/{TASK_ID}/")
         request.user = AnonymousUser()
 
         response = acknowledge_task(request, TASK_ID)
 
         assert response.status_code == 302
-        assert 'login' in response.url
+        assert "login" in response.url
 
     def test_ordinary_user_redirects_to_login(self, rf):
-        request = rf.post(f'/task-acknowledge/{TASK_ID}/')
+        request = rf.post(f"/task-acknowledge/{TASK_ID}/")
         request.user = make_mock_user()
 
         response = acknowledge_task(request, TASK_ID)
 
         assert response.status_code == 302
-        assert 'login' in response.url
+        assert "login" in response.url
 
-    @pytest.mark.parametrize('view', (acknowledge_task, unacknowledge_task))
+    @pytest.mark.parametrize("view", (acknowledge_task, unacknowledge_task))
     def test_get_not_allowed(self, rf, view):
-        request = rf.get(f'/task-acknowledge/{TASK_ID}/')
+        request = rf.get(f"/task-acknowledge/{TASK_ID}/")
         request.user = make_mock_user(is_superuser=True)
 
         assert view(request, TASK_ID).status_code == 405
 
 
 @pytest.mark.django_db
-@pytest.mark.urls('tufts_local.tests.urls')
+@pytest.mark.urls("tufts_local.tests.urls")
 class TestAcknowledging:
     def test_records_who_and_when(self, rf):
         make_task()
@@ -123,8 +123,8 @@ class TestAcknowledging:
         """A double-click, a replayed POST and two people on the same row all have to land
         on one acknowledgement rather than an integrity error."""
         make_task()
-        first = make_real_user(username='first')
-        second = make_real_user(username='second')
+        first = make_real_user(username="first")
+        second = make_real_user(username="second")
 
         post(rf, acknowledge_task, user=first)
         response = post(rf, acknowledge_task, user=second)
@@ -144,17 +144,17 @@ class TestAcknowledging:
 
     def test_unknown_task_is_a_404(self, rf):
         with pytest.raises(Http404):
-            post(rf, acknowledge_task, task_id='f' * 32, user=make_real_user())
+            post(rf, acknowledge_task, task_id="f" * 32, user=make_real_user())
 
 
 @pytest.mark.django_db
-@pytest.mark.urls('tufts_local.tests.urls')
+@pytest.mark.urls("tufts_local.tests.urls")
 class TestUndoing:
     def test_removes_the_acknowledgement(self, rf):
         task = make_task()
         TaskAcknowledgement.objects.create(task=task, acknowledged_by=make_real_user())
 
-        post(rf, unacknowledge_task, user=make_real_user(username='someone_else'))
+        post(rf, unacknowledge_task, user=make_real_user(username="someone_else"))
 
         assert not TaskAcknowledgement.objects.exists()
 
@@ -168,7 +168,7 @@ class TestUndoing:
 
 
 @pytest.mark.django_db
-@pytest.mark.urls('tufts_local.tests.urls')
+@pytest.mark.urls("tufts_local.tests.urls")
 class TestResponses:
     def test_htmx_gets_the_cell_alone(self, rf):
         make_task()
@@ -176,46 +176,46 @@ class TestResponses:
         response = post(rf, acknowledge_task, user=make_real_user(), htmx=True)
         response.render()
 
-        assert response.template_name == 'tufts_local/_task_ack_cell.html'
-        assert b'Acknowledged' in response.content
-        assert b'Undo' in response.content
+        assert response.template_name == "tufts_local/_task_ack_cell.html"
+        assert b"Acknowledged" in response.content
+        assert b"Undo" in response.content
         # a cell, not a page: nothing to unwrap and no table around it
-        assert b'</html>' not in response.content
-        assert b'<table' not in response.content
+        assert b"</html>" not in response.content
+        assert b"<table" not in response.content
 
     def test_undo_swaps_the_button_back(self, rf):
         task = make_task()
         TaskAcknowledgement.objects.create(task=task, acknowledged_by=make_real_user())
 
-        response = post(rf, unacknowledge_task, user=make_real_user(username='someone_else'), htmx=True)
+        response = post(rf, unacknowledge_task, user=make_real_user(username="someone_else"), htmx=True)
         response.render()
 
-        assert b'>Ack</button>' in response.content
-        assert b'Acknowledged' not in response.content
+        assert b">Ack</button>" in response.content
+        assert b"Acknowledged" not in response.content
 
     def test_a_plain_post_returns_to_the_report(self, rf):
         """Without htmx the buttons are still real forms, so the view has to send the
         reader back to the filter and page they were looking at."""
         make_task()
 
-        response = post(rf, acknowledge_task, user=make_real_user(), return_to='group=starfish&page=2')
+        response = post(rf, acknowledge_task, user=make_real_user(), return_to="group=starfish&page=2")
 
         assert response.status_code == 302
-        assert response.url == '/task-report/?group=starfish&page=2'
+        assert response.url == "/task-report/?group=starfish&page=2"
 
     def test_a_plain_post_without_a_return_target(self, rf):
         make_task()
 
         response = post(rf, acknowledge_task, user=make_real_user())
 
-        assert response.url == '/task-report/'
+        assert response.url == "/task-report/"
 
     def test_the_swapped_cell_keeps_the_return_target(self, rf):
         """The cell htmx swaps in holds the next click's forms, so it has to carry the
         filter and page forward or the fallback stops working after one use."""
         make_task()
 
-        response = post(rf, acknowledge_task, user=make_real_user(), htmx=True, return_to='group=starfish&page=2')
+        response = post(rf, acknowledge_task, user=make_real_user(), htmx=True, return_to="group=starfish&page=2")
         response.render()
 
         assert b'value="group=starfish&amp;page=2"' in response.content
@@ -227,7 +227,7 @@ class TestModel:
         task = make_task()
         acknowledgement = TaskAcknowledgement.objects.create(task=task, acknowledged_by=make_real_user())
 
-        assert str(acknowledgement) == f'{TASK_ID} acknowledged by rdms_admin'
+        assert str(acknowledgement) == f"{TASK_ID} acknowledged by rdms_admin"
 
     def test_one_acknowledgement_per_task(self):
         task = make_task()
@@ -254,15 +254,15 @@ class TestModel:
 
         acknowledgement = TaskAcknowledgement.objects.get()
         assert acknowledgement.acknowledged_by is None
-        assert str(acknowledgement) == f'{TASK_ID} acknowledged by a deleted user'
+        assert str(acknowledgement) == f"{TASK_ID} acknowledged by a deleted user"
 
 
 @pytest.mark.django_db
-@pytest.mark.urls('tufts_local.tests.urls')
+@pytest.mark.urls("tufts_local.tests.urls")
 class TestBulkAcknowledgement:
     """The endpoint behind an alert's Acknowledge button and the report's "Acknowledge all shown"."""
 
-    URL = '/task-acknowledge-bulk/'
+    URL = "/task-acknowledge-bulk/"
 
     @pytest.fixture
     def staff_client(self, client):
@@ -272,48 +272,48 @@ class TestBulkAcknowledgement:
     @staticmethod
     def window(**bounds):
         now = timezone.now()
-        return '&'.join(f'{k}={(now + v).isoformat()}'.replace('+', '%2B') for k, v in bounds.items())
+        return "&".join(f"{k}={(now + v).isoformat()}".replace("+", "%2B") for k, v in bounds.items())
 
     def test_acknowledges_failures_in_the_window(self, staff_client):
-        make_task('a' * 32, minutes_ago=1)
-        make_task('b' * 32, minutes_ago=90)
-        make_task('c' * 32, minutes_ago=5)
+        make_task("a" * 32, minutes_ago=1)
+        make_task("b" * 32, minutes_ago=90)
+        make_task("c" * 32, minutes_ago=5)
 
         staff_client.post(
-            f'{self.URL}?{self.window(since=-datetime.timedelta(minutes=60), before=datetime.timedelta(0))}'
+            f"{self.URL}?{self.window(since=-datetime.timedelta(minutes=60), before=datetime.timedelta(0))}"
         )
 
-        assert set(TaskAcknowledgement.objects.values_list('task_id', flat=True)) == {'a' * 32, 'c' * 32}
+        assert set(TaskAcknowledgement.objects.values_list("task_id", flat=True)) == {"a" * 32, "c" * 32}
 
     def test_narrows_by_name_like_the_report(self, staff_client):
-        make_task('a' * 32, name='index_new_allocation')
-        make_task('b' * 32, name='refresh_ncq_eligibility')
+        make_task("a" * 32, name="index_new_allocation")
+        make_task("b" * 32, name="refresh_ncq_eligibility")
 
-        staff_client.post(f'{self.URL}?{self.window(before=datetime.timedelta(0))}&name=index')
+        staff_client.post(f"{self.URL}?{self.window(before=datetime.timedelta(0))}&name=index")
 
-        assert list(TaskAcknowledgement.objects.values_list('task_id', flat=True)) == ['a' * 32]
+        assert list(TaskAcknowledgement.objects.values_list("task_id", flat=True)) == ["a" * 32]
 
     def test_records_who_and_why(self, staff_client):
-        make_task('a' * 32)
+        make_task("a" * 32)
 
-        staff_client.post(f'{self.URL}?{self.window(before=datetime.timedelta(0))}', {'reason': '  vendor outage  '})
+        staff_client.post(f"{self.URL}?{self.window(before=datetime.timedelta(0))}", {"reason": "  vendor outage  "})
 
         acknowledgement = TaskAcknowledgement.objects.get()
-        assert acknowledgement.acknowledged_by.username == 'rdms_admin'
-        assert acknowledgement.reason == 'vendor outage'
+        assert acknowledgement.acknowledged_by.username == "rdms_admin"
+        assert acknowledgement.reason == "vendor outage"
 
     def test_leaves_successes_and_existing_acknowledgements_alone(self, staff_client):
-        make_task('a' * 32, success=True)
-        already = make_task('b' * 32)
-        TaskAcknowledgement.objects.create(task=already, reason='earlier')
+        make_task("a" * 32, success=True)
+        already = make_task("b" * 32)
+        TaskAcknowledgement.objects.create(task=already, reason="earlier")
 
-        response = staff_client.post(f'{self.URL}?{self.window(before=datetime.timedelta(0))}', follow=True)
+        response = staff_client.post(f"{self.URL}?{self.window(before=datetime.timedelta(0))}", follow=True)
 
-        assert list(TaskAcknowledgement.objects.values_list('reason', flat=True)) == ['earlier']
-        assert 'There were no unacknowledged failures to acknowledge.' in [str(m) for m in response.context['messages']]
+        assert list(TaskAcknowledgement.objects.values_list("reason", flat=True)) == ["earlier"]
+        assert "There were no unacknowledged failures to acknowledge." in [str(m) for m in response.context["messages"]]
 
     def test_before_is_required(self, staff_client):
-        make_task('a' * 32)
+        make_task("a" * 32)
 
         response = staff_client.post(self.URL)
 
@@ -321,33 +321,33 @@ class TestBulkAcknowledgement:
         assert not TaskAcknowledgement.objects.exists()
 
     def test_a_mangled_bound_acknowledges_nothing(self, staff_client):
-        make_task('a' * 32)
+        make_task("a" * 32)
 
-        response = staff_client.post(f'{self.URL}?before=yesterday')
+        response = staff_client.post(f"{self.URL}?before=yesterday")
 
         assert response.status_code == 400
         assert not TaskAcknowledgement.objects.exists()
 
     def test_goes_back_to_a_local_next(self, staff_client):
-        response = staff_client.post(f'{self.URL}?{self.window(before=datetime.timedelta(0))}', {'next': '/alerts/'})
+        response = staff_client.post(f"{self.URL}?{self.window(before=datetime.timedelta(0))}", {"next": "/alerts/"})
 
-        assert response.url == '/alerts/'
+        assert response.url == "/alerts/"
 
     def test_ignores_an_offsite_next(self, staff_client):
         response = staff_client.post(
-            f'{self.URL}?{self.window(before=datetime.timedelta(0))}', {'next': 'https://evil.example/'}
+            f"{self.URL}?{self.window(before=datetime.timedelta(0))}", {"next": "https://evil.example/"}
         )
 
-        assert response.url == '/task-report/'
+        assert response.url == "/task-report/"
 
     def test_get_is_not_allowed(self, staff_client):
-        assert staff_client.get(f'{self.URL}?{self.window(before=datetime.timedelta(0))}').status_code == 405
+        assert staff_client.get(f"{self.URL}?{self.window(before=datetime.timedelta(0))}").status_code == 405
 
     def test_ordinary_users_may_not(self, client):
-        client.force_login(make_real_user(username='someone', is_superuser=False))
-        make_task('a' * 32)
+        client.force_login(make_real_user(username="someone", is_superuser=False))
+        make_task("a" * 32)
 
-        response = client.post(f'{self.URL}?{self.window(before=datetime.timedelta(0))}')
+        response = client.post(f"{self.URL}?{self.window(before=datetime.timedelta(0))}")
 
         assert response.status_code == 302
         assert not TaskAcknowledgement.objects.exists()

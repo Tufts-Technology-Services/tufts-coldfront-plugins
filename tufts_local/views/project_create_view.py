@@ -21,7 +21,7 @@ from tufts_local.forms import AdminProjectCreationForm, RequiredProjectAttribute
 
 class AdminProjectCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateView):
     model = Project
-    template_name = 'tufts_local/project_create_form.html'
+    template_name = "tufts_local/project_create_form.html"
     form_class = AdminProjectCreationForm
 
     def test_func(self):
@@ -33,9 +33,9 @@ class AdminProjectCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateView
     def get_context_data(self, **kwargs):
         """Inject the secondary form into the template context."""
         context = super().get_context_data(**kwargs)
-        if 'required_project_attribute_form' not in context:
+        if "required_project_attribute_form" not in context:
             # Pass instance data if validation failed and we are redisplaying
-            context['required_project_attribute_form'] = RequiredProjectAttributeForm(self.request.POST or None)
+            context["required_project_attribute_form"] = RequiredProjectAttributeForm(self.request.POST or None)
         return context
 
     def post(self, request, *args, **kwargs):
@@ -56,33 +56,33 @@ class AdminProjectCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateView
         """Save database records when validation succeeds."""
         # Save the parent instance first
         project_obj = parent_form.save(commit=False)
-        parent_form.instance.status = ProjectStatusChoice.objects.get(name='Active')
-        parent_form.instance.title = child_form.cleaned_data['project_key'].lower()
-        parent_form.instance.pi = child_form.cleaned_data['owner']
+        parent_form.instance.status = ProjectStatusChoice.objects.get(name="Active")
+        parent_form.instance.title = child_form.cleaned_data["project_key"].lower()
+        parent_form.instance.pi = child_form.cleaned_data["owner"]
         project_obj.save()
         self.object = project_obj
 
         project_user = ProjectUser.objects.create(
             user=project_obj.pi,
             project=project_obj,
-            role=ProjectUserRoleChoice.objects.get(name='Manager'),
-            status=ProjectUserStatusChoice.objects.get(name='Active'),
+            role=ProjectUserRoleChoice.objects.get(name="Manager"),
+            status=ProjectUserStatusChoice.objects.get(name="Active"),
         )
 
         ProjectAttribute.objects.create(
             project=project_obj,
-            proj_attr_type=ProjectAttributeType.objects.get(name='Project Key'),
-            value=child_form.cleaned_data['project_key'],
+            proj_attr_type=ProjectAttributeType.objects.get(name="Project Key"),
+            value=child_form.cleaned_data["project_key"],
         )
 
         ProjectAttribute.objects.create(
             project=project_obj,
-            proj_attr_type=ProjectAttributeType.objects.get(name='Group'),
-            value=child_form.cleaned_data['project_key'],  # Using project_key as the group name
+            proj_attr_type=ProjectAttributeType.objects.get(name="Group"),
+            value=child_form.cleaned_data["project_key"],  # Using project_key as the group name
         )
 
         ProjectAttribute.objects.create(
-            project=project_obj, proj_attr_type=ProjectAttributeType.objects.get(name='users_managed'), value='Yes'
+            project=project_obj, proj_attr_type=ProjectAttributeType.objects.get(name="users_managed"), value="Yes"
         )
         # project signals
         project_new.send(sender=self.__class__, project_pk=project_obj.id, request_user=self.request.user.username)

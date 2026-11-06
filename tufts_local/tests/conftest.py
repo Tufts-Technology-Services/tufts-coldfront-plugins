@@ -34,7 +34,7 @@ def fake_broker(monkeypatch):
     retries a refused connection for seconds -- on every render of a page with the queue panel.
     """
     broker = FakeBroker()
-    monkeypatch.setattr('tufts_local.queue_health.get_broker', lambda: broker)
+    monkeypatch.setattr("tufts_local.queue_health.get_broker", lambda: broker)
     return broker
 
 
@@ -47,32 +47,32 @@ def no_billing_role_lookup(monkeypatch, settings):
     with the user. Many view tests use a MagicMock user, which the query can't take.
     """
     if settings.BILLING_INSTALLED:
-        monkeypatch.setattr('coldfront_billing.context_processor.has_billing_perm', lambda user: False)
+        monkeypatch.setattr("coldfront_billing.context_processor.has_billing_perm", lambda user: False)
 
 
 @pytest.fixture(autouse=True)
 def no_cached_alerts(monkeypatch):
     """Each test starts with no alerts held from an earlier test's run of the sources."""
-    monkeypatch.setattr(alerts, '_latest', None)
+    monkeypatch.setattr(alerts, "_latest", None)
 
 
 @pytest.fixture
 def roles(db):
-    return {name: ProjectUserRoleChoice.objects.get_or_create(name=name)[0] for name in ('Manager', 'User')}
+    return {name: ProjectUserRoleChoice.objects.get_or_create(name=name)[0] for name in ("Manager", "User")}
 
 
 @pytest.fixture
 def statuses(db):
-    return {name: ProjectUserStatusChoice.objects.get_or_create(name=name)[0] for name in ('Active', 'Removed')}
+    return {name: ProjectUserStatusChoice.objects.get_or_create(name=name)[0] for name in ("Active", "Removed")}
 
 
 @pytest.fixture
 def project(db, roles, statuses):
     """An active project whose PI, pi01, is also a Manager member, as ColdFront's ProjectCreateView makes them."""
-    FieldOfScience.objects.get_or_create(pk=FieldOfScience.DEFAULT_PK, defaults={'description': 'Other'})
-    pi = get_user_model().objects.create(username='pi01', first_name='Pat', last_name='Investigator')
+    FieldOfScience.objects.get_or_create(pk=FieldOfScience.DEFAULT_PK, defaults={"description": "Other"})
+    pi = get_user_model().objects.create(username="pi01", first_name="Pat", last_name="Investigator")
     project = Project.objects.create(
-        title='Ocean Modelling', pi=pi, status=ProjectStatusChoice.objects.get_or_create(name='Active')[0]
+        title="Ocean Modelling", pi=pi, status=ProjectStatusChoice.objects.get_or_create(name="Active")[0]
     )
-    ProjectUser.objects.create(project=project, user=pi, role=roles['Manager'], status=statuses['Active'])
+    ProjectUser.objects.create(project=project, user=pi, role=roles["Manager"], status=statuses["Active"])
     return project

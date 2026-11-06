@@ -16,7 +16,7 @@ from dataclasses import dataclass
 from coldfront.core.project.models import Project, ProjectUser, ProjectUserRoleChoice, ProjectUserStatusChoice
 
 # who made a change that has no user recorded: a django-q task, a signal or a shell session
-SYSTEM = 'System'
+SYSTEM = "System"
 
 
 @dataclass(frozen=True)
@@ -36,10 +36,10 @@ class MembershipChange:
     action: str
     # names either side of the change. For 'added' only the after values are set, for 'deleted'
     # only the before ones, and for 'changed' only those of whichever of the two changed.
-    role_before: str = ''
-    role_after: str = ''
-    status_before: str = ''
-    status_after: str = ''
+    role_before: str = ""
+    role_after: str = ""
+    status_before: str = ""
+    status_after: str = ""
 
     @property
     def role_changed(self):
@@ -61,15 +61,15 @@ def get_project_membership_changes(project_id):
     Only saves are recorded: a QuerySet.update() or bulk_create bypasses django-simple-history.
     Raises Project.DoesNotExist for an unknown project_id.
     """
-    project = Project.objects.only('pi_id').get(pk=project_id)
-    role_names = dict(ProjectUserRoleChoice.objects.values_list('id', 'name'))
-    status_names = dict(ProjectUserStatusChoice.objects.values_list('id', 'name'))
+    project = Project.objects.only("pi_id").get(pk=project_id)
+    role_names = dict(ProjectUserRoleChoice.objects.values_list("id", "name"))
+    status_names = dict(ProjectUserStatusChoice.objects.values_list("id", "name"))
     # oldest first within each membership (`id` is the ProjectUser's pk), so each row can be
     # compared with the one before it
     records = (
         ProjectUser.history.filter(project_id=project_id)
-        .select_related('user', 'history_user')
-        .order_by('id', 'history_date', 'history_id')
+        .select_related("user", "history_user")
+        .order_by("id", "history_date", "history_id")
     )
 
     changes = []
@@ -79,19 +79,19 @@ def get_project_membership_changes(project_id):
         current = (record.role_id, record.status_id)
         before = previous.get(record.id)
         previous[record.id] = current
-        role, status = role_names.get(record.role_id, ''), status_names.get(record.status_id, '')
-        if record.history_type == '-':
-            names = {'action': 'deleted', 'role_before': role, 'status_before': status}
-        elif record.history_type == '+' or before is None:
+        role, status = role_names.get(record.role_id, ""), status_names.get(record.status_id, "")
+        if record.history_type == "-":
+            names = {"action": "deleted", "role_before": role, "status_before": status}
+        elif record.history_type == "+" or before is None:
             # a membership whose history starts with a change rather than a creation (its row
             # predates the history) is shown as added, the earliest that is known about it
-            names = {'action': 'added', 'role_after': role, 'status_after': status}
+            names = {"action": "added", "role_after": role, "status_after": status}
         elif before != current:
-            names = {'action': 'changed'}
+            names = {"action": "changed"}
             if before[0] != record.role_id:
-                names.update(role_before=role_names.get(before[0], ''), role_after=role)
+                names.update(role_before=role_names.get(before[0], ""), role_after=role)
             if before[1] != record.status_id:
-                names.update(status_before=status_names.get(before[1], ''), status_after=status)
+                names.update(status_before=status_names.get(before[1], ""), status_after=status)
         else:
             continue
         changes.append(

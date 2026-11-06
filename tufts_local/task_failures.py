@@ -44,7 +44,7 @@ def ignore_rules():
     names = []
     groups = []
     for rule in IgnoredTask.objects.all():
-        pattern = (rule.pattern or '').strip()
+        pattern = (rule.pattern or "").strip()
         if not pattern:
             continue
         if rule.field == IgnoredTask.GROUP:
@@ -55,8 +55,8 @@ def ignore_rules():
 
 
 def is_ignored(name, group, ignored_names, ignored_groups):
-    name = (name or '').lower()
-    group = (group or '').lower()
+    name = (name or "").lower()
+    group = (group or "").lower()
     if group and any(group == pattern.lower() for pattern in ignored_groups):
         return True
     return bool(name) and any(name.startswith(pattern.lower()) for pattern in ignored_names)
@@ -88,13 +88,13 @@ def failures_between(since=None, before=None):
 
 def _ack_url(since, before):
     """Where an alert's Acknowledge button posts: the bulk acknowledgement, for exactly its window."""
-    window = {key: value.isoformat() for key, value in (('since', since), ('before', before)) if value is not None}
-    return f'{reverse("task-acknowledge-bulk")}?{urlencode(window)}'
+    window = {key: value.isoformat() for key, value in (("since", since), ("before", before)) if value is not None}
+    return f"{reverse('task-acknowledge-bulk')}?{urlencode(window)}"
 
 
 def recent_window_hours():
     """TASK_RECENT_WINDOW_HOURS, read on every use, so a settings change needs no code change."""
-    return import_from_settings('TASK_RECENT_WINDOW_HOURS', DEFAULT_RECENT_WINDOW_HOURS)
+    return import_from_settings("TASK_RECENT_WINDOW_HOURS", DEFAULT_RECENT_WINDOW_HOURS)
 
 
 def failure_alert_days():
@@ -102,10 +102,10 @@ def failure_alert_days():
     TASK_FAILURE_ALERT_DAYS: how many days back the warning alert counts failures, or None
     for no limit. Read on every check, so a settings change needs no code change.
     """
-    return import_from_settings('TASK_FAILURE_ALERT_DAYS', DEFAULT_FAILURE_ALERT_DAYS)
+    return import_from_settings("TASK_FAILURE_ALERT_DAYS", DEFAULT_FAILURE_ALERT_DAYS)
 
 
-@register_alert_source('background tasks')
+@register_alert_source("background tasks")
 def task_failure_alerts():
     """
     Critical for failures in the recent window (TASK_RECENT_WINDOW_HOURS), a warning for
@@ -119,7 +119,7 @@ def task_failure_alerts():
     recent_start = now - datetime.timedelta(hours=hours)
     days = failure_alert_days()
     earliest = now - datetime.timedelta(days=days) if days else None
-    link = reverse('task-report')
+    link = reverse("task-report")
 
     # Each alert's Acknowledge button covers the window it counted, bounded by this moment, so
     # it acknowledges what the alert said and not a failure that arrived after it was checked.
@@ -128,9 +128,9 @@ def task_failure_alerts():
     if recent:
         alerts.append(
             Alert(
-                'danger',
-                f'Background tasks: {recent} failed in the last {hours} hour{pluralize(hours)}',
-                detail='Acknowledge them here, or one at a time on the task report, once they have been dealt with.',
+                "danger",
+                f"Background tasks: {recent} failed in the last {hours} hour{pluralize(hours)}",
+                detail="Acknowledge them here, or one at a time on the task report, once they have been dealt with.",
                 link=link,
                 ack_url=_ack_url(recent_start, now),
             )
@@ -138,13 +138,13 @@ def task_failure_alerts():
 
     earlier = failures_between(since=earliest, before=recent_start).count()
     if earlier:
-        window = f' and within the last {days} day{pluralize(days)}' if days else ''
+        window = f" and within the last {days} day{pluralize(days)}" if days else ""
         alerts.append(
             Alert(
-                'warning',
-                f'Background tasks: {earlier} earlier failure{pluralize(earlier)} not acknowledged',
-                detail=f'Failed more than {hours} hour{pluralize(hours)} ago{window}. '
-                'Acknowledge them here, or one at a time on the task report.',
+                "warning",
+                f"Background tasks: {earlier} earlier failure{pluralize(earlier)} not acknowledged",
+                detail=f"Failed more than {hours} hour{pluralize(hours)} ago{window}. "
+                "Acknowledge them here, or one at a time on the task report.",
                 link=link,
                 ack_url=_ack_url(earliest, recent_start),
             )

@@ -9,21 +9,21 @@ import re
 
 import pytest
 
-TEMPLATE_ROOT = pathlib.Path(__file__).resolve().parent.parent / 'templates'
-TEMPLATES = sorted(TEMPLATE_ROOT.rglob('*.html'))
+TEMPLATE_ROOT = pathlib.Path(__file__).resolve().parent.parent / "templates"
+TEMPLATES = sorted(TEMPLATE_ROOT.rglob("*.html"))
 
 # Markup Bootstrap 5 renamed or dropped. Each one fails silently: the page still renders and
 # every `x in content` assertion still passes, while the popover never opens, the badge loses
 # its colour or the checkbox loses its styling. Only a sweep like this one catches them.
 BOOTSTRAP4_MARKUP = (
-    r'data-(?:toggle|target|dismiss|content|trigger|html)=',
-    r'\bbadge-(?:success|danger|warning|info|secondary|primary|light|dark)\b',
-    r'\bfloat-(?:right|left)\b',
-    r'\b[mp](?:r|l)-[0-5]\b',
-    r'\bform-(?:group|inline)\b',
-    r'\bcustom-(?:control|checkbox|select|radio|switch|file|range)',
+    r"data-(?:toggle|target|dismiss|content|trigger|html)=",
+    r"\bbadge-(?:success|danger|warning|info|secondary|primary|light|dark)\b",
+    r"\bfloat-(?:right|left)\b",
+    r"\b[mp](?:r|l)-[0-5]\b",
+    r"\bform-(?:group|inline)\b",
+    r"\bcustom-(?:control|checkbox|select|radio|switch|file|range)",
     r'class="close"',
-    r'\.popover\(',
+    r"\.popover\(",
 )
 
 
@@ -32,7 +32,7 @@ def test_templates_were_found():
     assert TEMPLATES
 
 
-@pytest.mark.parametrize('template', TEMPLATES, ids=lambda p: p.name)
+@pytest.mark.parametrize("template", TEMPLATES, ids=lambda p: p.name)
 def test_hash_comments_stay_on_one_line(template):
     """A {# #} comment split across lines is emitted verbatim into the page.
 
@@ -44,13 +44,13 @@ def test_hash_comments_stay_on_one_line(template):
     unterminated = [
         (number, line.strip())
         for number, line in enumerate(template.read_text().splitlines(), start=1)
-        if '{#' in line and '#}' not in line.split('{#', 1)[1]
+        if "{#" in line and "#}" not in line.split("{#", 1)[1]
     ]
 
-    assert not unterminated, f'{template.name}: multiline {{# #}} comment at {unterminated}'
+    assert not unterminated, f"{template.name}: multiline {{# #}} comment at {unterminated}"
 
 
-@pytest.mark.parametrize('template', TEMPLATES, ids=lambda p: p.name)
+@pytest.mark.parametrize("template", TEMPLATES, ids=lambda p: p.name)
 def test_no_bootstrap4_markup(template):
     """coldfront 1.1.9 ships Bootstrap 5, which ignores Bootstrap 4's data-* attributes and
     dropped its badge-*, float-right, form-group and custom-control classes.
@@ -66,4 +66,4 @@ def test_no_bootstrap4_markup(template):
         if re.search(pattern, line)
     ]
 
-    assert not found, f'{template.name}: Bootstrap 4 markup at {found}'
+    assert not found, f"{template.name}: Bootstrap 4 markup at {found}"

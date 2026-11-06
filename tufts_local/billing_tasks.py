@@ -50,98 +50,98 @@ def send_reports():
         try:
             results[send_report.__name__] = send_report()
         except Exception as error:
-            logger.exception(f'{send_report.__name__} failed.')
-            results[send_report.__name__] = {'error': f'{type(error).__name__}: {error}'}
+            logger.exception(f"{send_report.__name__} failed.")
+            results[send_report.__name__] = {"error": f"{type(error).__name__}: {error}"}
             failures += 1
     if failures:
-        raise BillingReportsFailedError(f'{failures} of {len(results)} billing reports failed: {results}')
+        raise BillingReportsFailedError(f"{failures} of {len(results)} billing reports failed: {results}")
     return results
 
 
 def refresh_ncq_eligibility():
-    ncq_logger = setup_custom_logger('ncq', 'ncq.log')
+    ncq_logger = setup_custom_logger("ncq", "ncq.log")
     eligibility_data = get_ncq_eligibility()
-    tier1_group_name = 'faculty_pi_eligible_tier1'
-    tier2_group_name = 'faculty_pi_eligible_tier2'
+    tier1_group_name = "faculty_pi_eligible_tier1"
+    tier2_group_name = "faculty_pi_eligible_tier2"
     group_tier1 = Group.objects.get(name=tier1_group_name)
     group_tier2 = Group.objects.get(name=tier2_group_name)
-    tier1_users = User.objects.filter(groups=group_tier1).values_list('username', flat=True)
-    tier2_users = User.objects.filter(groups=group_tier2).values_list('username', flat=True)
+    tier1_users = User.objects.filter(groups=group_tier1).values_list("username", flat=True)
+    tier2_users = User.objects.filter(groups=group_tier2).values_list("username", flat=True)
     for entry in eligibility_data:
-        is_eligible = entry.get('no_cost_quota_eligible', 'No')
-        username = entry.get('username', '').lower()
+        is_eligible = entry.get("no_cost_quota_eligible", "No")
+        username = entry.get("username", "").lower()
         in_tier_1 = username in tier1_users
         in_tier_2 = username in tier2_users
-        if is_eligible.lower().strip() == 'yes':
+        if is_eligible.lower().strip() == "yes":
             if not in_tier_1:
-                ncq_logger.info(f'Adding user {username} to group {tier1_group_name}')
+                ncq_logger.info(f"Adding user {username} to group {tier1_group_name}")
                 user = create_user(username)
                 user.groups.add(group_tier1)
             if not in_tier_2:
-                ncq_logger.info(f'Adding user {username} to group {tier2_group_name}')
+                ncq_logger.info(f"Adding user {username} to group {tier2_group_name}")
                 user = create_user(username)
                 user.groups.add(group_tier2)
         else:
             if in_tier_1:
-                ncq_logger.info(f'Removing user {username} from group {tier1_group_name}')
+                ncq_logger.info(f"Removing user {username} from group {tier1_group_name}")
                 user = create_user(username)
                 user.groups.remove(group_tier1)
                 # delete the allotments associated with this user first so that we can log the details of what is being deleted
                 allotments = NoCostQuotaAllotment.objects.filter(no_cost_quota__user=user)
                 if allotments.exists():
                     ncq_logger.info(
-                        f'User {username} is no longer eligible for NoCostQuota. Deleting {allotments.count()} associated NoCostQuotaAllotment(s).'
+                        f"User {username} is no longer eligible for NoCostQuota. Deleting {allotments.count()} associated NoCostQuotaAllotment(s)."
                     )
                     for allotment in allotments:
                         ncq_logger.info(
-                            f'Deleting NoCostQuotaAllotment of size {allotment.amount_tb} TB associated with allocation {allotment.allocation.id}.'
+                            f"Deleting NoCostQuotaAllotment of size {allotment.amount_tb} TB associated with allocation {allotment.allocation.id}."
                         )
                         allotment.delete()
                 NoCostQuota.objects.filter(user=user).delete()
             if in_tier_2:
-                ncq_logger.info(f'Removing user {username} from group {tier2_group_name}')
+                ncq_logger.info(f"Removing user {username} from group {tier2_group_name}")
                 user = create_user(username)
                 user.groups.remove(group_tier2)
                 # delete the allotments associated with this user first so that we can log the details of what is being deleted
                 allotments = NoCostQuotaAllotment.objects.filter(no_cost_quota__user=user)
                 if allotments.exists():
                     ncq_logger.info(
-                        f'User {username} is no longer eligible for NoCostQuota. Deleting {allotments.count()} associated NoCostQuotaAllotment(s).'
+                        f"User {username} is no longer eligible for NoCostQuota. Deleting {allotments.count()} associated NoCostQuotaAllotment(s)."
                     )
                     for allotment in allotments:
                         ncq_logger.info(
-                            f'Deleting NoCostQuotaAllotment of size {allotment.amount_tb} TB associated with allocation {allotment.allocation.id}.'
+                            f"Deleting NoCostQuotaAllotment of size {allotment.amount_tb} TB associated with allocation {allotment.allocation.id}."
                         )
                         allotment.delete()
                 NoCostQuota.objects.filter(user=user).delete()
 
 
 def send_allotments_report():
-    return mail_json_report('Allotments report', 'allotments', allotments_report())
+    return mail_json_report("Allotments report", "allotments", allotments_report())
 
 
 def send_no_cost_quota_report():
-    return mail_json_report('No cost quotas report', 'no_cost_quotas', no_cost_quota_report())
+    return mail_json_report("No cost quotas report", "no_cost_quotas", no_cost_quota_report())
 
 
 def send_storage_allocations_report():
-    return mail_json_report('Storage allocation report', 'storage_allocations', allocations_report())
+    return mail_json_report("Storage allocation report", "storage_allocations", allocations_report())
 
 
 def send_cost_per_allocation_report():
     rows = get_cost_per_allocation()
     for row in rows:
-        row['cost'] = str(row['cost'])
-    return mail_json_report('Cost per allocation report', 'cost_per_allocation', rows)
+        row["cost"] = str(row["cost"])
+    return mail_json_report("Cost per allocation report", "cost_per_allocation", rows)
 
 
 def send_missing_billing_codes_report():
     missing = missing_billing_code_report()
     rows = [
-        {'owner': item['project'].pi.username, 'project': item['project'].title, 'project_cost': item['project_cost']}
-        for item in missing.get('missing_billing_code', [])
+        {"owner": item["project"].pi.username, "project": item["project"].title, "project_cost": item["project_cost"]}
+        for item in missing.get("missing_billing_code", [])
     ]
-    return mail_json_report('Missing billing code report', 'missing_billing_codes', rows)
+    return mail_json_report("Missing billing code report", "missing_billing_codes", rows)
 
 
 def allocations_report():
@@ -150,18 +150,18 @@ def allocations_report():
 
 def allotments_report():
     report = no_cost_quotas_report()
-    for row in report['allocations']:
-        del row['allocation']  # remove allocation object from report to avoid serialization issues
-    return report['allocations']
+    for row in report["allocations"]:
+        del row["allocation"]  # remove allocation object from report to avoid serialization issues
+    return report["allocations"]
 
 
 def no_cost_quota_report():
     return [
         {
-            'user': quota.user.username,
-            'quota_type': quota.quota_type,
-            'amount': quota.amount_tb,
-            'remaining': round(quota.remaining, 2),
+            "user": quota.user.username,
+            "quota_type": quota.quota_type,
+            "amount": quota.amount_tb,
+            "remaining": round(quota.remaining, 2),
         }
         for quota in quota_with_remaining.all()
     ]
