@@ -118,7 +118,8 @@ def index_new_allocation(allocation_id, scan_id=None):
     Queued once the allocation's share exists (signals.py). A directory Starfish hasn't indexed
     gets a shallow scan. A scan still running, or one that finished without finding the directory,
     makes the task run again in 5 minutes, up to 5 times (@reschedulable): with the same scan while
-    it runs, and with a new scan after one that found nothing.
+    it runs, and with a new scan after one that found nothing. An error setting the tags fails
+    the task.
     """
     allocation = Allocation.objects.get(id=allocation_id)
     vol_path_attr = allocation.allocationattribute_set.filter(allocation_attribute_type__name="sf_vol_path")
@@ -136,12 +137,9 @@ def index_new_allocation(allocation_id, scan_id=None):
         raise RetryLater(f"{vol_path} isn't in Starfish's index after a scan", scan_id=None)
 
     logger.info(f"{vol_path} is in Starfish's index. Setting its tags.")
-    try:
-        set_sf_owner_tag(allocation_id)
-        update_sf_approver_tags(allocation.project.id)
-    except Exception as e:
-        logger.error(f"Error setting Starfish tags for allocation {allocation_id}'s {vol_path}: {e}")
-        return build_task_result("successful", f"indexed {vol_path}, but setting its tags failed: {e}")
+    # an error setting the tags fails the task, so it shows among the failed tasks
+    set_sf_owner_tag(allocation_id)
+    update_sf_approver_tags(allocation.project.id)
     return build_task_result("successful", f"indexed and tagged {vol_path}")
 
 
