@@ -18,45 +18,45 @@ from django.db import models
 
 
 class IgnoredTask(models.Model):
-    NAME = 'name'
-    GROUP = 'group'
+    NAME = "name"
+    GROUP = "group"
     FIELD_CHOICES = (
-        (NAME, 'Task name (starts with)'),
-        (GROUP, 'Group id (exact)'),
+        (NAME, "Task name (starts with)"),
+        (GROUP, "Group id (exact)"),
     )
 
     field = models.CharField(
         max_length=5,
         choices=FIELD_CHOICES,
         default=NAME,
-        help_text='Which part of the task to match against.',
+        help_text="Which part of the task to match against.",
     )
     pattern = models.CharField(
         max_length=100,
         help_text=(
-            'Task names match on a prefix, so add_sf_tags hides every '
-            'add_sf_tags_alloc_activate_<id> task. Group ids must match in full. '
-            'Matching ignores case.'
+            "Task names match on a prefix, so add_sf_tags hides every "
+            "add_sf_tags_alloc_activate_<id> task. Group ids must match in full. "
+            "Matching ignores case."
         ),
     )
     reason = models.CharField(
         max_length=255,
         blank=True,
-        help_text='Optional note about why these tasks are hidden.',
+        help_text="Optional note about why these tasks are hidden.",
     )
     created = models.DateTimeField(auto_now_add=True)
 
     def clean(self):
-        self.pattern = (self.pattern or '').strip()
+        self.pattern = (self.pattern or "").strip()
 
     def __str__(self):
-        return f'{self.get_field_display()}: {self.pattern}'
+        return f"{self.get_field_display()}: {self.pattern}"
 
     class Meta:
-        ordering = ['field', 'pattern']
-        unique_together = [('field', 'pattern')]
-        verbose_name = 'ignored task'
-        verbose_name_plural = 'ignored tasks'
+        ordering = ["field", "pattern"]
+        unique_together = [("field", "pattern")]
+        verbose_name = "ignored task"
+        verbose_name_plural = "ignored tasks"
 
 
 class TaskAcknowledgement(models.Model):
@@ -74,10 +74,10 @@ class TaskAcknowledgement(models.Model):
     """
 
     task = models.OneToOneField(
-        'django_q.Task',
+        "django_q.Task",
         on_delete=models.CASCADE,
-        related_name='acknowledgement',
-        help_text='The failed task being acknowledged.',
+        related_name="acknowledgement",
+        help_text="The failed task being acknowledged.",
     )
     acknowledged_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -85,19 +85,19 @@ class TaskAcknowledgement(models.Model):
         # keep the record when the account goes away: who acknowledged it is history, and
         # a PROTECT here would block deleting the user instead
         on_delete=models.SET_NULL,
-        related_name='+',
+        related_name="+",
     )
     acknowledged_at = models.DateTimeField(auto_now_add=True)
     reason = models.CharField(
         max_length=255,
         blank=True,
-        help_text='Optional note about why this failure is nothing to worry about.',
+        help_text="Optional note about why this failure is nothing to worry about.",
     )
 
     def __str__(self):
-        return f'{self.task_id} acknowledged by {self.acknowledged_by or "a deleted user"}'
+        return f"{self.task_id} acknowledged by {self.acknowledged_by or 'a deleted user'}"
 
     class Meta:
-        ordering = ['-acknowledged_at']
-        verbose_name = 'task acknowledgement'
-        verbose_name_plural = 'task acknowledgements'
+        ordering = ["-acknowledged_at"]
+        verbose_name = "task acknowledgement"
+        verbose_name_plural = "task acknowledgements"

@@ -20,24 +20,24 @@ def make_proj_user(user, role, status):
     return proj_user
 
 
-def make_vol_path_data(vol_path='projects:myproj', approvers=None):
-    tags = f'Approver:{",".join(approvers)}' if approvers else ''
-    return {'vol_path': vol_path, 'tags_explicit': tags}
+def make_vol_path_data(vol_path="projects:myproj", approvers=None):
+    tags = f"Approver:{','.join(approvers)}" if approvers else ""
+    return {"vol_path": vol_path, "tags_explicit": tags}
 
 
-@patch('tufts_local.starfish_utils.create_user')
-@patch('tufts_local.starfish_utils.ProjectUserStatusChoice')
-@patch('tufts_local.starfish_utils.ProjectUserRoleChoice')
-@patch('tufts_local.starfish_utils.Allocation')
-@patch('tufts_local.starfish_utils.get_project_by_key')
+@patch("tufts_local.starfish_utils.create_user")
+@patch("tufts_local.starfish_utils.ProjectUserStatusChoice")
+@patch("tufts_local.starfish_utils.ProjectUserRoleChoice")
+@patch("tufts_local.starfish_utils.Allocation")
+@patch("tufts_local.starfish_utils.get_project_by_key")
 class TestSetProjectApproversFromStarfishPreservesPiRole:
     def _setup_roles(self, mock_role_choice, mock_status_choice):
-        manager_role = MagicMock(name='manager_role')
-        member_role = MagicMock(name='member_role')
-        active_status = MagicMock(name='active_status')
+        manager_role = MagicMock(name="manager_role")
+        member_role = MagicMock(name="member_role")
+        active_status = MagicMock(name="active_status")
         mock_role_choice.objects.get.side_effect = lambda name: {
-            'Manager': manager_role,
-            'User': member_role,
+            "Manager": manager_role,
+            "User": member_role,
         }[name]
         mock_status_choice.objects.get.return_value = active_status
         return manager_role, member_role, active_status
@@ -48,7 +48,7 @@ class TestSetProjectApproversFromStarfishPreservesPiRole:
         manager_role, member_role, active_status = self._setup_roles(mock_role_choice, mock_status_choice)
         mock_allocation.objects.filter.return_value.exists.return_value = False
 
-        pi_user = MagicMock(username='pi_user')
+        pi_user = MagicMock(username="pi_user")
         proj = MagicMock()
         proj.pi = pi_user
         pi_proj_user = make_proj_user(pi_user, manager_role, active_status)
@@ -57,7 +57,7 @@ class TestSetProjectApproversFromStarfishPreservesPiRole:
 
         # the PI is not listed as an approver in starfish, which previously caused
         # the job to demote the PI from Manager to User
-        vol_path_data = make_vol_path_data(approvers=['someone_else'])
+        vol_path_data = make_vol_path_data(approvers=["someone_else"])
 
         set_project_approvers_from_starfish(vol_path_data)
 
@@ -70,14 +70,14 @@ class TestSetProjectApproversFromStarfishPreservesPiRole:
         manager_role, member_role, active_status = self._setup_roles(mock_role_choice, mock_status_choice)
         mock_allocation.objects.filter.return_value.exists.return_value = False
 
-        pi_user = MagicMock(username='pi_user')
+        pi_user = MagicMock(username="pi_user")
         proj = MagicMock()
         proj.pi = pi_user
         pi_proj_user = make_proj_user(pi_user, manager_role, active_status)
         proj.projectuser_set.all.return_value = FakeProjectUserQuerySet([pi_proj_user])
         mock_get_project_by_key.return_value = proj
 
-        vol_path_data = make_vol_path_data(approvers=['pi_user'])
+        vol_path_data = make_vol_path_data(approvers=["pi_user"])
 
         set_project_approvers_from_starfish(vol_path_data)
 
@@ -90,8 +90,8 @@ class TestSetProjectApproversFromStarfishPreservesPiRole:
         manager_role, member_role, active_status = self._setup_roles(mock_role_choice, mock_status_choice)
         mock_allocation.objects.filter.return_value.exists.return_value = False
 
-        pi_user = MagicMock(username='pi_user')
-        approver_user = MagicMock(username='approver_user')
+        pi_user = MagicMock(username="pi_user")
+        approver_user = MagicMock(username="approver_user")
         proj = MagicMock()
         proj.pi = pi_user
         pi_proj_user = make_proj_user(pi_user, manager_role, active_status)
@@ -99,7 +99,7 @@ class TestSetProjectApproversFromStarfishPreservesPiRole:
         proj.projectuser_set.all.return_value = FakeProjectUserQuerySet([pi_proj_user, approver_proj_user])
         mock_get_project_by_key.return_value = proj
 
-        vol_path_data = make_vol_path_data(approvers=['approver_user'])
+        vol_path_data = make_vol_path_data(approvers=["approver_user"])
 
         set_project_approvers_from_starfish(vol_path_data)
 

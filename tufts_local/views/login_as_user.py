@@ -18,10 +18,10 @@ def login_as_user_view(request, username):
     """
     View to allow superusers to log in as another user.
     """
-    user_ids = get_user_model().objects.filter(username=username).values_list('id', flat=True)
+    user_ids = get_user_model().objects.filter(username=username).values_list("id", flat=True)
     if len(user_ids) > 1:
-        raise HttpResponseBadRequest('Multiple users found with the same username.')
+        raise HttpResponseBadRequest("Multiple users found with the same username.")
     if not user_ids:
-        raise HttpResponseBadRequest('No user found with the provided username.')
+        raise HttpResponseBadRequest("No user found with the provided username.")
     user_id = user_ids[0]
     return login_as_user(request, user_id)

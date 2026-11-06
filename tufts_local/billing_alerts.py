@@ -24,12 +24,12 @@ from tufts_local.alerts import Alert, register_alert_source, superusers
 def unresolved_allotment_failures():
     return (
         NoCostQuotaAllotmentFailure.objects.filter(resolved_at__isnull=True)
-        .select_related('allocation__project', 'no_cost_quota__user')
-        .order_by('created')
+        .select_related("allocation__project", "no_cost_quota__user")
+        .order_by("created")
     )
 
 
-@register_alert_source('no-cost quota allotments', audience=superusers)
+@register_alert_source("no-cost quota allotments", audience=superusers)
 def allotment_failure_alerts():
     """
     A warning for each failure nobody has resolved, oldest first.
@@ -46,16 +46,16 @@ def _alert_for(failure):
     quota = failure.no_cost_quota
     if quota is not None:
         # where to apply it by hand
-        link = f'{reverse("assign_no_cost_quota")}?{urlencode({"selected_quota": quota.pk})}'
+        link = f"{reverse('assign_no_cost_quota')}?{urlencode({'selected_quota': quota.pk})}"
         requested = f"{quota.user.username}'s {quota.quota_type} quota"
     else:
-        link = reverse('allocation-detail', kwargs={'pk': allocation.pk})
-        requested = 'a no-cost quota'
-    failed_on = timezone.localtime(failure.created).strftime('%Y-%m-%d')
+        link = reverse("allocation-detail", kwargs={"pk": allocation.pk})
+        requested = "a no-cost quota"
+    failed_on = timezone.localtime(failure.created).strftime("%Y-%m-%d")
     return Alert(
-        'warning',
-        f'No-cost quota not applied: {allocation.project.title}, allocation {allocation.pk}',
-        detail=f'The request for {requested} failed on {failed_on}: {failure.message}',
+        "warning",
+        f"No-cost quota not applied: {allocation.project.title}, allocation {allocation.pk}",
+        detail=f"The request for {requested} failed on {failed_on}: {failure.message}",
         link=link,
-        ack_url=reverse('allotment-failure-acknowledge', kwargs={'pk': failure.pk}),
+        ack_url=reverse("allotment-failure-acknowledge", kwargs={"pk": failure.pk}),
     )

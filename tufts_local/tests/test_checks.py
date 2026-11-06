@@ -15,43 +15,43 @@ def test_the_defaults_pass():
     assert error_ids() == []
 
 
-@pytest.mark.parametrize('hours', [1, 24, 72])
+@pytest.mark.parametrize("hours", [1, 24, 72])
 def test_recent_window_in_range(settings, hours):
     settings.TASK_RECENT_WINDOW_HOURS = hours
 
     assert error_ids() == []
 
 
-@pytest.mark.parametrize('hours', [0, -1, 2.5, '24', True, None])
+@pytest.mark.parametrize("hours", [0, -1, 2.5, "24", True, None])
 def test_recent_window_out_of_range(settings, hours):
     settings.TASK_RECENT_WINDOW_HOURS = hours
 
-    assert error_ids() == ['tufts_local.E001']
+    assert error_ids() == ["tufts_local.E001"]
 
 
-@pytest.mark.parametrize('days', [1, 7, 365, None])
+@pytest.mark.parametrize("days", [1, 7, 365, None])
 def test_failure_alert_days_allowed(settings, days):
     settings.TASK_FAILURE_ALERT_DAYS = days
 
     assert error_ids() == []
 
 
-@pytest.mark.parametrize('days', [0, -1, 1.5, '7', False])
+@pytest.mark.parametrize("days", [0, -1, 1.5, "7", False])
 def test_failure_alert_days_rejected(settings, days):
     settings.TASK_FAILURE_ALERT_DAYS = days
 
-    assert error_ids() == ['tufts_local.E002']
+    assert error_ids() == ["tufts_local.E002"]
 
 
-@pytest.mark.parametrize('days', [0, 1, 7, 30])
+@pytest.mark.parametrize("days", [0, 1, 7, 30])
 def test_allocation_request_alert_days_allowed(settings, days):
     settings.ALLOCATION_REQUEST_ALERT_DAYS = days
 
     assert check_review_alert_settings(None) == []
 
 
-@pytest.mark.parametrize('days', [-1, 1.5, '7', True, None])
+@pytest.mark.parametrize("days", [-1, 1.5, "7", True, None])
 def test_allocation_request_alert_days_rejected(settings, days):
     settings.ALLOCATION_REQUEST_ALERT_DAYS = days
 
-    assert [error.id for error in check_review_alert_settings(None)] == ['tufts_local.E003']
+    assert [error.id for error in check_review_alert_settings(None)] == ["tufts_local.E003"]

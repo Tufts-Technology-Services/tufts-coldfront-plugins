@@ -32,7 +32,7 @@ class HtmxLoginRefreshMiddleware:
     def __call__(self, request):
         response = self.get_response(request)
         # getattr: a misordered MIDDLEWARE would otherwise fail every request, not just this one's
-        if getattr(request, 'htmx', False) and redirects_to_login(response):
+        if getattr(request, "htmx", False) and redirects_to_login(response):
             return HttpResponseClientRefresh()
         return response
 
@@ -41,4 +41,4 @@ def redirects_to_login(response):
     if response.status_code not in REDIRECT_STATUSES:
         return False
     # Location is relative or absolute, with next= or not: compare paths
-    return urlsplit(response['Location']).path == urlsplit(resolve_url(settings.LOGIN_URL)).path
+    return urlsplit(response["Location"]).path == urlsplit(resolve_url(settings.LOGIN_URL)).path

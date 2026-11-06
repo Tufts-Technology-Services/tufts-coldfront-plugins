@@ -16,7 +16,7 @@ REQUEST_TIMEOUT = 30
 
 # the values active_status_old/new can take. The remote column is a bare CHAR(1) with no
 # constraint and the service documents no enum, so this list is the only record of it.
-ACTIVE_STATUS_VALUES = ('A', 'P', 'F')
+ACTIVE_STATUS_VALUES = ("A", "P", "F")
 
 
 class StatusChangeAPIError(Exception):
@@ -35,11 +35,11 @@ class StatusChangeAPIClient:
     """
 
     def __init__(self, base_url=None, token=None):
-        self.base_url = (base_url or '').rstrip('/')
+        self.base_url = (base_url or "").rstrip("/")
         self.token = token
 
     def _path(self, *parts):
-        return '/'.join(['storage-owner-status-change', *(str(part) for part in parts)])
+        return "/".join(["storage-owner-status-change", *(str(part) for part in parts)])
 
     def _request(self, method, path, **kwargs):
         """
@@ -49,25 +49,25 @@ class StatusChangeAPIClient:
         exist and for a query that matched nothing, so the caller decides which it meant.
         """
         if not self.base_url:
-            raise StatusChangeAPIError('RT_ANALYTICS_BASE_URL is not set; cannot reach the status-change service.')
+            raise StatusChangeAPIError("RT_ANALYTICS_BASE_URL is not set; cannot reach the status-change service.")
         try:
             response = requests.request(
                 method,
-                f'{self.base_url}/{path}',
-                headers={'X-API-Key': self.token or ''},
+                f"{self.base_url}/{path}",
+                headers={"X-API-Key": self.token or ""},
                 timeout=REQUEST_TIMEOUT,
                 **kwargs,
             )
         except requests.RequestException as e:
-            raise StatusChangeAPIError(f'Could not reach the status-change service: {e}') from e
+            raise StatusChangeAPIError(f"Could not reach the status-change service: {e}") from e
         if response.status_code == 404:
             return None
         if not response.ok:
-            raise StatusChangeAPIError(f'Status-change service returned {response.status_code}: {response.text[:200]}')
+            raise StatusChangeAPIError(f"Status-change service returned {response.status_code}: {response.text[:200]}")
         try:
             return response.json()
         except ValueError as e:
-            raise StatusChangeAPIError(f'Status-change service returned a non-JSON response: {e}') from e
+            raise StatusChangeAPIError(f"Status-change service returned a non-JSON response: {e}") from e
 
     def get_pending_reviews(self, include_acknowledged=False, start=0, rows=50):
         """
@@ -77,15 +77,15 @@ class StatusChangeAPIClient:
         attaches them, so there is no extra call per record. fetch_all_pending_reviews()
         walks every page.
         """
-        params = {'start': start, 'rows': min(rows, MAX_ROWS)}
+        params = {"start": start, "rows": min(rows, MAX_ROWS)}
         if not include_acknowledged:
-            params['reviewed_by_rdms'] = 'No'
-        page = self._request('GET', self._path(), params=params)
+            params["reviewed_by_rdms"] = "No"
+        page = self._request("GET", self._path(), params=params)
         # the service 404s instead of returning an empty page, both when nothing at all is
         # pending and when start has run off the end of the results
         if page is None:
             return []
-        return page.get('results', [])
+        return page.get("results", [])
 
     def _update(self, user, record_date, reviewer, **fields):
         """
@@ -94,16 +94,16 @@ class StatusChangeAPIClient:
         The service rejects a body holding nothing but author_utln, so at least one of
         reviewed_by_rdms, ncq_expiration_date or note has to survive that filtering.
         """
-        payload = {'author_utln': reviewer}
+        payload = {"author_utln": reviewer}
         payload.update({key: value for key, value in fields.items() if value is not None})
-        result = self._request('PATCH', self._path(user, record_date), json=payload)
+        result = self._request("PATCH", self._path(user, record_date), json=payload)
         if result is None:
             raise StatusChangeAPIError(f"No status change record found for '{user}' on {record_date}.")
         return result
 
     def acknowledge(self, user, record_date, reviewer, note=None):
         """Mark a change reviewed. The service stamps review_date and adds a 'Reviewed' note."""
-        self._update(user, record_date, reviewer, reviewed_by_rdms='Yes', note=note)
+        self._update(user, record_date, reviewer, reviewed_by_rdms="Yes", note=note)
         logger.info(f"Status change for '{user}' on {record_date} acknowledged by '{reviewer}'.")
 
     def grant_grace_period(self, user, record_date, reviewer, expiration_date, note=None):
@@ -114,7 +114,7 @@ class StatusChangeAPIClient:
         'Grace period granted until <date>' note, both service-side.
         """
         if not expiration_date:
-            raise StatusChangeAPIError('An expiration date is required to grant a grace period.')
+            raise StatusChangeAPIError("An expiration date is required to grant a grace period.")
         self._update(user, record_date, reviewer, ncq_expiration_date=expiration_date, note=note)
         logger.info(f"Grace period until {expiration_date} granted for '{user}' by '{reviewer}'.")
 
@@ -126,7 +126,7 @@ class StatusChangeAPIClient:
         the only way to write one, so the date is still needed to address the request.
         """
         if not note:
-            raise StatusChangeAPIError('Note text is required.')
+            raise StatusChangeAPIError("Note text is required.")
         self._update(user, record_date, reviewer, note=note)
 
 
@@ -153,6 +153,6 @@ def get_status_change_client():
     lives in tufts_local.tests.fakes, where application code can't reach for it.
     """
     return StatusChangeAPIClient(
-        base_url=ENV.str('RT_ANALYTICS_BASE_URL', default=''),
-        token=ENV.str('RT_ANALYTICS_API_KEY', default=''),
+        base_url=ENV.str("RT_ANALYTICS_BASE_URL", default=""),
+        token=ENV.str("RT_ANALYTICS_API_KEY", default=""),
     )

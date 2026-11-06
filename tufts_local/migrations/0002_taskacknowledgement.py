@@ -10,48 +10,48 @@ class Migration(migrations.Migration):
         # relaxed from the generated pin on django_q's latest migration: all this needs is
         # the Task table, which its 0001 creates, and pinning would force a django-q floor
         # on every deployment for no reason
-        ('django_q', '__first__'),
+        ("django_q", "__first__"),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
-        ('tufts_local', '0001_initial'),
+        ("tufts_local", "0001_initial"),
     ]
 
     operations = [
         migrations.CreateModel(
-            name='TaskAcknowledgement',
+            name="TaskAcknowledgement",
             fields=[
-                ('id', models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('acknowledged_at', models.DateTimeField(auto_now_add=True)),
+                ("id", models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name="ID")),
+                ("acknowledged_at", models.DateTimeField(auto_now_add=True)),
                 (
-                    'reason',
+                    "reason",
                     models.CharField(
                         blank=True,
-                        help_text='Optional note about why this failure is nothing to worry about.',
+                        help_text="Optional note about why this failure is nothing to worry about.",
                         max_length=255,
                     ),
                 ),
                 (
-                    'acknowledged_by',
+                    "acknowledged_by",
                     models.ForeignKey(
                         null=True,
                         on_delete=django.db.models.deletion.SET_NULL,
-                        related_name='+',
+                        related_name="+",
                         to=settings.AUTH_USER_MODEL,
                     ),
                 ),
                 (
-                    'task',
+                    "task",
                     models.OneToOneField(
-                        help_text='The failed task being acknowledged.',
+                        help_text="The failed task being acknowledged.",
                         on_delete=django.db.models.deletion.CASCADE,
-                        related_name='acknowledgement',
-                        to='django_q.task',
+                        related_name="acknowledgement",
+                        to="django_q.task",
                     ),
                 ),
             ],
             options={
-                'verbose_name': 'task acknowledgement',
-                'verbose_name_plural': 'task acknowledgements',
-                'ordering': ['-acknowledged_at'],
+                "verbose_name": "task acknowledgement",
+                "verbose_name_plural": "task acknowledgements",
+                "ordering": ["-acknowledged_at"],
             },
         ),
     ]

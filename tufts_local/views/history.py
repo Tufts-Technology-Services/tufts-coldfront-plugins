@@ -36,7 +36,7 @@ def project_history_search(request):
 
     Every status is included, archived ones too: a project's history outlives its status.
     """
-    query = request.GET.get('q', '').strip()
+    query = request.GET.get("q", "").strip()
     projects = []
     too_many = False
     if query:
@@ -44,19 +44,19 @@ def project_history_search(request):
             Project.objects.filter(
                 Q(title__icontains=query)
                 | Q(pi__username__icontains=query)
-                | Q(projectattribute__proj_attr_type__name='Project Key', projectattribute__value__icontains=query)
+                | Q(projectattribute__proj_attr_type__name="Project Key", projectattribute__value__icontains=query)
             )
-            .select_related('pi', 'status')
+            .select_related("pi", "status")
             .distinct()
-            .order_by('title')
+            .order_by("title")
         )
         projects = list(matches[: MAX_SEARCH_RESULTS + 1])
         too_many = len(projects) > MAX_SEARCH_RESULTS
         projects = projects[:MAX_SEARCH_RESULTS]
     return TemplateResponse(
         request,
-        'tufts_local/project_history_search.html',
-        {'query': query, 'projects': projects, 'too_many': too_many, 'max_results': MAX_SEARCH_RESULTS},
+        "tufts_local/project_history_search.html",
+        {"query": query, "projects": projects, "too_many": too_many, "max_results": MAX_SEARCH_RESULTS},
     )
 
 
@@ -71,13 +71,13 @@ def project_history(request, pk):
     The plan's first iteration adds the project's own fields and attributes, and its allocations.
     """
     try:
-        project = Project.objects.select_related('pi', 'status').get(pk=pk)
+        project = Project.objects.select_related("pi", "status").get(pk=pk)
     except Project.DoesNotExist:
-        raise Http404('No such project') from None
+        raise Http404("No such project") from None
     paginator = Paginator(get_project_membership_changes(project.pk), CHANGES_PER_PAGE)
-    page_obj = paginator.get_page(request.GET.get('page'))
+    page_obj = paginator.get_page(request.GET.get("page"))
     return TemplateResponse(
         request,
-        'tufts_local/project_history.html',
-        {'project': project, 'page_obj': page_obj, 'is_paginated': paginator.num_pages > 1},
+        "tufts_local/project_history.html",
+        {"project": project, "page_obj": page_obj, "is_paginated": paginator.num_pages > 1},
     )

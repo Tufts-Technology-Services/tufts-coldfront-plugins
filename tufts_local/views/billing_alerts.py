@@ -34,21 +34,21 @@ def acknowledge_allotment_failure(request, pk):
     the first person's acknowledgement.
     """
     failure = get_object_or_404(NoCostQuotaAllotmentFailure, pk=pk)
-    reason = request.POST.get('reason', '').strip()
+    reason = request.POST.get("reason", "").strip()
     if failure.resolve(request.user, reason):
         logger.info(
             f"No-cost quota allotment failure {pk} on allocation {failure.allocation_id} acknowledged by '{request.user.username}'."
         )
         forget_current_alerts()
         messages.success(
-            request, f'Acknowledged the failed no-cost quota allotment on allocation {failure.allocation_id}.'
+            request, f"Acknowledged the failed no-cost quota allotment on allocation {failure.allocation_id}."
         )
     else:
-        messages.info(request, 'That failure had already been dealt with.')
+        messages.info(request, "That failure had already been dealt with.")
 
-    next_path = request.POST.get('next', '')
+    next_path = request.POST.get("next", "")
     if not url_has_allowed_host_and_scheme(
         next_path, allowed_hosts={request.get_host()}, require_https=request.is_secure()
     ):
-        next_path = reverse('alert-list')
+        next_path = reverse("alert-list")
     return redirect(next_path)

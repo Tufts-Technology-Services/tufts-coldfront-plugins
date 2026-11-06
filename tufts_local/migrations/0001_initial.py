@@ -10,38 +10,38 @@ class Migration(migrations.Migration):
 
     operations = [
         migrations.CreateModel(
-            name='IgnoredTask',
+            name="IgnoredTask",
             fields=[
-                ('id', models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
+                ("id", models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name="ID")),
                 (
-                    'field',
+                    "field",
                     models.CharField(
-                        choices=[('name', 'Task name (starts with)'), ('group', 'Group id (exact)')],
-                        default='name',
-                        help_text='Which part of the task to match against.',
+                        choices=[("name", "Task name (starts with)"), ("group", "Group id (exact)")],
+                        default="name",
+                        help_text="Which part of the task to match against.",
                         max_length=5,
                     ),
                 ),
                 (
-                    'pattern',
+                    "pattern",
                     models.CharField(
-                        help_text='Task names match on a prefix, so add_sf_tags hides every add_sf_tags_alloc_activate_<id> task. Group ids must match in full. Matching ignores case.',
+                        help_text="Task names match on a prefix, so add_sf_tags hides every add_sf_tags_alloc_activate_<id> task. Group ids must match in full. Matching ignores case.",
                         max_length=100,
                     ),
                 ),
                 (
-                    'reason',
+                    "reason",
                     models.CharField(
-                        blank=True, help_text='Optional note about why these tasks are hidden.', max_length=255
+                        blank=True, help_text="Optional note about why these tasks are hidden.", max_length=255
                     ),
                 ),
-                ('created', models.DateTimeField(auto_now_add=True)),
+                ("created", models.DateTimeField(auto_now_add=True)),
             ],
             options={
-                'verbose_name': 'ignored task',
-                'verbose_name_plural': 'ignored tasks',
-                'ordering': ['field', 'pattern'],
-                'unique_together': {('field', 'pattern')},
+                "verbose_name": "ignored task",
+                "verbose_name_plural": "ignored tasks",
+                "ordering": ["field", "pattern"],
+                "unique_together": {("field", "pattern")},
             },
         ),
     ]

@@ -18,9 +18,9 @@ def alert_list(request):
     alerts, checked_at = get_current_alerts(request.user)
     return TemplateResponse(
         request,
-        'tufts_local/alert_list.html',
+        "tufts_local/alert_list.html",
         # where an Acknowledge button comes back to
-        {'alerts': alerts, 'generated_at': checked_at, 'return_path': request.get_full_path()},
+        {"alerts": alerts, "generated_at": checked_at, "return_path": request.get_full_path()},
     )
 
 
@@ -39,10 +39,10 @@ def alert_indicator(request):
     alerts, checked_at = get_current_alerts(request.user)
     return TemplateResponse(
         request,
-        'tufts_local/_alert_indicator.html',
+        "tufts_local/_alert_indicator.html",
         {
-            'alerts': alerts,
-            'critical_count': sum(alert.severity == 'danger' for alert in alerts),
-            'generated_at': checked_at,
+            "alerts": alerts,
+            "critical_count": sum(alert.severity == "danger" for alert in alerts),
+            "generated_at": checked_at,
         },
     )

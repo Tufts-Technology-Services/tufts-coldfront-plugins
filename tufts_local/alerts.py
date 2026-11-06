@@ -30,7 +30,7 @@ logger = logging.getLogger(__name__)
 CACHE_SECONDS = 15
 
 # worst first: each severity is also the Bootstrap contextual colour it is shown in, mapped to its label
-SEVERITY_LABELS = {'danger': 'Critical', 'warning': 'Warning', 'info': 'Info'}
+SEVERITY_LABELS = {"danger": "Critical", "warning": "Warning", "info": "Info"}
 SEVERITIES = tuple(SEVERITY_LABELS)
 
 
@@ -38,18 +38,18 @@ SEVERITIES = tuple(SEVERITY_LABELS)
 class Alert:
     severity: str
     title: str
-    detail: str = ''
+    detail: str = ""
     # where to go to act on it, if anywhere
-    link: str = ''
+    link: str = ""
     # the name it was registered under; collect_alerts() fills it in
-    source: str = ''
+    source: str = ""
     # where to POST to acknowledge it, for sources that offer that; the source decides what
     # acknowledging means. Empty for alerts that clear only when their cause is fixed.
-    ack_url: str = ''
+    ack_url: str = ""
 
     def __post_init__(self):
         if self.severity not in SEVERITIES:
-            raise ValueError(f'Unknown alert severity {self.severity!r}; expected one of {SEVERITIES}')
+            raise ValueError(f"Unknown alert severity {self.severity!r}; expected one of {SEVERITIES}")
 
     @property
     def severity_label(self):
@@ -75,7 +75,7 @@ def with_permission(perm):
     def audience(user):
         return user.has_perm(perm)
 
-    audience.__name__ = f'with_permission({perm!r})'
+    audience.__name__ = f"with_permission({perm!r})"
     return audience
 
 
@@ -104,7 +104,7 @@ def register_alert_source(name, audience=staff):
 
     def decorator(func):
         if name in _alert_sources and _alert_sources[name].func is not func:
-            raise ValueError(f'An alert source called {name!r} is already registered')
+            raise ValueError(f"An alert source called {name!r} is already registered")
         _alert_sources[name] = AlertSource(func, audience)
         return func
 
@@ -161,8 +161,8 @@ def collect_alerts():
         try:
             found = [_with_source(alert, name) for alert in source.func()]
         except Exception as e:
-            logger.exception(f'Alert source {name!r} failed')
-            found = [Alert('warning', f'Could not check {name}', detail=f'{type(e).__name__}: {e}', source=name)]
+            logger.exception(f"Alert source {name!r} failed")
+            found = [Alert("warning", f"Could not check {name}", detail=f"{type(e).__name__}: {e}", source=name)]
         alerts.extend(found)
     # sorted() is stable, so alerts of one severity keep the order their sources gave them
     return sorted(alerts, key=lambda alert: SEVERITIES.index(alert.severity))
@@ -170,5 +170,5 @@ def collect_alerts():
 
 def _with_source(alert, name):
     if not isinstance(alert, Alert):
-        raise TypeError(f'expected the source to return Alerts, got {type(alert).__name__}')
+        raise TypeError(f"expected the source to return Alerts, got {type(alert).__name__}")
     return replace(alert, source=name)

@@ -14,10 +14,10 @@ from django.apps import apps
 from django.urls import include, path
 
 urlpatterns = [
-    path('', include('coldfront.config.urls')),
-    path('', include('tufts_local.urls')),
+    path("", include("coldfront.config.urls")),
+    path("", include("tufts_local.urls")),
 ]
 
 # as production's local_urls adds it, where billing is installed
-if apps.is_installed('coldfront_billing'):
-    urlpatterns.append(path('billing/', include('coldfront_billing.urls')))
+if apps.is_installed("coldfront_billing"):
+    urlpatterns.append(path("billing/", include("coldfront_billing.urls")))
