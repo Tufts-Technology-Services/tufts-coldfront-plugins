@@ -8,6 +8,9 @@ import requests
 
 from coldfront.config.settings import ENV
 
+# seconds to wait for each rt-analytics request before giving up, so a hung API can't hold a worker
+RT_ANALYTICS_TIMEOUT = 30
+
 
 def get_ncq_eligibility():
     """
@@ -20,7 +23,9 @@ def get_ncq_eligibility():
     start = 0
     all_eligibility = []
     while True:
-        response = requests.get(url, headers=headers, params={"start": start, "rows": 250})
+        response = requests.get(
+            url, headers=headers, params={"start": start, "rows": 250}, timeout=RT_ANALYTICS_TIMEOUT
+        )
         if response.status_code == 200:
             data = response.json()
             results = data.get("results", [])
