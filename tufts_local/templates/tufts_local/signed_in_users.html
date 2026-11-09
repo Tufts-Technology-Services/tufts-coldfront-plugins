@@ -1,0 +1,50 @@
+{% extends "common/base.html" %}
+{% load humanize %}
+
+{% block title %}
+Signed-in Users
+{% endblock %}
+
+{% block content %}
+<h2>Signed-in Users</h2>
+<p>
+  Everyone who has made a request in the last {{ timeout_minutes }} minutes and hasn't signed out.
+  A session ends after {{ timeout_minutes }} minutes without a request. Closing the browser doesn't
+  end it, so someone who has closed theirs is still listed until then.
+</p>
+
+<div class="col-lg-12 mt-2">
+  {% if signed_in_users %}
+  <div class="table-responsive">
+    <table class="table table-sm">
+      <thead>
+        <tr>
+          <th scope="col">Username</th>
+          <th scope="col">Name</th>
+          <th scope="col">Last request</th>
+          <th scope="col">Sessions</th>
+          <th scope="col">Note</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in signed_in_users %}
+        <tr>
+          <td>{{ row.user.username }}</td>
+          <td>{{ row.user.get_full_name }}</td>
+          <td title="{{ row.last_request|date:'Y-m-d H:i:s' }}">{{ row.last_request|naturaltime }}</td>
+          <td>{{ row.session_count }}</td>
+          <td>
+            {% if row.logged_in_as_by %}
+            <span class="badge bg-warning text-dark">Logged in as them by {{ row.logged_in_as_by|join:", " }}</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="alert alert-info"><i class="fa fa-info-circle"></i> There are no signed-in users to display.</div>
+  {% endif %}
+</div>
+{% endblock %}

@@ -10,6 +10,7 @@ from .reports import (
     not_updated_report,
     sf_report,
 )
+from .signed_in_users import signed_in_users
 from .storage_status_change_view import storage_status_change_review
 from .task_acknowledgement import acknowledge_task, acknowledge_tasks_in_bulk, unacknowledge_task
 from .task_report import task_report
@@ -38,6 +39,7 @@ __all__ = [
     "add_user_to_coldfront",
     "login_as_user_view",
     "not_updated_report",
+    "signed_in_users",
     "storage_allocation_history",
     "storage_status_change_review",
     "task_report",
