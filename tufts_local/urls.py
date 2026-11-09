@@ -104,6 +104,11 @@ urlpatterns = [
         views.alert_indicator,
         name="alert-indicator",
     ),
+    path(
+        "signed-in-users/",
+        views.signed_in_users,
+        name="signed-in-users",
+    ),
 ]
 
 # coldfront_billing is optional, so its views are only routed where it's installed
