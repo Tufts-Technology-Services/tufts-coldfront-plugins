@@ -146,3 +146,13 @@ def test_an_allocation_without_a_vol_path_fails(allocation, scheduled):
         index_new_allocation(allocation_id=allocation.pk)
 
     scheduled.assert_not_called()
+
+
+def test_a_failure_setting_the_tags_fails_the_task(allocation, scheduled, tagging):
+    set_sf_owner_tag, _ = tagging
+    set_sf_owner_tag.side_effect = RuntimeError("Starfish refused the tag")
+
+    with starfish_answers(None, True), pytest.raises(RuntimeError, match="Starfish refused the tag"):
+        index_new_allocation(allocation_id=allocation.pk)
+
+    scheduled.assert_not_called()
