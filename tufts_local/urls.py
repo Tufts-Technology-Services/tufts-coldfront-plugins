@@ -109,6 +109,11 @@ urlpatterns = [
         views.signed_in_users,
         name="signed-in-users",
     ),
+    path(
+        "software-versions/",
+        views.software_versions,
+        name="software-versions",
+    ),
 ]
 
 # coldfront_billing is optional, so its views are only routed where it's installed

@@ -11,6 +11,7 @@ from .reports import (
     sf_report,
 )
 from .signed_in_users import signed_in_users
+from .software_versions import software_versions
 from .storage_status_change_view import storage_status_change_review
 from .task_acknowledgement import acknowledge_task, acknowledge_tasks_in_bulk, unacknowledge_task
 from .task_report import task_report
@@ -24,6 +25,7 @@ from .views import (
 )
 
 __all__ = [
+    "software_versions",
     "alert_indicator",
     "alert_list",
     "project_history",
