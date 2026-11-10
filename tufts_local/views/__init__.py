@@ -16,6 +16,7 @@ from .storage_status_change_view import storage_status_change_review
 from .task_acknowledgement import acknowledge_task, acknowledge_tasks_in_bulk, unacknowledge_task
 from .task_report import task_report
 from .update_project_owner_view import UpdateProjectOwnerView
+from .view_as import view_as_exit, view_as_start
 from .views import (
     add_user_to_coldfront,
     project_get_email_notification,
@@ -46,4 +47,6 @@ __all__ = [
     "storage_status_change_review",
     "task_report",
     "UpdateProjectOwnerView",
+    "view_as_exit",
+    "view_as_start",
 ]

@@ -21,3 +21,16 @@ urlpatterns = [
 # as production's local_urls adds it, where billing is installed
 if apps.is_installed("coldfront_billing"):
     urlpatterns.append(path("billing/", include("coldfront_billing.urls")))
+
+# django-su's pages, where coldfront's own urls only mount them if its backend is configured
+urlpatterns.append(path("su/", include("django_su.urls")))
+
+
+# a namespaced route, as a plugin with an app_name would have, for the read-only allowlist's tests
+def _plugin_report(request):
+    from django.http import HttpResponse
+
+    return HttpResponse("report")
+
+
+urlpatterns.append(path("plugin-test/", include(([path("report/", _plugin_report, name="report")], "plugin_test"))))
