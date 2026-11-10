@@ -1,0 +1,16 @@
+{% comment %}
+Where a package was installed from: a git commit (short, the full hash on hover and in the title to
+copy), or why there isn't one. Takes `source`, a tufts_local.software_versions.InstallSource.
+{% endcomment %}
+{% if source.kind == "git" %}
+<code title="{{ source.commit }}">{{ source.commit|slice:":7" }}</code>
+{% if source.revision %}<span class="badge bg-secondary">{{ source.revision }}</span>{% endif %}
+{% elif source.kind == "editable" %}
+<span class="text-muted">editable install, no commit</span>
+{% elif source.kind == "directory" %}
+<span class="text-muted">local directory, no commit</span>
+{% elif source.kind == "index" %}
+<span class="text-muted">package index, no commit</span>
+{% else %}
+<span class="text-muted">unknown</span>
+{% endif %}
