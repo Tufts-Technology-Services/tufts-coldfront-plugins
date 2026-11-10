@@ -76,3 +76,10 @@ def project(db, roles, statuses):
     )
     ProjectUser.objects.create(project=project, user=pi, role=roles["Manager"], status=statuses["Active"])
     return project
+
+
+@pytest.fixture
+def su_enabled(settings):
+    """django-su's backend and tufts_local's logging action, as production sets them."""
+    settings.AUTHENTICATION_BACKENDS = [*settings.AUTHENTICATION_BACKENDS, "django_su.backends.SuBackend"]
+    settings.SU_CUSTOM_LOGIN_ACTION = "tufts_local.su.log_su_login"
