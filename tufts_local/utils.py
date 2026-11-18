@@ -62,6 +62,7 @@ def volpath_to_project_key(volpath):
 
 
 def create_tufts_project(project_key, owner, group=None):
+    project_key = project_key.lower()  # new keys are lowercase, as the project creation form makes them
     if project_exists(project_key):
         return get_project_by_key(project_key)
     pi, created = User.objects.get_or_create(username=owner)

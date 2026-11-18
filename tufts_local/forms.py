@@ -38,7 +38,9 @@ class RequiredProjectAttributeForm(forms.Form):
         except Exception as e:
             raise forms.ValidationError(f"{str(e)}")
 
+        # new keys are lowercase: storage paths and the group are named from them
         project_key = cleaned_data.get("project_key").lower()
+        cleaned_data["project_key"] = project_key
         if ProjectAttribute.objects.filter(value__iexact=project_key, proj_attr_type__name="Project Key").exists():
             raise forms.ValidationError(f"A project with the key '{project_key}' already exists.")
         # validation for group
