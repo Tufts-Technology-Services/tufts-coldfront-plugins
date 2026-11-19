@@ -37,7 +37,7 @@ from coldfront.core.project.models import (
 )
 from coldfront.core.resource.models import Resource, ResourceType
 
-from tufts_local.tasks import update_project_approvers_from_tags
+from tufts_local.tasks import update_project_approvers_from_tags, update_sf_approver_tags
 
 User = get_user_model()
 
@@ -264,3 +264,21 @@ def test_a_failure_on_one_project_doesnt_stop_the_others(roles, statuses, starfi
     update_project_approvers_from_tags()
 
     assert role_of(fine, "approver01") == "Manager"
+
+
+# --- writing the tags -----------------------------------------------------------------------------
+
+
+def test_the_tags_written_name_the_projects_active_managers_but_not_its_pi(roles, statuses):
+    project = make_project("writelab", roles, statuses)
+    add_storage(project, "Tier 1 HPC", "projects:writelab")
+    add_storage(project, "Tier 1 RStore", "rstore-cifs:WriteLab")
+    add_member(project, "approver01", roles["Manager"], statuses["Active"])
+    add_member(project, "removed01", roles["Manager"], statuses["Removed"])
+    add_member(project, "member01", roles["User"], statuses["Active"])
+
+    with patch("tufts_local.tasks.sync_approver_tags") as sync_approver_tags:
+        update_sf_approver_tags(project.pk)
+
+    written = {call.args[0]: sorted(call.args[1]) for call in sync_approver_tags.call_args_list}
+    assert written == {"projects:writelab": ["approver01"], "rstore-cifs:WriteLab": ["approver01"]}

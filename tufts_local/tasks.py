@@ -86,15 +86,17 @@ def approver_vol_paths_by_project() -> dict:
     return {project: tier1_paths.get(project) or paths for project, paths in all_paths.items()}
 
 
+def starfish_approver_usernames(project) -> set:
+    """Who the project's directories should carry Approver tags for: its active Managers but the PI."""
+    approvers = ProjectUser.objects.filter(project=project, role__name="Manager", status__name="Active")
+    return set(approvers.values_list("user__username", flat=True)) - {project.pi.username}
+
+
 def update_sf_approver_tags(project_id):
-    # write starfish tags corresponding to project approvers for all projects in Coldfront
+    """Write the project's approvers to the Approver tags on each of its Starfish directories."""
     updates = []
     proj = Project.objects.get(id=project_id)
-    approvers = set(
-        ProjectUser.objects.filter(project=proj, role__name="Manager").values_list("user__username", flat=True)
-    )
-    # don't include the project PI in the list of approvers
-    approvers = approvers - {proj.pi.username}
+    approvers = starfish_approver_usernames(proj)
 
     alloc_attr = AllocationAttribute.objects.filter(
         allocation__project=proj, allocation_attribute_type__name="sf_vol_path"
