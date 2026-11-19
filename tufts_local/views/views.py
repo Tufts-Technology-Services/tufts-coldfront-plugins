@@ -9,13 +9,11 @@ from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
 from django.views.decorators.http import require_GET, require_POST
-from django_q.tasks import async_task
 
 from coldfront.core.allocation.models import Allocation
 from coldfront.core.project.models import ProjectUser, ProjectUserRoleChoice
 
 from tufts_local import utils
-from tufts_local.tasks import update_sf_approver_tags
 from tufts_local.utils import UserNotFoundError, approver_at_least
 
 logger = logging.getLogger(__name__)
@@ -37,10 +35,9 @@ def project_update_user_role(request):
             project_user_role = ProjectUserRoleChoice.objects.get(name=role_name)
             if project_user_role:
                 project_user_obj.role = project_user_role
+                # saving it queues the Starfish Approver tags (signals.queue_approver_tags)
                 project_user_obj.save()
-                # update the Starfish tags for the project approvers
-                r = async_task(update_sf_approver_tags, project_user_obj.project.id)
-                return JsonResponse({"message": "role updated", "task_id": r}, status=200)
+                return JsonResponse({"message": "role updated"}, status=200)
             else:
                 return JsonResponse({"message": "invalid role specified"}, status=400)
         else:

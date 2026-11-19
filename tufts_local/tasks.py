@@ -6,6 +6,7 @@ import csv
 import datetime
 import io
 import logging
+from collections import defaultdict
 
 from coldfront_utils import mail_report
 from coldfront_utils.tasks import RetryLater, build_task_result, reschedulable
@@ -19,8 +20,9 @@ from tufts_local.starfish_utils import (
     add_to_starfish_index,
     get_starfish_usage_data_by_volume,
     get_starfish_volumes,
+    parse_tags,
     set_owner_tag,
-    set_project_approvers_from_starfish,
+    set_project_approvers,
     sync_approver_tags,
 )
 
@@ -35,21 +37,66 @@ TIER2_REPORT_COLUMNS = ("mountpoint", "used", "quota", "snapshot_size")
 
 
 def update_project_approvers_from_tags():
+    """Set each project's approvers from the Approver tags on its Starfish directories.
+
+    A project's directories are its active allocations' sf_vol_paths: only the Tier 1 ones if it
+    has any, since approvers are a Tier 1 matter. Anyone tagged on any of them is an approver. A
+    project none of whose directories Starfish has is left alone.
+    """
+    approvers_by_vol_path = {}
     for volume in get_starfish_volumes("starfish"):
-        subfolder_response = get_starfish_usage_data_by_volume(volume, "starfish")
-        for vol_path_data in subfolder_response:
-            set_project_approvers_from_starfish(vol_path_data)
+        for entry in get_starfish_usage_data_by_volume(volume, "starfish"):
+            tags = parse_tags((entry.get("tags_explicit") or "").split(","))
+            approvers_by_vol_path[entry["vol_path"].lower()] = tags.get("Approver", set())
+
+    updated, not_in_starfish, failed = 0, 0, 0
+    for project, vol_paths in approver_vol_paths_by_project().items():
+        tagged = [approvers_by_vol_path[vp.lower()] for vp in vol_paths if vp.lower() in approvers_by_vol_path]
+        if not tagged:
+            logger.info(f"None of project {project.pk}'s directories {sorted(vol_paths)} are in Starfish.")
+            not_in_starfish += 1
+            continue
+        try:
+            set_project_approvers(project, set().union(*tagged))
+            updated += 1
+        except Exception:
+            logger.exception(f"Could not set project {project.pk}'s approvers from its Starfish tags")
+            failed += 1
+    message = f"set approvers on {updated} projects; {not_in_starfish} have no directory in Starfish; {failed} failed"
+    return build_task_result("failed" if failed else "successful", message)
+
+
+def approver_vol_paths_by_project() -> dict:
+    """The sf_vol_paths that carry each project's Approver tags: its active allocations', only the
+    Tier 1 ones if it has any."""
+    attrs = AllocationAttribute.objects.filter(
+        allocation_attribute_type__name="sf_vol_path", allocation__status__name="Active"
+    ).select_related("allocation__project__pi")
+    tier1_allocations = set(
+        Allocation.objects.filter(status__name="Active", resources__name__contains="Tier 1").values_list(
+            "pk", flat=True
+        )
+    )
+    all_paths, tier1_paths = defaultdict(set), defaultdict(set)
+    for attr in attrs:
+        project = attr.allocation.project
+        all_paths[project].add(attr.value)
+        if attr.allocation_id in tier1_allocations:
+            tier1_paths[project].add(attr.value)
+    return {project: tier1_paths.get(project) or paths for project, paths in all_paths.items()}
+
+
+def starfish_approver_usernames(project) -> set:
+    """Who the project's directories should carry Approver tags for: its active Managers but the PI."""
+    approvers = ProjectUser.objects.filter(project=project, role__name="Manager", status__name="Active")
+    return set(approvers.values_list("user__username", flat=True)) - {project.pi.username}
 
 
 def update_sf_approver_tags(project_id):
-    # write starfish tags corresponding to project approvers for all projects in Coldfront
+    """Write the project's approvers to the Approver tags on each of its Starfish directories."""
     updates = []
     proj = Project.objects.get(id=project_id)
-    approvers = set(
-        ProjectUser.objects.filter(project=proj, role__name="Manager").values_list("user__username", flat=True)
-    )
-    # don't include the project PI in the list of approvers
-    approvers = approvers - {proj.pi.username}
+    approvers = starfish_approver_usernames(proj)
 
     alloc_attr = AllocationAttribute.objects.filter(
         allocation__project=proj, allocation_attribute_type__name="sf_vol_path"

@@ -3,15 +3,17 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import logging
+from contextlib import contextmanager
+from contextvars import ContextVar
 from time import sleep
 
 from coldfront_utils import ttl_cache
 from storage.utils import get_client_config
 
-from coldfront.core.allocation.models import Allocation, AllocationAttribute, AllocationAttributeType
+from coldfront.core.allocation.models import AllocationAttribute, AllocationAttributeType
 from coldfront.core.project.models import ProjectUser, ProjectUserRoleChoice, ProjectUserStatusChoice
 
-from tufts_local.utils import create_user, get_project_by_key, volpath_to_project_key
+from tufts_local.utils import create_user
 
 logger = logging.getLogger(__name__)
 
@@ -136,31 +138,21 @@ def sync_approver_tags(vol_path, approvers: list, client_key=None):
     return {"vol_path": vol_path, "added": tags_to_add, "removed": tags_to_remove}
 
 
-def set_project_approvers_from_starfish(vol_path_data):
-    if not vol_path_data:
-        logger.warning(f"No data found for vol_path {vol_path_data['vol_path']} in Starfish.")
-        return
-    try:
-        project_key = volpath_to_project_key(vol_path_data["vol_path"])
-        proj = get_project_by_key(project_key)
-        if proj is None:
-            raise ValueError("no matching project found")
-        tier1_exists = Allocation.objects.filter(
-            project=proj, resources__name__contains="Tier 1", status__name="Active"
-        ).exists()
-        if tier1_exists:
-            # skip tier2 and tier3 allocations since approvers are only relevant for tier1
-            if vol_path_data["vol_path"].split(":")[0] in ["tier2", "cold"]:
-                return
-        existing_tags = parse_tags(vol_path_data.get("tags_explicit", "").split(","))
-        sf_approvers = existing_tags.get("Approver", set())
-        approver = ProjectUserRoleChoice.objects.get(name="Manager")
-        member = ProjectUserRoleChoice.objects.get(name="User")
-        active_status = ProjectUserStatusChoice.objects.get(name="Active")
-        project_users = proj.projectuser_set.all()
+def set_project_approvers(project, sf_approvers: set):
+    """Make the project's members match the approvers its Starfish directories are tagged with.
 
+    A member tagged as an approver becomes an active Manager; any other active member, a User. The
+    PI is left alone, and a tagged approver who isn't a member is added as one. The saves are made
+    inside roles_from_starfish(), so they don't queue the tags being written back.
+    """
+    approver = ProjectUserRoleChoice.objects.get(name="Manager")
+    member = ProjectUserRoleChoice.objects.get(name="User")
+    active_status = ProjectUserStatusChoice.objects.get(name="Active")
+    project_users = project.projectuser_set.all()
+
+    with roles_from_starfish():
         for proj_user in project_users:
-            if proj_user.user == proj.pi:
+            if proj_user.user == project.pi:
                 # skip the PI as they should always have the manager role
                 continue
             if proj_user.user.username in sf_approvers:
@@ -177,12 +169,30 @@ def set_project_approvers_from_starfish(vol_path_data):
         for username in new_users:
             user = create_user(username)
             proj_user, _ = ProjectUser.objects.get_or_create(
-                user=user, project=proj, defaults={"status": active_status, "role": approver}
+                user=user, project=project, defaults={"status": active_status, "role": approver}
             )
             proj_user.role = approver
             proj_user.save()
-    except Exception as e:
-        logger.error(f"Error processing {vol_path_data['vol_path']}: {e}")
+
+
+# set while the nightly read-back saves roles from the tags, so those saves don't queue the tags
+# being written back to Starfish
+_roles_from_starfish = ContextVar("roles_from_starfish", default=False)
+
+
+@contextmanager
+def roles_from_starfish():
+    """Mark the project-user saves made inside it as coming from Starfish's tags."""
+    token = _roles_from_starfish.set(True)
+    try:
+        yield
+    finally:
+        _roles_from_starfish.reset(token)
+
+
+def writing_roles_from_starfish() -> bool:
+    """Whether the current save is being made inside roles_from_starfish()."""
+    return _roles_from_starfish.get()
 
 
 def set_project_user_role(proj_user, role):

@@ -84,18 +84,17 @@ class TestProjectUpdateUserRole:
         assert response.status_code == 400
         assert json.loads(response.content) == {"message": "invalid role specified"}
 
-    @patch("tufts_local.views.views.async_task")
     @patch("tufts_local.views.views.ProjectUserRoleChoice")
     @patch("tufts_local.views.views.approver_at_least")
     @patch("tufts_local.views.views.get_object_or_404")
-    def test_success(self, mock_get_object, mock_approver, mock_role_choice, mock_async_task, rf):
+    def test_success(self, mock_get_object, mock_approver, mock_role_choice, rf):
+        """The view only saves the role: saving it queues the Starfish tags (test_approver_tag_signals.py)."""
         project_user_obj = MagicMock()
         project_user_obj.project.id = 42
         mock_get_object.return_value = project_user_obj
         mock_approver.return_value = True
         role = MagicMock()
         mock_role_choice.objects.get.return_value = role
-        mock_async_task.return_value = "task-id-123"
 
         request = rf.post("/project-update-user-role/", {"user_project_id": "1", "role": "Manager"})
         request.user = make_user()
@@ -103,10 +102,9 @@ class TestProjectUpdateUserRole:
         response = views.project_update_user_role(request)
 
         assert response.status_code == 200
-        assert json.loads(response.content) == {"message": "role updated", "task_id": "task-id-123"}
+        assert json.loads(response.content) == {"message": "role updated"}
         assert project_user_obj.role == role
         project_user_obj.save.assert_called_once()
-        mock_async_task.assert_called_once_with(views.update_sf_approver_tags, 42)
 
 
 class TestProjectGetEmailNotification:
