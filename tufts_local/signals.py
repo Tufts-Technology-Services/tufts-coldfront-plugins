@@ -5,11 +5,13 @@
 import logging
 
 from coldfront_utils.signals import share_creation_successful
+from django.core.exceptions import PermissionDenied
 from django.db import transaction
-from django.db.models.signals import post_save, pre_save
+from django.db.models.signals import post_save, pre_delete, pre_save
 from django.dispatch import receiver
 from django_q.tasks import async_task
 
+from coldfront.core.allocation.models import Allocation
 from coldfront.core.project.models import ProjectUser
 
 from .constants import SF_OWNER_TAG_PERSIST
@@ -79,3 +81,28 @@ def _queue_approver_tags(project_id):
         )
     except Exception:
         logger.exception(f"Could not queue the Starfish Approver tag update for project {project_id}")
+
+
+class ActiveAllocationDeletion(PermissionDenied):
+    """An Active allocation can't be deleted: revoke it first, so its users are taken off it.
+
+    A PermissionDenied, not a plain Exception, so the admin answers a refused delete with a 403
+    page rather than a server error.
+    """
+
+
+@receiver(pre_delete, sender=Allocation, dispatch_uid="tufts_local.record_resources_on_delete")
+def record_resources_on_delete(sender, instance, **kwargs):
+    """Refuse to delete an Active allocation; otherwise record its resources in the history row the delete writes.
+
+    The allocation's history doesn't track its resources, so without this, once it's deleted
+    nothing says what it was an allocation of. simple_history takes the deletion row's change reason
+    from the instance, and Django sends pre_delete and post_delete with the same instance, while the
+    resources can still be read. Raising here rolls back the whole delete, cascades included.
+    """
+    if instance.status.name == "Active":
+        raise ActiveAllocationDeletion(f"Allocation {instance.pk} is Active: revoke it first, then delete it.")
+    names = ", ".join(instance.resources.order_by("name").values_list("name", flat=True)) or "none"
+    reason = f"Deleted; resources: {names}"
+    # the history's change reason field holds 100 characters
+    instance._change_reason = reason if len(reason) <= 100 else reason[:99] + "…"
