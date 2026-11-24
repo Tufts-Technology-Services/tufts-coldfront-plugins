@@ -76,6 +76,42 @@ su end: admin=rdms_admin released=pi01 back_to=rdms_admin forwarded_for='130.64.
 `admin` is always the superuser who first signed in, however many accounts they have moved through.
 `forwarded_for` and `remote_addr` are given as received, since a client can set X-Forwarded-For.
 
+## Importing legacy projects
+
+`import_legacy_projects` sets existing projects' `users_managed` and `Group` attributes from a CSV
+with the columns `Name`, `Project ID`, `Project Key`, `user_managed`, `Group` and `Users`, and adds
+the `Users` to the project:
+
+```sh
+coldfront import_legacy_projects projects.csv --dry-run
+coldfront import_legacy_projects projects.csv --acting-user <your username>
+```
+
+- **Each row is validated first.** Name, Project ID and Project Key must name the same Active project
+  (Name and key in any case); the group must be in Grouper and not be another project's `Group`;
+  and the project must have a directory in Starfish. With `--dry-run`
+  the command stops there, printing each project's errors, changes and notes. Otherwise it changes
+  nothing if any row is invalid, unless given `--skip-invalid`. Each project is changed in a
+  transaction of its own.
+- **Members come from the `Users` column.** Each user in it who is in AD becomes an Active member,
+  whether or not they're in the Grouper group; users not in AD are noted and skipped. One tagged
+  `Approver:` on the project's Starfish directories (its Tier 1 ones, if it has any, as the nightly
+  read-back takes them) becomes a Manager, any other a User. The PI is left alone, and members not
+  in the column are noted, not removed. Group members who aren't project users are noted, not added.
+- **Allocation users follow.** Every active member is made an active user of each of the project's
+  Active allocations. Allocation users who aren't members are noted, not removed.
+- **So does the Grouper group, except in a dry run.** The column's users in AD who aren't in the
+  group are added to it, as Add Users would. That's done once the project's ColdFront changes are
+  committed, since Grouper's can't be rolled back with them: an addition Grouper refuses is reported
+  and the ColdFront changes stand. Running the import again retries it.
+- **Lookups are cached** in Django's cache for six hours, so a dry run and the real run after it ask
+  AD and Grouper about each name once, and Starfish about each volume once. Only lookups that found
+  something are cached, so a user or group added after a dry run is seen by the next run. Adding
+  users to a group updates its cached members.
+- The saves don't queue the write-back of Approver tags to Starfish, since the roles came from
+  there, and they send none of ColdFront's view signals: the import makes the Grouper additions
+  itself.
+
 ## License
 
 Copyright (C) 2026 Tufts Technology Services (TTS)
